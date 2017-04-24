@@ -19,7 +19,7 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "TAppDecoderAnalyser", "vc10
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "TLibDecoderAnalyser", "vc10\TLibDecoderAnalyser_vc10.vcxproj", "{68C1251A-55D8-47C9-9052-62F785BD437A}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libHMDecoder", "vc10\TLibDecoderAnalyser_vc10.vcxproj", "{ABCDE51A-55D8-47C9-9052-62F785BD437A}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libHMDecoder", "vc10\libHMDecoder_vc10.vcxproj", "{ABCDE51A-55D8-47C9-9052-62F785BD437A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
