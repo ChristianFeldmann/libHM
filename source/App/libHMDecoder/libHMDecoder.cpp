@@ -243,9 +243,11 @@ extern "C" {
       return -1;
 
     if (c == LIBHMDEC_LUMA)
-      return pcPic->getPicYuvRec()->getWidth();
-    if (c == LIBHMDEC_CHROMA_U || c == LIBHMDEC_CHROMA_V)
-      return pcPic->getPicYuvRec()->getWidth() / 2;
+      return pcPic->getPicYuvRec()->getWidth(COMPONENT_Y);
+    if (c == LIBHMDEC_CHROMA_U)
+      return pcPic->getPicYuvRec()->getWidth(COMPONENT_Cb);
+    if (c == LIBHMDEC_CHROMA_V)
+      return pcPic->getPicYuvRec()->getWidth(COMPONENT_Cr);
     return -1;
   }
   HM_DEC_API int libHMDEC_get_picture_height(libHMDec_picture *pic, libHMDec_ColorComponent c)
@@ -257,9 +259,11 @@ extern "C" {
       return -1;
 
     if (c == LIBHMDEC_LUMA)
-      return pcPic->getPicYuvRec()->getHeight();
-    if (c == LIBHMDEC_CHROMA_U || c == LIBHMDEC_CHROMA_V)
-      return pcPic->getPicYuvRec()->getHeight() / 2;
+      return pcPic->getPicYuvRec()->getHeight(COMPONENT_Y);
+    if (c == LIBHMDEC_CHROMA_U)
+      return pcPic->getPicYuvRec()->getHeight(COMPONENT_Cb);
+    if (c == LIBHMDEC_CHROMA_V)
+      return pcPic->getPicYuvRec()->getHeight(COMPONENT_Cr);
     return -1;
   }
 
@@ -272,9 +276,11 @@ extern "C" {
       return -1;
     
     if (c == LIBHMDEC_LUMA)
-      return pcPic->getPicYuvRec()->getStride();
-    if (c == LIBHMDEC_CHROMA_U || c == LIBHMDEC_CHROMA_V)
-      return pcPic->getPicYuvRec()->getStride() / 2;
+      return pcPic->getPicYuvRec()->getStride(COMPONENT_Y);
+    if (c == LIBHMDEC_CHROMA_U)
+      return pcPic->getPicYuvRec()->getStride(COMPONENT_Cb);
+    if (c == LIBHMDEC_CHROMA_V)
+      return pcPic->getPicYuvRec()->getStride(COMPONENT_Cr);
     return -1;
   }
 
@@ -287,20 +293,22 @@ extern "C" {
       return NULL;
 
     if (c == LIBHMDEC_LUMA)
-      return (uint8_t*)pcPic->getPicYuvRec()->getLumaAddr();
+      return (uint8_t*)pcPic->getPicYuvRec()->getAddr(COMPONENT_Y);
     if (c == LIBHMDEC_CHROMA_U)
-      return (uint8_t*)pcPic->getPicYuvRec()->getCbAddr();
+      return (uint8_t*)pcPic->getPicYuvRec()->getAddr(COMPONENT_Cb);
     if (c == LIBHMDEC_CHROMA_V)
-      return (uint8_t*)pcPic->getPicYuvRec()->getCrAddr();
+      return (uint8_t*)pcPic->getPicYuvRec()->getAddr(COMPONENT_Cr);
     return NULL;
   }
 
   int libHMDEC_get_internal_bit_depth(libHMDec_ColorComponent c)
   {
     if (c == LIBHMDEC_LUMA)
-      return g_bitDepthY;
-    if (c == LIBHMDEC_CHROMA_U || c == LIBHMDEC_CHROMA_V)
-      return g_bitDepthC;
+      return g_bitDepth[COMPONENT_Y];
+    if (c == LIBHMDEC_CHROMA_U)
+      return g_bitDepth[COMPONENT_Cb];
+    if (c == LIBHMDEC_CHROMA_V)
+      return g_bitDepth[COMPONENT_Cr];
     return -1;
   }
 
