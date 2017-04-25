@@ -34,13 +34,12 @@ HM_DEC_API libHMDec_context* libHMDec_new_decoder(void);
 HM_DEC_API libHMDec_error    libHMDec_free_decoder(libHMDec_context*);
 
 /* The following functions can be used to configure the deoder.
- * Only use them before creating a new decoder with libHMDec_new_decoder. 
- * Afterwards, they have no effect.
+ * These are best set before you start decoding.
 */
 // Enable/disable checking the SEI hash (default enabled).
-HM_DEC_API void libHMDec_set_SEI_Check(bool check_hash);
+HM_DEC_API void libHMDec_set_SEI_Check(libHMDec_context* decCtx, bool check_hash);
 // Set the maximum temporal layer to decode. -1: All layers (default)
-HM_DEC_API void libHMDec_set_max_temporal_layer(int max_layer);
+HM_DEC_API void libHMDec_set_max_temporal_layer(libHMDec_context* decCtx, int max_layer);
 
 // Push a single NAL unit into the decoder (excluding the start code but including the NAL unit header).
 // This will perform decoding.
@@ -57,14 +56,25 @@ typedef enum
   LIBHMDEC_CHROMA_V
 } libHMDec_ColorComponent;
 
+typedef enum
+{
+  LIBHMDEC_CHROMA_400 = 0,
+  LIBHMDEC_CHROMA_420,
+  LIBHMDEC_CHROMA_422,
+  LIBHMDEC_CHROMA_444,
+  LIBHMDEC_CHROMA_UNKNOWN
+} libHMDec_ChromaFormat;
+
+
 // Get the next output picture. NULL if no picture can be read right now.
-HM_DEC_API libHMDec_picture *libHMDec_get_picture();
-// 
+HM_DEC_API libHMDec_picture *libHMDec_get_picture(libHMDec_context* decCtx);
+// Get info from the picture
+HM_DEC_API int libHMDEC_get_POC(libHMDec_picture *pic);
 HM_DEC_API int libHMDEC_get_picture_width(libHMDec_picture *pic, libHMDec_ColorComponent c);
 HM_DEC_API int libHMDEC_get_picture_height(libHMDec_picture *pic, libHMDec_ColorComponent c);
 HM_DEC_API int libHMDEC_get_picture_stride(libHMDec_picture *pic, libHMDec_ColorComponent c);
-HM_DEC_API int libHMDEC_get_picture_stride(libHMDec_picture *pic, libHMDec_ColorComponent c);
-HM_DEC_API uint8_t *libHMDEC_get_image_plane(libHMDec_picture *pic, libHMDec_ColorComponent c);
+HM_DEC_API short *libHMDEC_get_image_plane(libHMDec_picture *pic, libHMDec_ColorComponent c);
+HM_DEC_API libHMDec_ChromaFormat libHMDEC_get_chroma_format(libHMDec_picture *pic);
 
 HM_DEC_API int libHMDEC_get_internal_bit_depth(libHMDec_ColorComponent c);
 
