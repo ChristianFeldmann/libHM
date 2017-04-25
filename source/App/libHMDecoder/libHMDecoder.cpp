@@ -27,8 +27,10 @@ public:
     pcListPic = NULL;
     pcListPic_readIdx = 0;
     numPicsNotYetDisplayed = 0;
+    dpbFullness = 0;
     lastNALTemporalID = 0;
     flushOutput = false;
+    sheduleFlushing = false;
 
     md5_mismatch = false;
 
@@ -47,8 +49,12 @@ public:
   TComList<TComPic*>* pcListPic;
   int pcListPic_readIdx;
   int numPicsNotYetDisplayed;
+  unsigned int numReorderPicsHighestTid;
+  unsigned int maxDecPicBufferingHighestTid;
+  int dpbFullness;
   int lastNALTemporalID;
   bool flushOutput;
+  bool sheduleFlushing; // After the normal output function is finished, we will perform flushing.
   
   // The local memory for the global variable
   bool md5_mismatch;
@@ -105,12 +111,12 @@ extern "C" {
     if (!d)
       return LIBHMDEC_ERROR;
 
-    if (length <= 0 && !eof)
+    if (length <= 0)
       return LIBHMDEC_ERROR_READ_ERROR;
     
     // Check the NAL unit header
     uint8_t *data = (uint8_t*)data8;
-    if (length < 4)
+    if (length < 4 && !eof)
       return LIBHMDEC_ERROR_READ_ERROR;
 
     // Do not copy the start code (if present)
@@ -122,20 +128,17 @@ extern "C" {
 
     // Recieve the NAL units data and put it into a vector so that we can parse it using the InputNALUnit.
     vector<uint8_t> nalUnit;
-    if (!eof)
+    for (int i = 0; i < copyStart; i++)
+      data++;
+    for (int i = 0; i < length-copyStart; i++)
     {
-      for (int i = 0; i < copyStart; i++)
-        data++;
-      for (int i = 0; i < length-copyStart; i++)
-      {
-        nalUnit.push_back(*data);
-        data++;
-      }
+      nalUnit.push_back(*data);
+      data++;
     }
 
+    // Read the NAL unit
     InputNALUnit nalu;
-    if (!eof)
-      read(nalu, nalUnit);
+    read(nalu, nalUnit);
     
     if( (d->maxTemporalLayer >= 0 && nalu.m_temporalId > d->maxTemporalLayer) || !isNaluWithinTargetDecLayerIdSet(&nalu)  )
     {
@@ -161,17 +164,16 @@ extern "C" {
     // Filter the picture if decoding is complete
     if (bNewPicture || eof || nalu.m_nalUnitType == NAL_UNIT_EOS)
     {
-      if (!d->loopFiltered || eof)
-      {
-        int poc;
+      int poc;
+      if (!d->loopFiltered || !eof)
         d->decTop.executeLoopFilters(poc, d->pcListPic);
-      }
       d->loopFiltered = (nalu.m_nalUnitType == NAL_UNIT_EOS);
     }
 
     // Check if we might be able to read pictures
     checkOutputPictures = false;
     d->flushOutput = false;
+    bool fixCheckOutput;
     if ( bNewPicture &&
       (   nalu.m_nalUnitType == NAL_UNIT_CODED_SLICE_IDR_W_RADL
         || nalu.m_nalUnitType == NAL_UNIT_CODED_SLICE_IDR_N_LP
@@ -185,17 +187,36 @@ extern "C" {
     if (nalu.m_nalUnitType == NAL_UNIT_EOS)
     {
       checkOutputPictures = true;
-      d->flushOutput = true;
+      fixCheckOutput = true;
     }
-    // write reconstruction to file
-    if(bNewPicture)
+
+    // FIX_WRITING_OUTPUT
+    fixCheckOutput = (!bNewPicture && nalu.m_nalUnitType >= NAL_UNIT_CODED_SLICE_TRAIL_N && nalu.m_nalUnitType <= NAL_UNIT_RESERVED_VCL31);
+    
+    // next, try to get frames from the deocder
+    if((bNewPicture || fixCheckOutput) && d->pcListPic != NULL)
     {
       checkOutputPictures = true;
 
       d->lastNALTemporalID = nalu.m_temporalId;
 
-      // Calculate the number of not yet displayed pictures
+      // This is what xWriteOutput does before iterating over the pictures
+      TComSPS* activeSPS = d->decTop.getActiveSPS();
+      unsigned int maxNrSublayers = activeSPS->getMaxTLayers();
       d->numPicsNotYetDisplayed = 0;
+      d->dpbFullness = 0;
+
+      if(d->maxTemporalLayer == -1 || d->maxTemporalLayer >= maxNrSublayers)
+      {
+        d->numReorderPicsHighestTid = activeSPS->getNumReorderPics(maxNrSublayers-1);
+        d->maxDecPicBufferingHighestTid =  activeSPS->getMaxDecPicBuffering(maxNrSublayers-1); 
+      }
+      else
+      {
+        d->numReorderPicsHighestTid = activeSPS->getNumReorderPics(d->maxTemporalLayer);
+        d->maxDecPicBufferingHighestTid = activeSPS->getMaxDecPicBuffering(d->maxTemporalLayer); 
+      }
+
       TComList<TComPic*>::iterator iterPic = d->pcListPic->begin();
       while (iterPic != d->pcListPic->end())
       {
@@ -203,20 +224,27 @@ extern "C" {
         if(pcPic->getOutputMark() && pcPic->getPOC() > d->iPOCLastDisplay)
         {
           d->numPicsNotYetDisplayed++;
+          d->dpbFullness++;
+        }
+        else if(pcPic->getSlice( 0 )->isReferenced())
+        {
+          d->dpbFullness++;
         }
         iterPic++;
       }
-      iterPic = d->pcListPic->begin();
-      if (d->numPicsNotYetDisplayed>2)
-      {
-        iterPic++;
-      }
+    }
+    
+    if (eof)
+    {
+      // At the end of the file we have to use the normal output function once and then the flushing
+      checkOutputPictures = true;
+      d->sheduleFlushing = true;
     }
     
     if (checkOutputPictures)
       // Reset the iterator over the output images
       d->pcListPic_readIdx = 0;
-
+    
     return LIBHMDEC_OK;
   }
 
@@ -238,20 +266,24 @@ extern "C" {
     for (int i = 0; i < d->pcListPic_readIdx; i++)
       iterPic++;
 
-    TComPic* pcPic = *(iterPic);
-    if (pcPic->isField())
+    if ((*(iterPic))->isField())
       // TODO: Field output not supported (YET)
       return NULL;
 
     // Go on in the list until we run out of frames or find one that we can output
     while (iterPic != d->pcListPic->end())
     {
+      TComPic* pcPic = *(iterPic);
+
       if ((d->flushOutput && (pcPic->getOutputMark())) ||
-        (pcPic->getOutputMark() && (d->numPicsNotYetDisplayed > pcPic->getNumReorderPics(d->lastNALTemporalID) && pcPic->getPOC() > d->iPOCLastDisplay)))
+        pcPic->getOutputMark() && pcPic->getPOC() > d->iPOCLastDisplay && (d->numPicsNotYetDisplayed > d->numReorderPicsHighestTid || d->dpbFullness > d->maxDecPicBufferingHighestTid))
       {
         if (!d->flushOutput)
           // Output picture found
           d->numPicsNotYetDisplayed--;
+
+        if(pcPic->getSlice(0)->isReferenced() == false)
+          d->dpbFullness--;
 
         // update POC of display order
         d->iPOCLastDisplay = pcPic->getPOC();
@@ -283,11 +315,20 @@ extern "C" {
     }
 
     // We reached the end of the list wothout finding an output picture
-
     if (d->flushOutput)
     {
+      // Flushing over
       d->pcListPic->clear();
       d->iPOCLastDisplay = -MAX_INT;
+      d->flushOutput = false;
+    }
+    if (d->sheduleFlushing)
+    {
+      // The normal output function is over, now let's flush
+      d->flushOutput = true;
+      d->sheduleFlushing = false;
+      d->pcListPic_readIdx = 0;   // Iterate over all items again
+      return libHMDec_get_picture(decCtx);
     }
 
     return NULL;

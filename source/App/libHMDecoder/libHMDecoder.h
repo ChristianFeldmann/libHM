@@ -43,6 +43,7 @@ HM_DEC_API void libHMDec_set_max_temporal_layer(libHMDec_context* decCtx, int ma
 
 // Push a single NAL unit into the decoder (excluding the start code but including the NAL unit header).
 // This will perform decoding.
+// eof: Is this the las NAL unit in the bitstream?
 HM_DEC_API libHMDec_error libHMDec_push_nal_unit(libHMDec_context *decCtx, const void* data8, int length, bool eof, bool &bNewPicture, bool &checkOutputPictures);
 
 // This pcrivate structure represents a picture. You can save a pointer to it and
