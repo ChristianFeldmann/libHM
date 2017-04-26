@@ -62,4 +62,5 @@
  *  \defgroup TAppCommon   TAppCommon  - Application support library
  *  \defgroup TAppEncoder  TAppEncoder - Encoder application
  *  \defgroup TAppDecoder  TAppDecoder - Decoder application
+ *  \defgroup libHMDecoder libHMDecoder - Decoder shared library with a public interface
  */
