@@ -80,6 +80,8 @@
 #ifndef LIBHMDECODER_H
 #define LIBHMDECODER_H
 
+#include <vector>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -234,6 +236,42 @@ HM_DEC_API libHMDec_ChromaFormat libHMDEC_get_chroma_format(libHMDec_picture *pi
  * \return The internal bit depth
  */
 HM_DEC_API int libHMDEC_get_internal_bit_depth(libHMDec_ColorComponent c);
+
+/** This struct is used to retrive internal coding data for a picture.
+ * A block is defined by its position within an image (x,y) and its size (w,h).
+ * The associated value is saved in 'value'.
+ */
+typedef struct
+{
+  unsigned short x, y, w, h;
+  int value;
+} libHMDec_BlockValue;
+
+// TODO: Internals -> How to handle data compression? (pred mode and motion information)?
+
+typedef enum
+{
+  LIBHMDEC_PREDICTION_MODE = 0,
+  LIBHMDEC_PREDICTION_INTRA_MODE = 0
+} libHMDec_info_type;
+
+/** Get the internal coding information from the picture.
+ * The pointer to the returned vector is always valid. However, the vector is changed if libHMDEC_get_internal_info
+ * or libHMDEC_clear_internal_info is called.
+ * \warning You must not alter the returned vector. Reading is ok but do not modify it!
+ * \param decCtx The decoder context that was created with libHMDec_new_decoder
+ * \param pic The libHMDec_picture that was obtained using libHMDec_get_picture.
+ * \param type The type of data that you would like to obtain
+ * \return A pointer to the vector of block data
+ */
+HM_DEC_API std::vector<libHMDec_BlockValue> *libHMDEC_get_internal_info(libHMDec_context *decCtx, libHMDec_picture *pic, libHMDec_info_type type);
+
+/** Clear the internal storage for the internal info (the pointer returned by libHMDEC_get_internal_info).
+ * If you no longer need the info in the internals vector, you can call this to free some space.
+ * \param decCtx The decoder context that was created with libHMDec_new_decoder
+ * \return An error code or LIBHMDEC_OK if no error occured
+ */
+HM_DEC_API libHMDec_error libHMDEC_clear_internal_info(libHMDec_context *decCtx);
 
 #ifdef __cplusplus
 }

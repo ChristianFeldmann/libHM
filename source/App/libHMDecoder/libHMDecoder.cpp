@@ -5,8 +5,6 @@
 #include "TLibDecoder/TDecTop.h"
 #include "TLibDecoder/NALread.h"
 
-#include <vector>
-
 // The HEVC reference software uses global variables for some things.
 // This is not a good idea for a shared library so we have to work around this by saving/setting these variables
 // in case multiple decoders are used at the same time.
@@ -58,6 +56,11 @@ public:
   
   // The local memory for the global variable
   bool md5_mismatch;
+
+  // The vector that is filled when internals are returned.
+  // The vector is defined, filled and cleared only in this library so that no chaos is created 
+  // between the heap of the shared library and the caller programm.
+  std::vector<libHMDec_BlockValue> internalsBlockData;
 
   TDecTop decTop;
 };
@@ -433,7 +436,7 @@ extern "C" {
   }
 
 
-  int libHMDEC_get_internal_bit_depth(libHMDec_ColorComponent c)
+  HM_DEC_API int libHMDEC_get_internal_bit_depth(libHMDec_ColorComponent c)
   {
     if (c == LIBHMDEC_LUMA)
       return g_bitDepth[COMPONENT_Y];
@@ -442,6 +445,92 @@ extern "C" {
     if (c == LIBHMDEC_CHROMA_V)
       return g_bitDepth[COMPONENT_Cr];
     return -1;
+  }
+
+  // --------- internals --------
+
+  void addValuesForCURecursively(hmDecoderWrapper *d, TComDataCU* pcLCU, UInt uiAbsPartIdx, UInt uiDepth, libHMDec_info_type type)
+  {
+    TComPic* pcPic = pcLCU->getPic();
+
+    Bool bBoundary = false;
+    UInt uiLPelX   = pcLCU->getCUPelX() + g_auiRasterToPelX[ g_auiZscanToRaster[uiAbsPartIdx] ];
+    UInt uiRPelX   = uiLPelX + (g_uiMaxCUWidth>>uiDepth)  - 1;
+    UInt uiTPelY   = pcLCU->getCUPelY() + g_auiRasterToPelY[ g_auiZscanToRaster[uiAbsPartIdx] ];
+    UInt uiBPelY   = uiTPelY + (g_uiMaxCUHeight>>uiDepth) - 1;
+
+    UInt uiCurNumParts = pcPic->getNumPartInCU() >> (uiDepth<<1);
+    TComSlice *pcSlice = pcLCU->getPic()->getSlice(pcLCU->getPic()->getCurrSliceIdx());
+    Bool bStartInCU = (pcLCU->getSCUAddr() + uiAbsPartIdx + uiCurNumParts > pcSlice->getSliceSegmentCurStartCUAddr()) && (pcLCU->getSCUAddr() + uiAbsPartIdx < pcSlice->getSliceSegmentCurStartCUAddr());
+    if (bStartInCU || (uiRPelX >= pcSlice->getSPS()->getPicWidthInLumaSamples()) || (uiBPelY >= pcSlice->getSPS()->getPicHeightInLumaSamples()))
+      bBoundary = true;
+
+    if(((uiDepth < pcLCU->getDepth(uiAbsPartIdx)) && (uiDepth < g_uiMaxCUDepth - g_uiAddCUDepth)) || bBoundary)
+    {
+      UInt uiNextDepth = uiDepth + 1;
+      UInt uiQNumParts = pcLCU->getTotalNumPart() >> (uiNextDepth<<1);
+      UInt uiIdx = uiAbsPartIdx;
+      for (UInt uiPartIdx = 0; uiPartIdx < 4; uiPartIdx++)
+      {
+        uiLPelX = pcLCU->getCUPelX() + g_auiRasterToPelX[g_auiZscanToRaster[uiIdx]];
+        uiTPelY = pcLCU->getCUPelY() + g_auiRasterToPelY[g_auiZscanToRaster[uiIdx]];
+
+        if ((uiLPelX < pcSlice->getSPS()->getPicWidthInLumaSamples()) && (uiTPelY < pcSlice->getSPS()->getPicHeightInLumaSamples()))
+          addValuesForCURecursively(d, pcLCU, uiIdx, uiNextDepth, type);
+
+        uiIdx += uiQNumParts;
+      }
+      return;
+    }
+
+    // We reached the CU 
+    if (type == LIBHMDEC_PREDICTION_MODE)
+    {
+      libHMDec_BlockValue b;
+      b.x = uiLPelX;
+      b.y = uiTPelY;
+      b.w = (g_uiMaxCUHeight>>uiDepth);
+      b.h = b.w;
+      b.value = int(pcLCU->getPredictionMode(uiAbsPartIdx));
+      d->internalsBlockData.push_back(b);
+    }
+  }
+
+  HM_DEC_API std::vector<libHMDec_BlockValue> *libHMDEC_get_internal_info(libHMDec_context *decCtx, libHMDec_picture *pic, libHMDec_info_type type)
+  {
+    hmDecoderWrapper *d = (hmDecoderWrapper*)decCtx;
+    if (!d)
+      return NULL;
+    
+    // Clear the internals before adding new ones
+    d->internalsBlockData.clear();
+
+    if (pic == NULL)
+      return NULL;
+    TComPic* pcPic = (TComPic*)pic;
+    if (pcPic == NULL)
+      return NULL;
+    TComPicSym *s = pcPic->getPicSym();
+    if (s == NULL)
+      return NULL;
+
+    int nrCU = s->getNumberOfCUsInFrame();
+    for (int i = 0; i < nrCU; i++)
+      addValuesForCURecursively(d, s->getCU(i), 0, 0, type);
+
+    return &d->internalsBlockData;
+  }
+
+  HM_DEC_API libHMDec_error libHMDEC_clear_internal_info(libHMDec_context *decCtx)
+  {
+    hmDecoderWrapper *d = (hmDecoderWrapper*)decCtx;
+    if (!d)
+      return LIBHMDEC_ERROR;
+
+    // Clear the internals
+    d->internalsBlockData.clear();
+
+    return LIBHMDEC_OK;
   }
 
 } // extern "C"
