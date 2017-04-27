@@ -449,15 +449,111 @@ extern "C" {
 
   // --------- internals --------
 
+  void addValuesForPUs(hmDecoderWrapper *d, TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, libHMDec_info_type type)
+  {
+    PartSize ePartSize = pcCU->getPartitionSize( uiAbsPartIdx );
+    UInt uiNumPU = ( ePartSize == SIZE_2Nx2N ? 1 : ( ePartSize == SIZE_NxN ? 4 : 2 ) );
+    UInt uiPUOffset = ( g_auiPUOffset[UInt( ePartSize )] << ( ( pcCU->getSlice()->getSPS()->getMaxCUDepth() - uiDepth ) << 1 ) ) >> 4;
+
+    const int cuWidth = g_uiMaxCUWidth >> uiDepth;
+    const int cuHeight = g_uiMaxCUHeight >> uiDepth;
+    const int cuX = pcCU->getCUPelX() + g_auiRasterToPelX[ g_auiZscanToRaster[uiAbsPartIdx] ];
+    const int cuY = pcCU->getCUPelY() + g_auiRasterToPelY[ g_auiZscanToRaster[uiAbsPartIdx] ];
+
+    for (UInt uiPartIdx = 0, uiSubPartIdx = uiAbsPartIdx; uiPartIdx < uiNumPU; uiPartIdx++, uiSubPartIdx += uiPUOffset)
+    {
+      // Set the size and position of the PU
+      libHMDec_BlockValue b;
+      switch (ePartSize)
+      {
+      case SIZE_2NxN:
+        b.w = cuWidth; 
+        b.h = cuHeight >> 1;
+        b.x = cuX;
+        b.y = (uiPartIdx == 0) ? cuY : cuY + b.h;
+        break;
+      case SIZE_Nx2N:
+        b.w = cuWidth >> 1;
+        b.h = cuHeight;
+        b.x = (uiPartIdx == 0) ? cuX : cuX + b.w;
+        b.y = cuY;
+        break;
+      case SIZE_NxN:
+        b.w = cuWidth >> 1;
+        b.h = cuHeight >> 1;
+        b.x = (uiPartIdx == 0 || uiPartIdx == 2) ? cuX : cuX + b.w;
+        b.y = (uiPartIdx == 0 || uiPartIdx == 1) ? cuY : cuY + b.h;
+        break;
+      case SIZE_2NxnU:
+        b.w = cuWidth;
+        b.h = (uiPartIdx == 0) ? (cuHeight >> 2) : ((cuHeight >> 2) + (cuHeight >> 1));
+        b.x = cuX;
+        b.y = (uiPartIdx == 0) ? cuY : cuY + (cuHeight >> 2);
+        break;
+      case SIZE_2NxnD:
+        b.w = cuWidth;
+        b.h = (uiPartIdx == 0) ? ((cuHeight >> 2) + (cuHeight >> 1)) : (cuHeight >> 2);
+        b.x = cuX;
+        b.y = (uiPartIdx == 0) ? cuY : cuY + (cuHeight >> 2) + (cuHeight >> 1);
+        break;
+      case SIZE_nLx2N:
+        b.w = (uiPartIdx == 0) ? (cuWidth >> 2) : ((cuWidth >> 2) + (cuWidth >> 1));
+        b.h = cuHeight;
+        b.x = (uiPartIdx == 0) ? cuX : cuX + (cuWidth >> 2);
+        b.y = cuY;
+        break;
+      case SIZE_nRx2N:
+        b.w = (uiPartIdx == 0) ? ((cuWidth >> 2) + (cuWidth >> 1)) : (cuWidth >> 2);
+        b.h = cuHeight;
+        b.x = (uiPartIdx == 0) ? cuX : cuX + (cuWidth >> 2) + (cuWidth >> 1);
+        b.y = cuY;
+        break;
+      case SIZE_2Nx2N:
+        b.w = cuWidth; 
+        b.h = cuHeight;
+        b.x = cuX;
+        b.y = cuY;
+        break;
+      default:
+        assert(false);
+      }
+
+      // Get the value that we want to save for this PU
+      if (type == LIBHMDEC_PU_MERGE_FLAG)
+        b.value = pcCU->getMergeFlag(uiSubPartIdx) ? 1 : 0;
+      if (type == LIBHMDEC_PU_MERGE_INDEX && pcCU->getMergeFlag(uiSubPartIdx))
+        b.value = (int)pcCU->getMergeIndex(uiSubPartIdx);
+      if (type == LIBHMDEC_PU_UNI_BI_PREDICTION)
+        b.value = (int)pcCU->getInterDir(uiSubPartIdx);
+      if (type == LIBHMDEC_PU_REFERENCE_POC_0)
+        b.value = pcCU->getCUMvField(REF_PIC_LIST_0)->getRefIdx(uiSubPartIdx);
+      if (type == LIBHMDEC_PU_MV_0)
+      {
+        b.value  = pcCU->getCUMvField(REF_PIC_LIST_0)->getMv(uiSubPartIdx).getHor();
+        b.value2 = pcCU->getCUMvField(REF_PIC_LIST_0)->getMv(uiSubPartIdx).getVer();
+      }
+      if (type == LIBHMDEC_PU_REFERENCE_POC_1 && pcCU->getInterDir(uiSubPartIdx) == 2)
+        b.value = pcCU->getCUMvField(REF_PIC_LIST_1)->getRefIdx(uiSubPartIdx);
+      if (type == LIBHMDEC_PU_MV_1 && pcCU->getInterDir(uiSubPartIdx) == 2)
+      {
+        b.value  = pcCU->getCUMvField(REF_PIC_LIST_1)->getMv(uiSubPartIdx).getHor();
+        b.value2 = pcCU->getCUMvField(REF_PIC_LIST_1)->getMv(uiSubPartIdx).getVer();
+      }
+
+      // Add the value
+      d->internalsBlockData.push_back(b);
+    }
+  }
+
   void addValuesForCURecursively(hmDecoderWrapper *d, TComDataCU* pcLCU, UInt uiAbsPartIdx, UInt uiDepth, libHMDec_info_type type)
   {
     TComPic* pcPic = pcLCU->getPic();
 
     Bool bBoundary = false;
     UInt uiLPelX   = pcLCU->getCUPelX() + g_auiRasterToPelX[ g_auiZscanToRaster[uiAbsPartIdx] ];
-    UInt uiRPelX   = uiLPelX + (g_uiMaxCUWidth>>uiDepth)  - 1;
+    UInt uiRPelX   = uiLPelX + (g_uiMaxCUWidth >> uiDepth)  - 1;
     UInt uiTPelY   = pcLCU->getCUPelY() + g_auiRasterToPelY[ g_auiZscanToRaster[uiAbsPartIdx] ];
-    UInt uiBPelY   = uiTPelY + (g_uiMaxCUHeight>>uiDepth) - 1;
+    UInt uiBPelY   = uiTPelY + (g_uiMaxCUHeight >> uiDepth) - 1;
 
     UInt uiCurNumParts = pcPic->getNumPartInCU() >> (uiDepth<<1);
     TComSlice *pcSlice = pcLCU->getPic()->getSlice(pcLCU->getPic()->getCurrSliceIdx());
@@ -484,15 +580,33 @@ extern "C" {
     }
 
     // We reached the CU 
-    if (type == LIBHMDEC_PREDICTION_MODE)
+    if (type == LIBHMDEC_CU_PREDICTION_MODE || type == LIBHMDEC_CU_SKIP_FLAG)
     {
       libHMDec_BlockValue b;
       b.x = uiLPelX;
       b.y = uiTPelY;
-      b.w = (g_uiMaxCUHeight>>uiDepth);
-      b.h = b.w;
-      b.value = int(pcLCU->getPredictionMode(uiAbsPartIdx));
+      b.w = (g_uiMaxCUWidth>>uiDepth);
+      b.h = (g_uiMaxCUHeight>>uiDepth);
+      if (type == LIBHMDEC_CU_PREDICTION_MODE)
+        b.value = int(pcLCU->getPredictionMode(uiAbsPartIdx));
+      else if (type == LIBHMDEC_CU_SKIP_FLAG)
+        b.value =  pcLCU->isSkipped(uiAbsPartIdx) ? 1 : 0;
+      else if (type == LIBHMDEC_CU_PART_MODE)
+        b.value = (int)pcLCU->getPartitionSize(uiAbsPartIdx);
+      else if (type == LIBHMDEC_CU_INTRA_MODE_LUMA && pcLCU->isIntra(uiAbsPartIdx))
+        b.value = (int)pcLCU->getIntraDir(CHANNEL_TYPE_LUMA);
+      else if (type == LIBHMDEC_CU_INTRA_MODE_CHROMA && pcLCU->isIntra(uiAbsPartIdx))
+        b.value = (int)pcLCU->getIntraDir(CHANNEL_TYPE_CHROMA);
       d->internalsBlockData.push_back(b);
+    }
+    else if (pcLCU->isInter(uiAbsPartIdx) && (type == LIBHMDEC_PU_MERGE_FLAG || type == LIBHMDEC_PU_UNI_BI_PREDICTION || type == LIBHMDEC_PU_REFERENCE_POC_0 || type == LIBHMDEC_PU_MV_0 || type == LIBHMDEC_PU_REFERENCE_POC_1 || type == LIBHMDEC_PU_MV_1))
+    {
+      // Set values for every PU
+      addValuesForPUs(d, pcLCU, uiAbsPartIdx, uiDepth, type);
+    }
+    else if (type == LIBHMDEC_TU_ROOT_CBF || type == LIBHMDEC_TU_COEFF_ENERGY_LUMA || type == LIBHMDEC_TU_COEFF_ENERGY_CHROMA || type == LIBHMDEC_TU_COEFF_TRQ_BYPASS || type == LIBHMDEC_TU_COEFF_TR_SKIP)
+    {
+      // Walk into the TU tree
     }
   }
 
@@ -516,7 +630,21 @@ extern "C" {
 
     int nrCU = s->getNumberOfCUsInFrame();
     for (int i = 0; i < nrCU; i++)
-      addValuesForCURecursively(d, s->getCU(i), 0, 0, type);
+    {
+      TComDataCU *pcLCU = s->getCU(i);
+      if (type == LIBHMDEC_CTU_SLICE_INDEX)
+      {
+        libHMDec_BlockValue b;
+        b.x = pcLCU->getCUPelX();
+        b.y = pcLCU->getCUPelY();
+        b.w = g_uiMaxCUWidth;
+        b.h = g_uiMaxCUHeight;
+        b.value = (int)pcLCU->getPic()->getCurrSliceIdx();
+        d->internalsBlockData.push_back(b);
+      }
+      else
+        addValuesForCURecursively(d, pcLCU, 0, 0, type);
+    }
 
     return &d->internalsBlockData;
   }
