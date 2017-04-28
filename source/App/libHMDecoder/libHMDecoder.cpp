@@ -2,6 +2,7 @@
 #include "libHMDecoder.h"
 
 #include "TLibCommon/CommonDef.h"
+#include "TLibCommon/TComTU.h"
 #include "TLibDecoder/TDecTop.h"
 #include "TLibDecoder/NALread.h"
 
@@ -545,6 +546,48 @@ extern "C" {
     }
   }
 
+  void addValuesForTURecursive(hmDecoderWrapper *d, TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, UInt trDepth, libHMDec_info_type type)
+  {
+    UInt trIdx = pcCU->getTransformIdx(uiAbsPartIdx);
+    if (trDepth < trIdx)
+    {
+      // Split
+      UInt uiNextDepth = uiDepth + trDepth + 1;
+      UInt uiQNumParts = pcCU->getTotalNumPart() >> (uiNextDepth<<1);
+
+      for (int i = 0; i < 4; i++)
+        addValuesForTURecursive(d, pcCU, uiAbsPartIdx + i * uiQNumParts, uiDepth, trDepth + 1, type);
+    }
+
+    // We are not at the TU level
+    UInt uiLPelX = pcCU->getCUPelX() + g_auiRasterToPelX[ g_auiZscanToRaster[uiAbsPartIdx] ];
+    UInt uiTPelY = pcCU->getCUPelY() + g_auiRasterToPelY[ g_auiZscanToRaster[uiAbsPartIdx] ];
+
+    libHMDec_BlockValue b;
+    b.x = uiLPelX;
+    b.y = uiTPelY;
+    b.w = (g_uiMaxCUWidth >> (uiDepth + trDepth));
+    b.h = (g_uiMaxCUHeight >> (uiDepth + trDepth));
+    if (type == LIBHMDEC_TU_CBF_Y)
+      b.value = (pcCU->getCbf(uiAbsPartIdx, COMPONENT_Y, trDepth) != 0) ? 1 : 0;
+    else if (type == LIBHMDEC_TU_CBF_CB)
+      b.value = (pcCU->getCbf(uiAbsPartIdx, COMPONENT_Cb, trDepth) != 0) ? 1 : 0;
+    else if (type == LIBHMDEC_TU_CBF_CR)
+      b.value = (pcCU->getCbf(uiAbsPartIdx, COMPONENT_Cr, trDepth) != 0) ? 1 : 0;
+    else if (type == LIBHMDEC_TU_COEFF_TR_SKIP_Y)
+      b.value = (pcCU->getTransformSkip(uiAbsPartIdx, COMPONENT_Y) != 0) ? 1 : 0;
+    else if (type == LIBHMDEC_TU_COEFF_TR_SKIP_Cb)
+      b.value = (pcCU->getTransformSkip(uiAbsPartIdx, COMPONENT_Cb) != 0) ? 1 : 0;
+    else if (type == LIBHMDEC_TU_COEFF_TR_SKIP_Cr)
+      b.value = (pcCU->getTransformSkip(uiAbsPartIdx, COMPONENT_Cr) != 0) ? 1 : 0;
+    else if (type == LIBHMDEC_TU_COEFF_ENERGY_Y)
+      b.value = -1;
+    else if (type == LIBHMDEC_TU_COEFF_ENERGY_CB)
+      b.value = -1;
+    else if (type == LIBHMDEC_TU_COEFF_ENERGY_CR)
+      b.value = -1;
+  }
+
   void addValuesForCURecursively(hmDecoderWrapper *d, TComDataCU* pcLCU, UInt uiAbsPartIdx, UInt uiDepth, libHMDec_info_type type)
   {
     TComPic* pcPic = pcLCU->getPic();
@@ -580,8 +623,14 @@ extern "C" {
     }
 
     // We reached the CU 
-    if (type == LIBHMDEC_CU_PREDICTION_MODE || type == LIBHMDEC_CU_SKIP_FLAG)
+    if (type == LIBHMDEC_CU_PREDICTION_MODE || type == LIBHMDEC_CU_TRQ_BYPASS || type == LIBHMDEC_CU_SKIP_FLAG || type == LIBHMDEC_CU_PART_MODE || type == LIBHMDEC_CU_INTRA_MODE_LUMA || type == CHANNEL_TYPE_LUMA || type == LIBHMDEC_CU_INTRA_MODE_CHROMA || type == LIBHMDEC_CU_ROOT_CBF)
     {
+      if ((type == LIBHMDEC_CU_TRQ_BYPASS && !pcLCU->getSlice()->getPPS()->getTransquantBypassEnableFlag()) ||
+          (type == LIBHMDEC_CU_INTRA_MODE_LUMA && !pcLCU->isIntra(uiAbsPartIdx)) ||
+          (type == LIBHMDEC_CU_INTRA_MODE_CHROMA && !pcLCU->isIntra(uiAbsPartIdx)) ||
+          (type == LIBHMDEC_CU_ROOT_CBF && pcLCU->isInter(uiAbsPartIdx)))
+        return;
+
       libHMDec_BlockValue b;
       b.x = uiLPelX;
       b.y = uiTPelY;
@@ -589,25 +638,25 @@ extern "C" {
       b.h = (g_uiMaxCUHeight>>uiDepth);
       if (type == LIBHMDEC_CU_PREDICTION_MODE)
         b.value = int(pcLCU->getPredictionMode(uiAbsPartIdx));
+      else if (type == LIBHMDEC_CU_TRQ_BYPASS)
+        b.value = pcLCU->getCUTransquantBypass(uiAbsPartIdx) ? 1 : 0;
       else if (type == LIBHMDEC_CU_SKIP_FLAG)
         b.value =  pcLCU->isSkipped(uiAbsPartIdx) ? 1 : 0;
       else if (type == LIBHMDEC_CU_PART_MODE)
         b.value = (int)pcLCU->getPartitionSize(uiAbsPartIdx);
-      else if (type == LIBHMDEC_CU_INTRA_MODE_LUMA && pcLCU->isIntra(uiAbsPartIdx))
+      else if (type == LIBHMDEC_CU_INTRA_MODE_LUMA)
         b.value = (int)pcLCU->getIntraDir(CHANNEL_TYPE_LUMA);
-      else if (type == LIBHMDEC_CU_INTRA_MODE_CHROMA && pcLCU->isIntra(uiAbsPartIdx))
+      else if (type == LIBHMDEC_CU_INTRA_MODE_CHROMA)
         b.value = (int)pcLCU->getIntraDir(CHANNEL_TYPE_CHROMA);
+      else if (type == LIBHMDEC_CU_ROOT_CBF)
+        b.value = (int)pcLCU->getQtRootCbf(uiAbsPartIdx);
       d->internalsBlockData.push_back(b);
     }
     else if (pcLCU->isInter(uiAbsPartIdx) && (type == LIBHMDEC_PU_MERGE_FLAG || type == LIBHMDEC_PU_UNI_BI_PREDICTION || type == LIBHMDEC_PU_REFERENCE_POC_0 || type == LIBHMDEC_PU_MV_0 || type == LIBHMDEC_PU_REFERENCE_POC_1 || type == LIBHMDEC_PU_MV_1))
-    {
       // Set values for every PU
       addValuesForPUs(d, pcLCU, uiAbsPartIdx, uiDepth, type);
-    }
-    else if (type == LIBHMDEC_TU_ROOT_CBF || type == LIBHMDEC_TU_COEFF_ENERGY_LUMA || type == LIBHMDEC_TU_COEFF_ENERGY_CHROMA || type == LIBHMDEC_TU_COEFF_TRQ_BYPASS || type == LIBHMDEC_TU_COEFF_TR_SKIP)
-    {
-      // Walk into the TU tree
-    }
+    else if (type == LIBHMDEC_TU_CBF_Y || type == LIBHMDEC_TU_CBF_CB || type == LIBHMDEC_TU_CBF_CR || type == LIBHMDEC_TU_COEFF_ENERGY_Y || type == LIBHMDEC_TU_COEFF_ENERGY_CB || type == LIBHMDEC_TU_COEFF_ENERGY_CR || type == LIBHMDEC_TU_COEFF_TR_SKIP_Y || type == LIBHMDEC_TU_COEFF_TR_SKIP_Cb || type == LIBHMDEC_TU_COEFF_TR_SKIP_Cr)
+      addValuesForTURecursive(d, pcLCU, uiAbsPartIdx, uiDepth, 0, type);
   }
 
   HM_DEC_API std::vector<libHMDec_BlockValue> *libHMDEC_get_internal_info(libHMDec_context *decCtx, libHMDec_picture *pic, libHMDec_info_type type)
@@ -632,6 +681,11 @@ extern "C" {
     for (int i = 0; i < nrCU; i++)
     {
       TComDataCU *pcLCU = s->getCU(i);
+
+      if ((type == LIBHMDEC_TU_COEFF_TR_SKIP_Y || type == LIBHMDEC_TU_COEFF_TR_SKIP_Cb || type == LIBHMDEC_TU_COEFF_TR_SKIP_Cr) && pcLCU->getSlice()->getPPS()->getUseTransformSkip())
+        // Transform skip not enabled for this slice
+        continue;
+      
       if (type == LIBHMDEC_CTU_SLICE_INDEX)
       {
         libHMDec_BlockValue b;

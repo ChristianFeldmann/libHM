@@ -255,10 +255,12 @@ typedef enum
 {
   LIBHMDEC_CTU_SLICE_INDEX = 0,
   LIBHMDEC_CU_PREDICTION_MODE,      ///< Does the CU use inter (0) or intra(1) prediction?
+  LIBHMDEC_CU_TRQ_BYPASS,           ///< If transquant bypass is enabled, is the transquant bypass flag set?
   LIBHMDEC_CU_SKIP_FLAG,            ///< Is the CU skip flag set?
   LIBHMDEC_CU_PART_MODE,            ///< What is the partition mode of the CU into PUs? 0: SIZE_2Nx2N, 1: SIZE_2NxN, 2: SIZE_Nx2N, 3: SIZE_NxN, 4: SIZE_2NxnU, 5: SIZE_2NxnD, 6: SIZE_nLx2N, 7: SIZE_nRx2N
   LIBHMDEC_CU_INTRA_MODE_LUMA,      ///< If the CU uses intra prediction, get the intra mode for luma
   LIBHMDEC_CU_INTRA_MODE_CHROMA,    ///< If the CU uses intra prediction, get the intra mode for chroma
+  LIBHMDEC_CU_ROOT_CBF,             ///< In the CU is inter, get the root coded block flag of the TU
   LIBHMDEC_PU_MERGE_FLAG,           ///< If the PU is inter, is the merge flag set?
   LIBHMDEC_PU_MERGE_INDEX,          ///< If the PU is merge, what is the merge index?
   LIBHMDEC_PU_UNI_BI_PREDICTION,    ///< Does the PU use uni- (0) or biprediction (1)? Also called interDir.
@@ -266,11 +268,15 @@ typedef enum
   LIBHMDEC_PU_MV_0,                 ///< If the PU uses inter prediction, what is the motion vector of list 0?
   LIBHMDEC_PU_REFERENCE_POC_1,      ///< If the PU uses bi-directions inter prediction, what is the reference POC of list 1?
   LIBHMDEC_PU_MV_1,                 ///< If the PU uses bi-directions inter prediction, what is the motion vector of list 1?
-  LIBHMDEC_TU_ROOT_CBF,             ///< Get the root coded block flag of the TU
-  LIBHMDEC_TU_COEFF_ENERGY_LUMA,    ///< If the root CBF of the TU is not 0, get the coefficient energy of the TU for luma
-  LIBHMDEC_TU_COEFF_ENERGY_CHROMA,  ///< If the root CBF of the TU is not 0, get the coefficient energy of the TU for chroma
-  LIBHMDEC_TU_COEFF_TRQ_BYPASS,     ///< If the root CBF of the TU is not 0, get the transquant bypass flag
-  LIBHMDEC_TU_COEFF_TR_SKIP         ///< If the root CBF of the TU is not 0, get the transform skip flag
+  LIBHMDEC_TU_CBF_Y,                ///< Get the coded block flag for luma
+  LIBHMDEC_TU_CBF_CB,               ///< Get the coded block flag for chroma U
+  LIBHMDEC_TU_CBF_CR,               ///< Get the coded block flag for chroma V
+  LIBHMDEC_TU_COEFF_TR_SKIP_Y,      ///< Get the transform skip flag for luma
+  LIBHMDEC_TU_COEFF_TR_SKIP_Cb,     ///< Get the transform skip flag for chroma U
+  LIBHMDEC_TU_COEFF_TR_SKIP_Cr,     ///< Get the transform skip flag for chroma V
+  LIBHMDEC_TU_COEFF_ENERGY_Y,       ///< If the root CBF of the TU is not 0, get the coefficient energy of the TU for luma
+  LIBHMDEC_TU_COEFF_ENERGY_CB,      ///< If the root CBF of the TU is not 0, get the coefficient energy of the TU for chroma U
+  LIBHMDEC_TU_COEFF_ENERGY_CR,      ///< If the root CBF of the TU is not 0, get the coefficient energy of the TU for chroma V
 } libHMDec_info_type;
 
 /** Get the internal coding information from the picture.
