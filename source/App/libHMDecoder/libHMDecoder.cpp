@@ -588,8 +588,8 @@ extern "C" {
       int64_t e = 0;
       for (int i = 0; i < nrCoeff; i++)
       {
-        TCoeff c = pcCoef[i];
-        e += c * c;
+        TCoeff co = pcCoef[i];
+        e += co * co;
       }
       if (e > MAX_INT)
         b.value = MAX_INT;
