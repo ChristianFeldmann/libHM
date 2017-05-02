@@ -1,0 +1,22 @@
+language: cpp
+
+os:
+  - linux
+  - osx
+dist:
+  # Request Ubuntu 14 as linux
+  - trusty
+compiler: 
+  - gcc
+  
+script:
+  - cd build/linux
+  - make
+  
+before_deploy:
+  # Here we could package something, create zips and so on.
+
+deploy:
+  # We need the compiled files
+  # skip_cleanup: true
+  # Here we can deploy. Or it could be done in the before_deploy or after_success steps.
