@@ -1,5 +1,5 @@
 # the SOURCE definiton lets you move your makefile to another position
-CONFIG 				= LIBRARY
+CONFIG 				= LIBSHARED
 
 # set directories to your wanted values
 SRC_DIR				= ../../../../source/App/libHMDecoder
@@ -12,7 +12,7 @@ SRC_DIR2		=
 SRC_DIR3		=
 SRC_DIR4		=
 
-USER_INC_DIRS	= -I$(SRC_DIR) 
+USER_INC_DIRS	= -I$(SRC_DIR)
 USER_LIB_DIRS	=
 
 ifeq ($(HIGHBITDEPTH), 1)
@@ -52,7 +52,7 @@ STAT_DEBUG_PREREQS	= $(LIB_DIR)/libTLibDecoder$(HBD)Staticd.a $(LIB_DIR)/libTLib
 DYN_RELEASE_LIBS	= -lTLibDecoder$(HBD) -lTLibCommon$(HBD)
 DYN_RELEASE_PREREQS	= $(LIB_DIR)/libTLibDecoder$(HBD).a $(LIB_DIR)/libTLibCommon$(HBD).a
 STAT_RELEASE_LIBS	= -lTLibDecoder$(HBD)Static -lTLibCommon$(HBD)Static
-STAT_RELEASE_PREREQS = $(LIB_DIR)/libTLibDecoder$(HBD)Static.a $(LIB_DIR)/libTLibCommon$(HBD)Static.a 
+STAT_RELEASE_PREREQS = $(LIB_DIR)/libTLibDecoder$(HBD)Static.a $(LIB_DIR)/libTLibCommon$(HBD)Static.a
 
 # name of the base makefile
 MAKE_FILE_NAME		= ../../common/makefile.base

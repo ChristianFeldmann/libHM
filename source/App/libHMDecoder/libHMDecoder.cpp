@@ -40,7 +40,7 @@ public:
     iPOCLastDisplay += iSkipFrame; // set the last displayed POC correctly for skip forward.
   }
   ~hmDecoderWrapper() { decTop.destroy(); };
-  
+
   bool loopFiltered;
   int  maxTemporalLayer; ///< maximum temporal layer to be decoded
   int iPOCLastDisplay;
@@ -54,12 +54,12 @@ public:
   int lastNALTemporalID;
   bool flushOutput;
   bool sheduleFlushing; // After the normal output function is finished, we will perform flushing.
-  
+
   // The local memory for the global variable
   bool md5_mismatch;
 
   // The vector that is filled when internals are returned.
-  // The vector is defined, filled and cleared only in this library so that no chaos is created 
+  // The vector is defined, filled and cleared only in this library so that no chaos is created
   // between the heap of the shared library and the caller programm.
   std::vector<libHMDec_BlockValue> internalsBlockData;
 
@@ -67,7 +67,7 @@ public:
 };
 
 extern "C" {
-  
+
   HM_DEC_API const char *libHMDec_get_version(void)
   {
     return NV_VERSION;
@@ -78,7 +78,7 @@ extern "C" {
     hmDecoderWrapper *decCtx = new hmDecoderWrapper();
     if (!decCtx)
       return NULL;
-    
+
     return (libHMDec_context*)decCtx;
   }
 
@@ -117,7 +117,7 @@ extern "C" {
 
     if (length <= 0)
       return LIBHMDEC_ERROR_READ_ERROR;
-    
+
     // Check the NAL unit header
     uint8_t *data = (uint8_t*)data8;
     if (length < 4 && !eof)
@@ -143,7 +143,7 @@ extern "C" {
     // Read the NAL unit
     InputNALUnit nalu;
     read(nalu, nalUnit);
-    
+
     if( (d->maxTemporalLayer >= 0 && nalu.m_temporalId > d->maxTemporalLayer) || !isNaluWithinTargetDecLayerIdSet(&nalu)  )
     {
       bNewPicture = false;
@@ -196,7 +196,7 @@ extern "C" {
 
     // FIX_WRITING_OUTPUT
     fixCheckOutput = (!bNewPicture && nalu.m_nalUnitType >= NAL_UNIT_CODED_SLICE_TRAIL_N && nalu.m_nalUnitType <= NAL_UNIT_RESERVED_VCL31);
-    
+
     // next, try to get frames from the deocder
     if((bNewPicture || fixCheckOutput) && d->pcListPic != NULL)
     {
@@ -213,12 +213,12 @@ extern "C" {
       if(d->maxTemporalLayer == -1 || d->maxTemporalLayer >= maxNrSublayers)
       {
         d->numReorderPicsHighestTid = activeSPS->getNumReorderPics(maxNrSublayers-1);
-        d->maxDecPicBufferingHighestTid =  activeSPS->getMaxDecPicBuffering(maxNrSublayers-1); 
+        d->maxDecPicBufferingHighestTid =  activeSPS->getMaxDecPicBuffering(maxNrSublayers-1);
       }
       else
       {
         d->numReorderPicsHighestTid = activeSPS->getNumReorderPics(d->maxTemporalLayer);
-        d->maxDecPicBufferingHighestTid = activeSPS->getMaxDecPicBuffering(d->maxTemporalLayer); 
+        d->maxDecPicBufferingHighestTid = activeSPS->getMaxDecPicBuffering(d->maxTemporalLayer);
       }
 
       TComList<TComPic*>::iterator iterPic = d->pcListPic->begin();
@@ -237,18 +237,18 @@ extern "C" {
         iterPic++;
       }
     }
-    
+
     if (eof)
     {
       // At the end of the file we have to use the normal output function once and then the flushing
       checkOutputPictures = true;
       d->sheduleFlushing = true;
     }
-    
+
     if (checkOutputPictures)
       // Reset the iterator over the output images
       d->pcListPic_readIdx = 0;
-    
+
     return LIBHMDEC_OK;
   }
 
@@ -280,7 +280,7 @@ extern "C" {
       TComPic* pcPic = *(iterPic);
 
       if ((d->flushOutput && (pcPic->getOutputMark())) ||
-        pcPic->getOutputMark() && pcPic->getPOC() > d->iPOCLastDisplay && (d->numPicsNotYetDisplayed > d->numReorderPicsHighestTid || d->dpbFullness > d->maxDecPicBufferingHighestTid))
+        (pcPic->getOutputMark() && pcPic->getPOC() > d->iPOCLastDisplay && (d->numPicsNotYetDisplayed > d->numReorderPicsHighestTid || d->dpbFullness > d->maxDecPicBufferingHighestTid)))
       {
         if (!d->flushOutput)
           // Output picture found
@@ -340,7 +340,7 @@ extern "C" {
 
   HM_DEC_API int libHMDEC_get_POC(libHMDec_picture *pic)
   {
-    if (pic == NULL) 
+    if (pic == NULL)
       return -1;
     TComPic* pcPic = (TComPic*)pic;
     if (pcPic == NULL)
@@ -350,8 +350,8 @@ extern "C" {
   }
 
   HM_DEC_API int libHMDEC_get_picture_width(libHMDec_picture *pic, libHMDec_ColorComponent c)
-  { 
-    if (pic == NULL) 
+  {
+    if (pic == NULL)
       return -1;
     TComPic* pcPic = (TComPic*)pic;
     if (pcPic == NULL)
@@ -366,8 +366,8 @@ extern "C" {
     return -1;
   }
   HM_DEC_API int libHMDEC_get_picture_height(libHMDec_picture *pic, libHMDec_ColorComponent c)
-  { 
-    if (pic == NULL) 
+  {
+    if (pic == NULL)
       return -1;
     TComPic* pcPic = (TComPic*)pic;
     if (pcPic == NULL)
@@ -384,12 +384,12 @@ extern "C" {
 
   HM_DEC_API int libHMDEC_get_picture_stride(libHMDec_picture *pic, libHMDec_ColorComponent c)
   {
-    if (pic == NULL) 
+    if (pic == NULL)
       return -1;
     TComPic* pcPic = (TComPic*)pic;
     if (pcPic == NULL)
       return -1;
-    
+
     if (c == LIBHMDEC_LUMA)
       return pcPic->getPicYuvRec()->getStride(COMPONENT_Y);
     if (c == LIBHMDEC_CHROMA_U)
@@ -401,7 +401,7 @@ extern "C" {
 
   HM_DEC_API short* libHMDEC_get_image_plane(libHMDec_picture *pic, libHMDec_ColorComponent c)
   {
-    if (pic == NULL) 
+    if (pic == NULL)
       return NULL;
     TComPic* pcPic = (TComPic*)pic;
     if (pcPic == NULL)
@@ -418,7 +418,7 @@ extern "C" {
 
   HM_DEC_API libHMDec_ChromaFormat libHMDEC_get_chroma_format(libHMDec_picture *pic)
   {
-    if (pic == NULL) 
+    if (pic == NULL)
       return LIBHMDEC_CHROMA_UNKNOWN;
     TComPic* pcPic = (TComPic*)pic;
     if (pcPic == NULL)
@@ -441,10 +441,8 @@ extern "C" {
   {
     if (c == LIBHMDEC_LUMA)
       return g_bitDepth[COMPONENT_Y];
-    if (c == LIBHMDEC_CHROMA_U)
+    if (c == LIBHMDEC_CHROMA_U || c == LIBHMDEC_CHROMA_V)
       return g_bitDepth[COMPONENT_Cb];
-    if (c == LIBHMDEC_CHROMA_V)
-      return g_bitDepth[COMPONENT_Cr];
     return -1;
   }
 
@@ -468,7 +466,7 @@ extern "C" {
       switch (ePartSize)
       {
       case SIZE_2NxN:
-        b.w = cuWidth; 
+        b.w = cuWidth;
         b.h = cuHeight >> 1;
         b.x = cuX;
         b.y = (uiPartIdx == 0) ? cuY : cuY + b.h;
@@ -510,7 +508,7 @@ extern "C" {
         b.y = cuY;
         break;
       case SIZE_2Nx2N:
-        b.w = cuWidth; 
+        b.w = cuWidth;
         b.h = cuHeight;
         b.x = cuX;
         b.y = cuY;
@@ -586,6 +584,7 @@ extern "C" {
       b.value = -1;
     else if (type == LIBHMDEC_TU_COEFF_ENERGY_CR)
       b.value = -1;
+    d->internalsBlockData.push_back(b);
   }
 
   void addValuesForCURecursively(hmDecoderWrapper *d, TComDataCU* pcLCU, UInt uiAbsPartIdx, UInt uiDepth, libHMDec_info_type type)
@@ -622,8 +621,8 @@ extern "C" {
       return;
     }
 
-    // We reached the CU 
-    if (type == LIBHMDEC_CU_PREDICTION_MODE || type == LIBHMDEC_CU_TRQ_BYPASS || type == LIBHMDEC_CU_SKIP_FLAG || type == LIBHMDEC_CU_PART_MODE || type == LIBHMDEC_CU_INTRA_MODE_LUMA || type == CHANNEL_TYPE_LUMA || type == LIBHMDEC_CU_INTRA_MODE_CHROMA || type == LIBHMDEC_CU_ROOT_CBF)
+    // We reached the CU
+    if (type == LIBHMDEC_CU_PREDICTION_MODE || type == LIBHMDEC_CU_TRQ_BYPASS || type == LIBHMDEC_CU_SKIP_FLAG || type == LIBHMDEC_CU_PART_MODE || type == LIBHMDEC_CU_INTRA_MODE_LUMA || type == LIBHMDEC_CU_INTRA_MODE_CHROMA || type == LIBHMDEC_CU_ROOT_CBF)
     {
       if ((type == LIBHMDEC_CU_TRQ_BYPASS && !pcLCU->getSlice()->getPPS()->getTransquantBypassEnableFlag()) ||
           (type == LIBHMDEC_CU_INTRA_MODE_LUMA && !pcLCU->isIntra(uiAbsPartIdx)) ||
@@ -645,9 +644,9 @@ extern "C" {
       else if (type == LIBHMDEC_CU_PART_MODE)
         b.value = (int)pcLCU->getPartitionSize(uiAbsPartIdx);
       else if (type == LIBHMDEC_CU_INTRA_MODE_LUMA)
-        b.value = (int)pcLCU->getIntraDir(CHANNEL_TYPE_LUMA);
+        b.value = (int)pcLCU->getIntraDir(CHANNEL_TYPE_LUMA, uiAbsPartIdx);
       else if (type == LIBHMDEC_CU_INTRA_MODE_CHROMA)
-        b.value = (int)pcLCU->getIntraDir(CHANNEL_TYPE_CHROMA);
+        b.value = (int)pcLCU->getIntraDir(CHANNEL_TYPE_CHROMA, uiAbsPartIdx);
       else if (type == LIBHMDEC_CU_ROOT_CBF)
         b.value = (int)pcLCU->getQtRootCbf(uiAbsPartIdx);
       d->internalsBlockData.push_back(b);
@@ -664,7 +663,7 @@ extern "C" {
     hmDecoderWrapper *d = (hmDecoderWrapper*)decCtx;
     if (!d)
       return NULL;
-    
+
     // Clear the internals before adding new ones
     d->internalsBlockData.clear();
 
@@ -685,7 +684,7 @@ extern "C" {
       if ((type == LIBHMDEC_TU_COEFF_TR_SKIP_Y || type == LIBHMDEC_TU_COEFF_TR_SKIP_Cb || type == LIBHMDEC_TU_COEFF_TR_SKIP_Cr) && pcLCU->getSlice()->getPPS()->getUseTransformSkip())
         // Transform skip not enabled for this slice
         continue;
-      
+
       if (type == LIBHMDEC_CTU_SLICE_INDEX)
       {
         libHMDec_BlockValue b;
