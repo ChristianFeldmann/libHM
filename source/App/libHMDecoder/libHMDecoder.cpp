@@ -578,12 +578,24 @@ extern "C" {
       b.value = (pcCU->getTransformSkip(uiAbsPartIdx, COMPONENT_Cb) != 0) ? 1 : 0;
     else if (type == LIBHMDEC_TU_COEFF_TR_SKIP_Cr)
       b.value = (pcCU->getTransformSkip(uiAbsPartIdx, COMPONENT_Cr) != 0) ? 1 : 0;
-    else if (type == LIBHMDEC_TU_COEFF_ENERGY_Y)
-      b.value = -1;
-    else if (type == LIBHMDEC_TU_COEFF_ENERGY_CB)
-      b.value = -1;
-    else if (type == LIBHMDEC_TU_COEFF_ENERGY_CR)
-      b.value = -1;
+    else if (type == LIBHMDEC_TU_COEFF_ENERGY_Y || type == LIBHMDEC_TU_COEFF_ENERGY_CB || type == LIBHMDEC_TU_COEFF_ENERGY_CB)
+    {
+      ComponentID c = (type == LIBHMDEC_TU_COEFF_ENERGY_Y) ? COMPONENT_Y : (type == LIBHMDEC_TU_COEFF_ENERGY_CB) ? COMPONENT_Cb : COMPONENT_Cr;
+      
+      const int nrCoeff = (type == LIBHMDEC_TU_COEFF_ENERGY_Y) ? b.w * b.h : b.w/2 * b.h/2;
+      
+      TCoeff* pcCoef = pcCU->getCoeff(c);
+      int64_t e = 0;
+      for (int i = 0; i < nrCoeff; i++)
+      {
+        TCoeff c = pcCoef[i];
+        e += c * c;
+      }
+      if (e > MAX_INT)
+        b.value = MAX_INT;
+      else
+        b.value = (int)e;
+    }
     d->internalsBlockData.push_back(b);
   }
 

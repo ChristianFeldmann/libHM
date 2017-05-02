@@ -1,0 +1,20 @@
+﻿################################################################################
+# This .gitignore file was automatically created by Microsoft(R) Visual Studio.
+################################################################################
+
+/bin/vc10/x64
+/doc
+/build/vc10/x64
+/build/vc10/TLibVideoIO_vc10.vcxproj.user
+/build/vc10/TLibEncoder_vc10.vcxproj.user
+/build/vc10/TLibDecoder_vc10.vcxproj.user
+/build/vc10/TLibDecoderAnalyser_vc10.vcxproj.user
+/build/vc10/TLibCommon_vc10.vcxproj.user
+/build/vc10/TAppEncoder_vc10.vcxproj.user
+/build/vc10/TAppDecoder_vc10.vcxproj.user
+/build/vc10/TAppDecoderAnalyser_vc10.vcxproj.user
+/build/vc10/TAppCommon_vc10.vcxproj.user
+/build/vc10/libHMDecoder_vc10.vcxproj.user
+/build/HM_vc10.VC.VC.opendb
+/build/HM_vc10.VC.db
+/build/.vs/HM_vc10/v14/.suo
