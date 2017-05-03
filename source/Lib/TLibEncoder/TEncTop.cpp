@@ -418,7 +418,9 @@ Void TEncTop::encode(Bool flush, TComPicYuv* pcPicYuvOrg, TComPicYuv* pcPicYuvTr
       }
 
       pcField->getSlice(0)->setPOC( m_iPOCLast );        // superfluous?
+#if !REDUCED_ENCODER_MEMORY
       pcField->getPicYuvRec()->setBorderExtension(false);// where is this normally?
+#endif
 
       pcField->setTopField(isTopField);                  // interlaced requirement
 

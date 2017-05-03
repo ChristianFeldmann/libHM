@@ -46,6 +46,9 @@
 
 #include "TComChromaFormat.h"
 
+#if VECTOR_CODING__INTERPOLATION_FILTER && (RExt__HIGH_BIT_DEPTH_SUPPORT==0)
+#include <emmintrin.h>
+#endif
 
 //! \ingroup TLibCommon
 //! \{
@@ -73,6 +76,107 @@ const TFilterCoeff TComInterpolationFilter::m_chromaFilter[CHROMA_INTERPOLATION_
   { -2, 16, 54, -4 },
   { -2, 10, 58, -2 }
 };
+
+#if VECTOR_CODING__INTERPOLATION_FILTER && (RExt__HIGH_BIT_DEPTH_SUPPORT==0)
+inline __m128i simdInterpolateLuma4( Short const *src , Int srcStride , __m128i *mmCoeff , const __m128i & mmOffset , Int shift )
+{
+  __m128i sumHi = _mm_setzero_si128();
+  __m128i sumLo = _mm_setzero_si128();
+  for( Int n = 0 ; n < 8 ; n++ )
+  {
+    __m128i mmPix = _mm_loadl_epi64( ( __m128i* )src );
+    __m128i hi = _mm_mulhi_epi16( mmPix , mmCoeff[n] );
+    __m128i lo = _mm_mullo_epi16( mmPix , mmCoeff[n] );
+    sumHi = _mm_add_epi32( sumHi , _mm_unpackhi_epi16( lo , hi ) );
+    sumLo = _mm_add_epi32( sumLo , _mm_unpacklo_epi16( lo , hi ) );
+    src += srcStride;
+  }
+  sumHi = _mm_srai_epi32( _mm_add_epi32( sumHi , mmOffset ) , shift );
+  sumLo = _mm_srai_epi32( _mm_add_epi32( sumLo , mmOffset ) , shift );
+  return( _mm_packs_epi32( sumLo , sumHi ) );
+}
+
+inline __m128i simdInterpolateChroma4( Short const *src , Int srcStride , __m128i *mmCoeff , const __m128i & mmOffset , Int shift )
+{
+  __m128i sumHi = _mm_setzero_si128();
+  __m128i sumLo = _mm_setzero_si128();
+  for( Int n = 0 ; n < 4 ; n++ )
+  {
+    __m128i mmPix = _mm_loadl_epi64( ( __m128i* )src );
+    __m128i hi = _mm_mulhi_epi16( mmPix , mmCoeff[n] );
+    __m128i lo = _mm_mullo_epi16( mmPix , mmCoeff[n] );
+    sumHi = _mm_add_epi32( sumHi , _mm_unpackhi_epi16( lo , hi ) );
+    sumLo = _mm_add_epi32( sumLo , _mm_unpacklo_epi16( lo , hi ) );
+    src += srcStride;
+  }
+  sumHi = _mm_srai_epi32( _mm_add_epi32( sumHi , mmOffset ) , shift );
+  sumLo = _mm_srai_epi32( _mm_add_epi32( sumLo , mmOffset ) , shift );
+  return( _mm_packs_epi32( sumLo , sumHi ) );
+}
+
+inline __m128i simdInterpolateLuma8( Short const *src , Int srcStride , __m128i *mmCoeff , const __m128i & mmOffset , Int shift )
+{
+  __m128i sumHi = _mm_setzero_si128();
+  __m128i sumLo = _mm_setzero_si128();
+  for( Int n = 0 ; n < 8 ; n++ )
+  {
+    __m128i mmPix = _mm_loadu_si128( ( __m128i* )src );
+    __m128i hi = _mm_mulhi_epi16( mmPix , mmCoeff[n] );
+    __m128i lo = _mm_mullo_epi16( mmPix , mmCoeff[n] );
+    sumHi = _mm_add_epi32( sumHi , _mm_unpackhi_epi16( lo , hi ) );
+    sumLo = _mm_add_epi32( sumLo , _mm_unpacklo_epi16( lo , hi ) );
+    src += srcStride;
+  }
+  sumHi = _mm_srai_epi32( _mm_add_epi32( sumHi , mmOffset ) , shift );
+  sumLo = _mm_srai_epi32( _mm_add_epi32( sumLo , mmOffset ) , shift );
+  return( _mm_packs_epi32( sumLo , sumHi ) );
+}
+
+inline __m128i simdInterpolateLuma2P8( Short const *src , Int srcStride , __m128i *mmCoeff , const __m128i & mmOffset , Int shift )
+{
+  __m128i sumHi = _mm_setzero_si128();
+  __m128i sumLo = _mm_setzero_si128();
+  for( Int n = 0 ; n < 2 ; n++ )
+  {
+    __m128i mmPix = _mm_loadu_si128( ( __m128i* )src );
+    __m128i hi = _mm_mulhi_epi16( mmPix , mmCoeff[n] );
+    __m128i lo = _mm_mullo_epi16( mmPix , mmCoeff[n] );
+    sumHi = _mm_add_epi32( sumHi , _mm_unpackhi_epi16( lo , hi ) );
+    sumLo = _mm_add_epi32( sumLo , _mm_unpacklo_epi16( lo , hi ) );
+    src += srcStride;
+  }
+  sumHi = _mm_srai_epi32( _mm_add_epi32( sumHi , mmOffset ) , shift );
+  sumLo = _mm_srai_epi32( _mm_add_epi32( sumLo , mmOffset ) , shift );
+  return( _mm_packs_epi32( sumLo , sumHi ) );
+}
+
+inline __m128i simdInterpolateLuma2P4( Short const *src , Int srcStride , __m128i *mmCoeff , const __m128i & mmOffset , Int shift )
+{
+  __m128i sumHi = _mm_setzero_si128();
+  __m128i sumLo = _mm_setzero_si128();
+  for( Int n = 0 ; n < 2 ; n++ )
+  {
+    __m128i mmPix = _mm_loadl_epi64( ( __m128i* )src );
+    __m128i hi = _mm_mulhi_epi16( mmPix , mmCoeff[n] );
+    __m128i lo = _mm_mullo_epi16( mmPix , mmCoeff[n] );
+    sumHi = _mm_add_epi32( sumHi , _mm_unpackhi_epi16( lo , hi ) );
+    sumLo = _mm_add_epi32( sumLo , _mm_unpacklo_epi16( lo , hi ) );
+    src += srcStride;
+  }
+  sumHi = _mm_srai_epi32( _mm_add_epi32( sumHi , mmOffset ) , shift );
+  sumLo = _mm_srai_epi32( _mm_add_epi32( sumLo , mmOffset ) , shift );
+  return( _mm_packs_epi32( sumLo , sumHi ) );
+}
+
+inline __m128i simdClip3( __m128i mmMin , __m128i mmMax , __m128i mmPix )
+{
+  __m128i mmMask = _mm_cmpgt_epi16( mmPix , mmMin );
+  mmPix = _mm_or_si128( _mm_and_si128( mmMask , mmPix ) , _mm_andnot_si128( mmMask , mmMin ) );
+  mmMask = _mm_cmplt_epi16( mmPix , mmMax );
+  mmPix = _mm_or_si128( _mm_and_si128( mmMask , mmPix ) , _mm_andnot_si128( mmMask , mmMax ) );
+  return( mmPix );
+}
+#endif
 
 // ====================================================================================================================
 // Private member functions
@@ -217,6 +321,137 @@ Void TComInterpolationFilter::filter(Int bitDepth, Pel const *src, Int srcStride
     offset = (isFirst) ? -IF_INTERNAL_OFFS << shift : 0;
     maxVal = 0;
   }
+
+#if VECTOR_CODING__INTERPOLATION_FILTER && (RExt__HIGH_BIT_DEPTH_SUPPORT==0)
+  if( bitDepth <= 10 )
+  {
+    if( N == 8 && !( width & 0x07 ) )
+    {
+      Short minVal = 0;
+      __m128i mmOffset = _mm_set1_epi32( offset );
+      __m128i mmCoeff[8];
+      __m128i mmMin = _mm_set1_epi16( minVal );
+      __m128i mmMax = _mm_set1_epi16( maxVal );
+      for( Int n = 0 ; n < 8 ; n++ )
+        mmCoeff[n] = _mm_set1_epi16( c[n] );
+      for( row = 0 ; row < height ; row++ )
+      {
+        for( col = 0 ; col < width ; col += 8 )
+        {
+          __m128i mmFiltered = simdInterpolateLuma8( src + col , cStride , mmCoeff , mmOffset , shift );
+          if( isLast )
+          {
+            mmFiltered = simdClip3( mmMin , mmMax , mmFiltered );
+          }
+          _mm_storeu_si128( ( __m128i * )( dst + col ) , mmFiltered );
+        }
+        src += srcStride;
+        dst += dstStride;
+      }
+      return;
+    }
+    else if( N == 8 && !( width & 0x03 ) )
+    {
+      Short minVal = 0;
+      __m128i mmOffset = _mm_set1_epi32( offset );
+      __m128i mmCoeff[8];
+      __m128i mmMin = _mm_set1_epi16( minVal );
+      __m128i mmMax = _mm_set1_epi16( maxVal );
+      for( Int n = 0 ; n < 8 ; n++ )
+        mmCoeff[n] = _mm_set1_epi16( c[n] );
+      for( row = 0 ; row < height ; row++ )
+      {
+        for( col = 0 ; col < width ; col += 4 )
+        {
+          __m128i mmFiltered = simdInterpolateLuma4( src + col , cStride , mmCoeff , mmOffset , shift );
+          if( isLast )
+          {
+            mmFiltered = simdClip3( mmMin , mmMax , mmFiltered );
+          }
+          _mm_storel_epi64( ( __m128i * )( dst + col ) , mmFiltered );
+        }
+        src += srcStride;
+        dst += dstStride;
+      }
+      return;
+    }
+    else if( N == 4 && !( width & 0x03 ) )
+    {
+      Short minVal = 0;
+      __m128i mmOffset = _mm_set1_epi32( offset );
+      __m128i mmCoeff[8];
+      __m128i mmMin = _mm_set1_epi16( minVal );
+      __m128i mmMax = _mm_set1_epi16( maxVal );
+      for( Int n = 0 ; n < 4 ; n++ )
+        mmCoeff[n] = _mm_set1_epi16( c[n] );
+      for( row = 0 ; row < height ; row++ )
+      {
+        for( col = 0 ; col < width ; col += 4 )
+        {
+          __m128i mmFiltered = simdInterpolateChroma4( src + col , cStride , mmCoeff , mmOffset , shift );
+          if( isLast )
+          {
+            mmFiltered = simdClip3( mmMin , mmMax , mmFiltered );
+          }
+          _mm_storel_epi64( ( __m128i * )( dst + col ) , mmFiltered );
+        }
+        src += srcStride;
+        dst += dstStride;
+      }
+      return;
+    }
+    else if( N == 2 && !( width & 0x07 ) )
+    {
+      Short minVal = 0;
+      __m128i mmOffset = _mm_set1_epi32( offset );
+      __m128i mmCoeff[2];
+      __m128i mmMin = _mm_set1_epi16( minVal );
+      __m128i mmMax = _mm_set1_epi16( maxVal );
+      for( Int n = 0 ; n < 2 ; n++ )
+        mmCoeff[n] = _mm_set1_epi16( c[n] );
+      for( row = 0 ; row < height ; row++ )
+      {
+        for( col = 0 ; col < width ; col += 8 )
+        {
+          __m128i mmFiltered = simdInterpolateLuma2P8( src + col , cStride , mmCoeff , mmOffset , shift );
+          if( isLast )
+          {
+            mmFiltered = simdClip3( mmMin , mmMax , mmFiltered );
+          }
+          _mm_storeu_si128( ( __m128i * )( dst + col ) , mmFiltered );
+        }
+        src += srcStride;
+        dst += dstStride;
+      }
+      return;
+    }
+    else if( N == 2 && !( width & 0x03 ) )
+    {
+      Short minVal = 0;
+      __m128i mmOffset = _mm_set1_epi32( offset );
+      __m128i mmCoeff[8];
+      __m128i mmMin = _mm_set1_epi16( minVal );
+      __m128i mmMax = _mm_set1_epi16( maxVal );
+      for( Int n = 0 ; n < 2 ; n++ )
+        mmCoeff[n] = _mm_set1_epi16( c[n] );
+      for( row = 0 ; row < height ; row++ )
+      {
+        for( col = 0 ; col < width ; col += 4 )
+        {
+          __m128i mmFiltered = simdInterpolateLuma2P4( src + col , cStride , mmCoeff , mmOffset , shift );
+          if( isLast )
+          {
+            mmFiltered = simdClip3( mmMin , mmMax , mmFiltered );
+          }
+          _mm_storel_epi64( ( __m128i * )( dst + col ) , mmFiltered );
+        }
+        src += srcStride;
+        dst += dstStride;
+      }
+      return;
+    }
+  }
+#endif
 
   for (row = 0; row < height; row++)
   {

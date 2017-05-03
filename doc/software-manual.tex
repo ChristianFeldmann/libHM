@@ -190,7 +190,7 @@
 \maketitle
 \begin{abstract}
 This document is a user manual describing usage of reference software
-for the HEVC project. It applies to version 16.10
+for the HEVC project. It applies to version 16.11
 of the software.
 \end{abstract}
 
@@ -1676,8 +1676,8 @@ Enables the use of weighted prediction in B slices.
 Sets the Weighted Prediction method to be used.
 \par
 \begin{tabular}{cp{0.45\textwidth}}
-  0 & Image DC based method with joint color component decision. \\
-  1 & Image DC based method with separate color component decision. \\
+  0 & Image DC based method with joint colour component decision. \\
+  1 & Image DC based method with separate colour component decision. \\
   2 & DC + Histogram refinement method (no clipping). \\
   3 & DC + Histogram refinement method (with clipping). \\
   4 & DC + Dual Histogram refinement method (with clipping). \\
@@ -2072,6 +2072,7 @@ The table below lists the SEI messages defined for Version 1 and Range-Extension
    23 & Tone mapping information                 & Table \ref{tab:sei-tone-mapping-info} \\
    45 & Frame packing arrangement                & Table \ref{tab:sei-frame-packing-arrangement} \\
    47 & Display orientation                      & Table \ref{tab:sei-display-orientation} \\
+   56 & Green Metadata                           & Table \ref{tab:sei-green-metadata} \\
   128 & Structure of pictures information        & Table \ref{tab:sei-sop-info} \\
   129 & Active parameter sets                    & Table \ref{tab:sei-active-parameter-sets} \\
   130 & Decoding unit information                & Table \ref{tab:sei-decoding-unit-info} \\
@@ -2355,6 +2356,28 @@ SEI messages.
   N: $0 < N < (2^{16} - 1)$ & Enable display orientation SEI message with 
   \mbox{anticlockwise_rotation = N} 
   and \mbox{display_orientation_repetition_period = 1} \\
+\end{tabular}
+\\
+\end{OptionTableNoShorthand}
+
+
+
+\begin{OptionTableNoShorthand}{Green Metadata SEI message encoder parameters}{tab:sei-green-metadata}
+\Option{SEIGreenMetadataType} &
+\Default{0} &
+Specifies the type of metadata that is present in the SEI message.
+\par
+\begin{tabular}{cp{0.35\textwidth}}
+  0 & Reserved \\
+  1 & Metadata enabling quality recovery after low-power encoding is present \\
+\end{tabular}
+\\
+\Option{SEIXSDMetricType} &
+\Default{0} &
+Indicates the type of the objective quality metric.
+\par
+\begin{tabular}{cp{0.35\textwidth}}
+  0 & PSNR is used as objective quality metric \\
 \end{tabular}
 \\
 \end{OptionTableNoShorthand}
