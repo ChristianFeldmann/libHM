@@ -179,7 +179,6 @@ Void printMacroSettings()
   PRINT_CONSTANT(O0043_BEST_EFFORT_DECODING,                                        settingNameWidth, settingValueWidth);
 
   PRINT_CONSTANT(ME_ENABLE_ROUNDING_OF_MVS,                                         settingNameWidth, settingValueWidth);
-  PRINT_CONSTANT(U0040_MODIFIED_WEIGHTEDPREDICTION_WITH_BIPRED_AND_CLIPPING,        settingNameWidth, settingValueWidth);
 
   //------------------------------------------------
 

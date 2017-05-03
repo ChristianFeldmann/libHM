@@ -119,9 +119,7 @@ Void TEncSampleAdaptiveOffset::createEncData(Bool isPreDBFSamplesUsed)
   }
 
   ::memset(m_saoDisabledRate, 0, sizeof(m_saoDisabledRate));
-#if OPTIONAL_RESET_SAO_ENCODING_AFTER_IRAP
   m_lastIRAPPoc = MAX_INT;
-#endif
 
   for(Int typeIdc=0; typeIdc < NUM_SAO_NEW_TYPES; typeIdc++)
   {
@@ -241,11 +239,7 @@ Void TEncSampleAdaptiveOffset::initRDOCabacCoder(TEncSbac* pcRDGoOnSbacCoder, TC
 
 
 
-#if OPTIONAL_RESET_SAO_ENCODING_AFTER_IRAP
 Void TEncSampleAdaptiveOffset::SAOProcess(TComPic* pPic, Bool* sliceEnabled, const Double *lambdas, const Bool bTestSAODisableAtPictureLevel, const Double saoEncodingRate, const Double saoEncodingRateChroma, const Bool isPreDBFSamplesUsed, const Bool bResetStateAfterIRAP )
-#else
-Void TEncSampleAdaptiveOffset::SAOProcess(TComPic* pPic, Bool* sliceEnabled, const Double *lambdas, const Bool bTestSAODisableAtPictureLevel, const Double saoEncodingRate, const Double saoEncodingRateChroma, Bool isPreDBFSamplesUsed )
-#endif
 {
   TComPicYuv* orgYuv= pPic->getPicYuvOrg();
   TComPicYuv* resYuv= pPic->getPicYuvRec();
@@ -263,11 +257,7 @@ Void TEncSampleAdaptiveOffset::SAOProcess(TComPic* pPic, Bool* sliceEnabled, con
   }
 
   //slice on/off
-#if OPTIONAL_RESET_SAO_ENCODING_AFTER_IRAP
   decidePicParams(sliceEnabled, pPic, saoEncodingRate, saoEncodingRateChroma, bResetStateAfterIRAP);
-#else
-  decidePicParams(sliceEnabled, pPic->getSlice(0)->getDepth(), saoEncodingRate, saoEncodingRateChroma);
-#endif
 
   //block on/off
   SAOBlkParam* reconParams = new SAOBlkParam[m_numCTUsPic]; //temporary parameter buffer for storing reconstructed SAO parameters
@@ -341,13 +331,8 @@ Void TEncSampleAdaptiveOffset::getStatistics(SAOStatData*** blkStats, TComPicYuv
   }
 }
 
-#if OPTIONAL_RESET_SAO_ENCODING_AFTER_IRAP
 Void TEncSampleAdaptiveOffset::decidePicParams(Bool* sliceEnabled, const TComPic* pic, const Double saoEncodingRate, const Double saoEncodingRateChroma, const Bool bResetStateAfterIRAP)
-#else
-Void TEncSampleAdaptiveOffset::decidePicParams(Bool* sliceEnabled, Int picTempLayer, const Double saoEncodingRate, const Double saoEncodingRateChroma)
-#endif
 {
-#if OPTIONAL_RESET_SAO_ENCODING_AFTER_IRAP
   if (pic->getSlice(0)->isIRAP())
   {
     m_lastIRAPPoc = pic->getSlice(0)->getPOC();
@@ -364,7 +349,6 @@ Void TEncSampleAdaptiveOffset::decidePicParams(Bool* sliceEnabled, Int picTempLa
     m_lastIRAPPoc = MAX_INT;
   }
   const Int picTempLayer = pic->getSlice(0)->getDepth();
-#endif
 
   //decide sliceEnabled[compIdx]
   const Int numberOfComponents = getNumberValidComponents(m_chromaFormatIDC);

@@ -246,9 +246,7 @@ public:
 private:
   Int xEstPicTargetBits( TEncRCSeq* encRCSeq, TEncRCGOP* encRCGOP );
   Int xEstPicHeaderBits( list<TEncRCPic*>& listPreviousPictures, Int frameLevel );
-#if V0078_ADAPTIVE_LOWER_BOUND
   Int xEstPicLowerBound( TEncRCSeq* encRCSeq, TEncRCGOP* encRCGOP );
-#endif
 
 public:
   TEncRCSeq*      getRCSequence()                         { return m_encRCSeq; }
@@ -264,15 +262,11 @@ public:
   Int  getPixelsLeft()                                    { return m_pixelsLeft; }
   Int  getBitsCoded()                                     { return m_targetBits - m_estHeaderBits - m_bitsLeft; }
   Int  getLCUCoded()                                      { return m_numberOfLCU - m_LCULeft; }
-#if V0078_ADAPTIVE_LOWER_BOUND
   Int  getLowerBound()                                    { return m_lowerBound; }
-#endif
   TRCLCU* getLCU()                                        { return m_LCUs; }
   TRCLCU& getLCU( Int LCUIdx )                            { return m_LCUs[LCUIdx]; }
   Int  getPicActualHeaderBits()                           { return m_picActualHeaderBits; }
-#if U0132_TARGET_BITS_SATURATION
   Void setBitLeft(Int bits)                               { m_bitsLeft = bits; }
-#endif
   Void setTargetBits( Int bits )                          { m_targetBits = bits; m_bitsLeft = bits;}
   Void setTotalIntraCost(Double cost)                     { m_totalCostIntra = cost; }
   Void getLCUInitTargetBits();
@@ -295,9 +289,7 @@ private:
   Int m_targetBits;
   Int m_estHeaderBits;
   Int m_estPicQP;
-#if V0078_ADAPTIVE_LOWER_BOUND
   Int m_lowerBound;
-#endif
   Double m_estPicLambda;
 
   Int m_LCULeft;
@@ -333,14 +325,12 @@ public:
   TEncRCGOP* getRCGOP()          { assert ( m_encRCGOP != NULL ); return m_encRCGOP; }
   TEncRCPic* getRCPic()          { assert ( m_encRCPic != NULL ); return m_encRCPic; }
   list<TEncRCPic*>& getPicList() { return m_listRCPictures; }
-#if U0132_TARGET_BITS_SATURATION
   Bool       getCpbSaturationEnabled()  { return m_CpbSaturationEnabled;  }
   UInt       getCpbState()              { return m_cpbState;       }
   UInt       getCpbSize()               { return m_cpbSize;        }
   UInt       getBufferingRate()         { return m_bufferingRate;  }
   Int        updateCpbState(Int actualBits);
   Void       initHrdParam(const TComHRD* pcHrd, Int iFrameRate, Double fInitialCpbFullness);
-#endif
 
 private:
   TEncRCSeq* m_encRCSeq;
@@ -348,12 +338,10 @@ private:
   TEncRCPic* m_encRCPic;
   list<TEncRCPic*> m_listRCPictures;
   Int        m_RCQP;
-#if U0132_TARGET_BITS_SATURATION
   Bool       m_CpbSaturationEnabled;    // Enable target bits saturation to avoid CPB overflow and underflow
   Int        m_cpbState;                // CPB State 
   UInt       m_cpbSize;                 // CPB size
   UInt       m_bufferingRate;           // Buffering rate
-#endif
 };
 
 #endif

@@ -156,6 +156,9 @@ public:
   Void selectReferencePictureSet(TComSlice* slice, Int POCCurr, Int GOPid );
   Int getReferencePictureSetIdxForSOP(Int POCCurr, Int GOPid );
 
+#if JCTVC_Y0038_PARAMS
+  Void                   setParamSetChanged(Int spsId, Int ppsId);
+#endif
   Bool                   PPSNeedsWriting(Int ppsId);
   Bool                   SPSNeedsWriting(Int spsId);
 

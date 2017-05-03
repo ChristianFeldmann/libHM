@@ -112,6 +112,9 @@ Void TAppEncTop::xInitLibCfg()
   m_cTEncTop.setIntraPeriod                                       ( m_iIntraPeriod );
   m_cTEncTop.setDecodingRefreshType                               ( m_iDecodingRefreshType );
   m_cTEncTop.setGOPSize                                           ( m_iGOPSize );
+#if JCTVC_Y0038_PARAMS
+  m_cTEncTop.setReWriteParamSetsFlag                              ( m_bReWriteParamSetsFlag );
+#endif
   m_cTEncTop.setGopList                                           ( m_GOPList );
   m_cTEncTop.setExtraRPSs                                         ( m_extraRPSs );
   for(Int i = 0; i < MAX_TLAYER; i++)
@@ -146,11 +149,7 @@ Void TAppEncTop::xInitLibCfg()
   m_cTEncTop.setLoopFilterOffsetInPPS                             ( m_loopFilterOffsetInPPS );
   m_cTEncTop.setLoopFilterBetaOffset                              ( m_loopFilterBetaOffsetDiv2  );
   m_cTEncTop.setLoopFilterTcOffset                                ( m_loopFilterTcOffsetDiv2    );
-#if W0038_DB_OPT
   m_cTEncTop.setDeblockingFilterMetric                            ( m_deblockingFilterMetric );
-#else
-  m_cTEncTop.setDeblockingFilterMetric                            ( m_DeblockingFilterMetric );
-#endif
 
   //====== Motion search ========
   m_cTEncTop.setDisableIntraPUsInInterSlices                      ( m_bDisableIntraPUsInInterSlices );
@@ -168,12 +167,8 @@ Void TAppEncTop::xInitLibCfg()
   m_cTEncTop.setDiffCuChromaQpOffsetDepth                         ( m_diffCuChromaQpOffsetDepth );
   m_cTEncTop.setChromaCbQpOffset                                  ( m_cbQpOffset     );
   m_cTEncTop.setChromaCrQpOffset                                  ( m_crQpOffset  );
-#if ER_CHROMA_QP_WCG_PPS
   m_cTEncTop.setWCGChromaQpControl                                ( m_wcgChromaQpControl );
-#endif
-#if W0038_CQP_ADJ
   m_cTEncTop.setSliceChromaOffsetQpIntraOrPeriodic                ( m_sliceChromaQpOffsetPeriodicity, m_sliceChromaQpOffsetIntraOrPeriodic );
-#endif
   m_cTEncTop.setChromaFormatIdc                                   ( m_chromaFormatIDC  );
 
 #if ADAPTIVE_QP_SELECTION
@@ -188,9 +183,7 @@ Void TAppEncTop::xInitLibCfg()
   m_cTEncTop.setWeightedPredictionMethod( m_weightedPredictionMethod );
 
   //====== Tool list ========
-#if SHARP_LUMA_DELTA_QP
   m_cTEncTop.setLumaLevelToDeltaQPControls                        ( m_lumaLevelToDeltaQPMapping );
-#endif
 #if X0038_LAMBDA_FROM_QP_CAPABILITY
   m_cTEncTop.setDeltaQpRD( (m_costMode==COST_LOSSLESS_CODING) ? 0 : m_uiDeltaQpRD );
 #else
@@ -202,9 +195,7 @@ Void TAppEncTop::xInitLibCfg()
   m_cTEncTop.setdQPs                                              ( m_aidQP        );
   m_cTEncTop.setUseRDOQ                                           ( m_useRDOQ     );
   m_cTEncTop.setUseRDOQTS                                         ( m_useRDOQTS   );
-#if T0196_SELECTIVE_RDOQ
   m_cTEncTop.setUseSelectiveRDOQ                                  ( m_useSelectiveRDOQ );
-#endif
   m_cTEncTop.setRDpenalty                                         ( m_rdPenalty );
   m_cTEncTop.setMaxCUWidth                                        ( m_uiMaxCUWidth );
   m_cTEncTop.setMaxCUHeight                                       ( m_uiMaxCUHeight );
@@ -279,9 +270,7 @@ Void TAppEncTop::xInitLibCfg()
   m_cTEncTop.setMaxNumOffsetsPerPic                               ( m_maxNumOffsetsPerPic);
 
   m_cTEncTop.setSaoCtuBoundary                                    ( m_saoCtuBoundary);
-#if OPTIONAL_RESET_SAO_ENCODING_AFTER_IRAP
   m_cTEncTop.setSaoResetEncoderStateAfterIRAP                     ( m_saoResetEncoderStateAfterIRAP);
-#endif
   m_cTEncTop.setPCMInputBitDepthFlag                              ( m_bPCMInputBitDepthFlag);
   m_cTEncTop.setPCMFilterDisableFlag                              ( m_bPCMFilterDisableFlag);
 
@@ -356,10 +345,8 @@ Void TAppEncTop::xInitLibCfg()
   m_cTEncTop.setKneeSEIOutputKneePoint                            ( m_kneeSEIOutputKneePoint );
   m_cTEncTop.setColourRemapInfoSEIFileRoot                        ( m_colourRemapSEIFileRoot );
   m_cTEncTop.setMasteringDisplaySEI                               ( m_masteringDisplay );
-#if U0033_ALTERNATIVE_TRANSFER_CHARACTERISTICS_SEI
   m_cTEncTop.setSEIAlternativeTransferCharacteristicsSEIEnable    ( m_preferredTransferCharacteristics>=0     );
   m_cTEncTop.setSEIPreferredTransferCharacteristics               ( UChar(m_preferredTransferCharacteristics) );
-#endif
   m_cTEncTop.setSEIGreenMetadataInfoSEIEnable                     ( m_greenMetadataType > 0 );
   m_cTEncTop.setSEIGreenMetadataType                              ( UChar(m_greenMetadataType) );
   m_cTEncTop.setSEIXSDMetricType                                  ( UChar(m_xsdMetricType) );
@@ -391,11 +378,9 @@ Void TAppEncTop::xInitLibCfg()
   m_cTEncTop.setUseLCUSeparateModel                               ( m_RCUseLCUSeparateModel );
   m_cTEncTop.setInitialQP                                         ( m_RCInitialQP );
   m_cTEncTop.setForceIntraQP                                      ( m_RCForceIntraQP );
-#if U0132_TARGET_BITS_SATURATION
   m_cTEncTop.setCpbSaturationEnabled                              ( m_RCCpbSaturationEnabled );
   m_cTEncTop.setCpbSize                                           ( m_RCCpbSize );
   m_cTEncTop.setInitialCpbFullness                                ( m_RCInitialCpbFullness );
-#endif
   m_cTEncTop.setTransquantBypassEnabledFlag                       ( m_TransquantBypassEnabledFlag );
   m_cTEncTop.setCUTransquantBypassFlagForceValue                  ( m_CUTransquantBypassFlagForce );
   m_cTEncTop.setCostMode                                          ( m_costMode );

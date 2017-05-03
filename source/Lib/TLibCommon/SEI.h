@@ -86,9 +86,7 @@ public:
     CHROMA_RESAMPLING_FILTER_HINT        = 140,
     KNEE_FUNCTION_INFO                   = 141,
     COLOUR_REMAPPING_INFO                = 142,
-#if U0033_ALTERNATIVE_TRANSFER_CHARACTERISTICS_SEI
     ALTERNATIVE_TRANSFER_CHARACTERISTICS = 182,
-#endif
   };
 
   SEI() {}
@@ -593,7 +591,6 @@ public:
 
 };
 
-#if U0033_ALTERNATIVE_TRANSFER_CHARACTERISTICS_SEI
 class SEIAlternativeTransferCharacteristics : public SEI
 {
 public:
@@ -606,7 +603,6 @@ public:
 
   UInt m_preferredTransferCharacteristics;
 };
-#endif
 
 class SEIGreenMetadataInfo : public SEI
 {

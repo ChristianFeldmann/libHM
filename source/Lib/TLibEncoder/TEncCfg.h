@@ -54,10 +54,8 @@ struct GOPEntry
   Double m_QPOffsetModelOffset;
   Double m_QPOffsetModelScale;
 #endif
-#if W0038_CQP_ADJ
   Int m_CbQPoffset;
   Int m_CrQPoffset;
-#endif
   Double m_QPFactor;
   Int m_tcOffsetDiv2;
   Int m_betaOffsetDiv2;
@@ -80,10 +78,8 @@ struct GOPEntry
   , m_QPOffsetModelOffset(0)
   , m_QPOffsetModelScale(0)
 #endif
-#if W0038_CQP_ADJ
   , m_CbQPoffset(0)
   , m_CrQPoffset(0)
-#endif
   , m_QPFactor(0)
   , m_tcOffsetDiv2(0)
   , m_betaOffsetDiv2(0)
@@ -149,6 +145,9 @@ protected:
   //====== Coding Structure ========
   UInt      m_uiIntraPeriod;                    // TODO: make this an Int - it can be -1!
   UInt      m_uiDecodingRefreshType;            ///< the type of decoding refresh employed for the random access.
+#if JCTVC_Y0038_PARAMS
+  Bool      m_bReWriteParamSetsFlag;
+#endif
   Int       m_iGOPSize;
   GOPEntry  m_GOPList[MAX_GOP];
   Int       m_extraRPSs;
@@ -185,20 +184,14 @@ protected:
   Bool      m_loopFilterOffsetInPPS;
   Int       m_loopFilterBetaOffsetDiv2;
   Int       m_loopFilterTcOffsetDiv2;
-#if W0038_DB_OPT
   Int       m_deblockingFilterMetric;
-#else
-  Bool      m_DeblockingFilterMetric;
-#endif
   Bool      m_bUseSAO;
   Bool      m_bTestSAODisableAtPictureLevel;
   Double    m_saoEncodingRate;       // When non-0 SAO early picture termination is enabled for luma and chroma
   Double    m_saoEncodingRateChroma; // The SAO early picture termination rate to use for chroma (when m_SaoEncodingRate is >0). If <=0, use results for luma.
   Int       m_maxNumOffsetsPerPic;
   Bool      m_saoCtuBoundary;
-#if OPTIONAL_RESET_SAO_ENCODING_AFTER_IRAP
   Bool      m_saoResetEncoderStateAfterIRAP;
-#endif
 
   //====== Motion search ========
   Bool      m_bDisableIntraPUsInInterSlices;
@@ -217,13 +210,9 @@ protected:
 
   Int       m_chromaCbQpOffset;                 //  Chroma Cb QP Offset (0:default)
   Int       m_chromaCrQpOffset;                 //  Chroma Cr Qp Offset (0:default)
-#if ER_CHROMA_QP_WCG_PPS
   WCGChromaQPControl m_wcgChromaQpControl;                    ///< Wide-colour-gamut chroma QP control.
-#endif
-#if W0038_CQP_ADJ
   UInt      m_sliceChromaQpOffsetPeriodicity;                 ///< Used in conjunction with Slice Cb/Cr QpOffsetIntraOrPeriodic. Use 0 (default) to disable periodic nature.
   Int       m_sliceChromaQpOffsetIntraOrPeriodic[2/*Cb,Cr*/]; ///< Chroma Cb QP Offset at slice level for I slice or for periodic inter slices as defined by SliceChromaQPOffsetPeriodicity. Replaces offset in the GOP table.
-#endif
 
   ChromaFormat m_chromaFormatIDC;
 
@@ -241,9 +230,7 @@ protected:
   Bool      m_bUseHADME;
   Bool      m_useRDOQ;
   Bool      m_useRDOQTS;
-#if T0196_SELECTIVE_RDOQ
   Bool      m_useSelectiveRDOQ;
-#endif
   UInt      m_rdPenalty;
   FastInterSearchMode m_fastInterSearchMode;
   Bool      m_bUseEarlyCU;
@@ -261,9 +248,7 @@ protected:
   Bool      m_persistentRiceAdaptationEnabledFlag;
   Bool      m_cabacBypassAlignmentEnabledFlag;
   Bool      m_rdpcmEnabledFlag[NUMBER_OF_RDPCM_SIGNALLING_MODES];
-#if SHARP_LUMA_DELTA_QP
   LumaLevelToDeltaQPMapping m_lumaLevelToDeltaQPMapping; ///< mapping from luma level to delta QP.
-#endif
   Int*      m_aidQP;
   UInt      m_uiDeltaQpRD;
   Bool      m_bFastDeltaQP;
@@ -360,10 +345,8 @@ protected:
   Int*      m_kneeSEIOutputKneePoint;
   std::string m_colourRemapSEIFileRoot;          ///< SEI Colour Remapping File (initialized from external file)
   TComSEIMasteringDisplay m_masteringDisplay;
-#if U0033_ALTERNATIVE_TRANSFER_CHARACTERISTICS_SEI
   Bool      m_alternativeTransferCharacteristicsSEIEnabled;
   UChar     m_preferredTransferCharacteristics;
-#endif
   Bool      m_greenMetadataInfoSEIEnabled;
   UChar     m_greenMetadataType;
   UChar     m_xsdMetricType;
@@ -384,11 +367,9 @@ protected:
   Bool      m_RCUseLCUSeparateModel;
   Int       m_RCInitialQP;
   Bool      m_RCForceIntraQP;
-#if U0132_TARGET_BITS_SATURATION
-  Bool      m_RCCpbSaturationEnabled;                   
+  Bool      m_RCCpbSaturationEnabled;
   UInt      m_RCCpbSize;
   Double    m_RCInitialCpbFullness;
-#endif
   Bool      m_TransquantBypassEnabledFlag;                    ///< transquant_bypass_enabled_flag setting in PPS.
   Bool      m_CUTransquantBypassFlagForce;                    ///< if transquant_bypass_enabled_flag, then, if true, all CU transquant bypass flags will be set to true.
 
@@ -480,6 +461,9 @@ public:
   //====== Coding Structure ========
   Void      setIntraPeriod                  ( Int   i )      { m_uiIntraPeriod = (UInt)i; }
   Void      setDecodingRefreshType          ( Int   i )      { m_uiDecodingRefreshType = (UInt)i; }
+#if JCTVC_Y0038_PARAMS
+  Void      setReWriteParamSetsFlag         ( Bool  b )      { m_bReWriteParamSetsFlag = b; }
+#endif
   Void      setGOPSize                      ( Int   i )      { m_iGOPSize = i; }
   Void      setGopList                      ( const GOPEntry GOPList[MAX_GOP] ) {  for ( Int i = 0; i < MAX_GOP; i++ ) m_GOPList[i] = GOPList[i]; }
   Void      setExtraRPSs                    ( Int   i )      { m_extraRPSs = i; }
@@ -514,15 +498,12 @@ public:
   Void setUseAMP( Bool b ) { m_useAMP = b; }
 
   //====== Loop/Deblock Filter ========
-  Void      setLoopFilterDisable            ( Bool  b )      { m_bLoopFilterDisable       = b; }
-  Void      setLoopFilterOffsetInPPS        ( Bool  b )      { m_loopFilterOffsetInPPS      = b; }
+  Void      setLoopFilterDisable            ( Bool  b )      { m_bLoopFilterDisable        = b; }
+  Void      setLoopFilterOffsetInPPS        ( Bool  b )      { m_loopFilterOffsetInPPS     = b; }
   Void      setLoopFilterBetaOffset         ( Int   i )      { m_loopFilterBetaOffsetDiv2  = i; }
   Void      setLoopFilterTcOffset           ( Int   i )      { m_loopFilterTcOffsetDiv2    = i; }
-#if W0038_DB_OPT
-  Void      setDeblockingFilterMetric       ( Int   i )      { m_deblockingFilterMetric = i; }
-#else
-  Void      setDeblockingFilterMetric       ( Bool  b )      { m_DeblockingFilterMetric = b; }
-#endif
+  Void      setDeblockingFilterMetric       ( Int   i )      { m_deblockingFilterMetric    = i; }
+
   //====== Motion search ========
   Void      setDisableIntraPUsInInterSlices ( Bool  b )      { m_bDisableIntraPUsInInterSlices = b; }
   Void      setMotionEstimationSearchMethod ( MESearchMethod e ) { m_motionEstimationSearchMethod = e; }
@@ -542,23 +523,17 @@ public:
 
   Void      setChromaCbQpOffset             ( Int   i )      { m_chromaCbQpOffset = i; }
   Void      setChromaCrQpOffset             ( Int   i )      { m_chromaCrQpOffset = i; }
-#if ER_CHROMA_QP_WCG_PPS
   Void      setWCGChromaQpControl           ( const WCGChromaQPControl &ctrl )     { m_wcgChromaQpControl = ctrl; }
   const WCGChromaQPControl &getWCGChromaQPControl () const { return m_wcgChromaQpControl; }
-#endif
-#if W0038_CQP_ADJ
   Void      setSliceChromaOffsetQpIntraOrPeriodic( UInt periodicity, Int sliceChromaQpOffsetIntraOrPeriodic[2]) { m_sliceChromaQpOffsetPeriodicity = periodicity; memcpy(m_sliceChromaQpOffsetIntraOrPeriodic, sliceChromaQpOffsetIntraOrPeriodic, sizeof(m_sliceChromaQpOffsetIntraOrPeriodic)); }
   Int       getSliceChromaOffsetQpIntraOrPeriodic( Bool bIsCr) const                                            { return m_sliceChromaQpOffsetIntraOrPeriodic[bIsCr?1:0]; }
   UInt      getSliceChromaOffsetQpPeriodicity() const                                                           { return m_sliceChromaQpOffsetPeriodicity; }
-#endif
 
   Void      setChromaFormatIdc              ( ChromaFormat cf ) { m_chromaFormatIDC = cf; }
   ChromaFormat  getChromaFormatIdc          ( )              { return m_chromaFormatIDC; }
 
-#if SHARP_LUMA_DELTA_QP
   Void      setLumaLevelToDeltaQPControls( const LumaLevelToDeltaQPMapping &lumaLevelToDeltaQPMapping ) { m_lumaLevelToDeltaQPMapping=lumaLevelToDeltaQPMapping; }
   const LumaLevelToDeltaQPMapping& getLumaLevelToDeltaQPMapping() const { return m_lumaLevelToDeltaQPMapping; }
-#endif
 
 #if ADAPTIVE_QP_SELECTION
   Void      setUseAdaptQpSelect             ( Bool   i ) { m_bUseAdaptQpSelect    = i; }
@@ -593,6 +568,9 @@ public:
   //==== Coding Structure ========
   UInt      getIntraPeriod                  ()      { return  m_uiIntraPeriod; }
   UInt      getDecodingRefreshType          ()      { return  m_uiDecodingRefreshType; }
+#if JCTVC_Y0038_PARAMS
+  Bool      getReWriteParamSetsFlag         ()      { return m_bReWriteParamSetsFlag; }
+#endif
   Int       getGOPSize                      ()      { return  m_iGOPSize; }
   Int       getMaxDecPicBuffering           (UInt tlayer) { return m_maxDecPicBuffering[tlayer]; }
   Int       getNumReorderPics               (UInt tlayer) { return m_numReorderPics[tlayer]; }
@@ -622,11 +600,7 @@ public:
   Bool      getLoopFilterOffsetInPPS        ()      { return m_loopFilterOffsetInPPS; }
   Int       getLoopFilterBetaOffset         ()      { return m_loopFilterBetaOffsetDiv2; }
   Int       getLoopFilterTcOffset           ()      { return m_loopFilterTcOffsetDiv2; }
-#if W0038_DB_OPT
   Int       getDeblockingFilterMetric       ()      { return m_deblockingFilterMetric; }
-#else
-  Bool      getDeblockingFilterMetric       ()      { return m_DeblockingFilterMetric; }
-#endif
 
   //==== Motion search ========
   Bool      getDisableIntraPUsInInterSlices    () const { return m_bDisableIntraPUsInInterSlices; }
@@ -649,9 +623,7 @@ public:
   Void      setUseHADME                     ( Bool  b )     { m_bUseHADME   = b; }
   Void      setUseRDOQ                      ( Bool  b )     { m_useRDOQ    = b; }
   Void      setUseRDOQTS                    ( Bool  b )     { m_useRDOQTS  = b; }
-#if T0196_SELECTIVE_RDOQ
   Void      setUseSelectiveRDOQ             ( Bool b )      { m_useSelectiveRDOQ = b; }
-#endif
   Void      setRDpenalty                    ( UInt  u )     { m_rdPenalty  = u; }
   Void      setFastInterSearchMode          ( FastInterSearchMode m ) { m_fastInterSearchMode = m; }
   Void      setUseEarlyCU                   ( Bool  b )     { m_bUseEarlyCU = b; }
@@ -676,9 +648,7 @@ public:
   Bool      getUseHADME                     ()      { return m_bUseHADME;   }
   Bool      getUseRDOQ                      ()      { return m_useRDOQ;    }
   Bool      getUseRDOQTS                    ()      { return m_useRDOQTS;  }
-#if T0196_SELECTIVE_RDOQ
   Bool      getUseSelectiveRDOQ             ()      { return m_useSelectiveRDOQ; }
-#endif
   Int       getRDpenalty                    ()      { return m_rdPenalty;  }
   FastInterSearchMode getFastInterSearchMode() const{ return m_fastInterSearchMode;  }
   Bool      getUseEarlyCU                   ()      { return m_bUseEarlyCU; }
@@ -750,10 +720,8 @@ public:
   Int   getMaxNumOffsetsPerPic                   ()                  { return m_maxNumOffsetsPerPic; }
   Void  setSaoCtuBoundary              (Bool val)                    { m_saoCtuBoundary = val; }
   Bool  getSaoCtuBoundary              ()                            { return m_saoCtuBoundary; }
-#if OPTIONAL_RESET_SAO_ENCODING_AFTER_IRAP
   Void  setSaoResetEncoderStateAfterIRAP(Bool b)                     { m_saoResetEncoderStateAfterIRAP = b; }
   Bool  getSaoResetEncoderStateAfterIRAP() const                     { return m_saoResetEncoderStateAfterIRAP; }
-#endif
   Void  setLFCrossTileBoundaryFlag               ( Bool   val  )     { m_loopFilterAcrossTilesEnabledFlag = val; }
   Bool  getLFCrossTileBoundaryFlag               ()                  { return m_loopFilterAcrossTilesEnabledFlag;   }
   Void  setTileUniformSpacingFlag      ( Bool b )                    { m_tileUniformSpacingFlag = b; }
@@ -897,12 +865,10 @@ public:
   Void  setColourRemapInfoSEIFileRoot( const std::string &s )        { m_colourRemapSEIFileRoot = s; }
   const std::string &getColourRemapInfoSEIFileRoot() const           { return m_colourRemapSEIFileRoot; }
   Void  setMasteringDisplaySEI(const TComSEIMasteringDisplay &src)   { m_masteringDisplay = src; }
-#if U0033_ALTERNATIVE_TRANSFER_CHARACTERISTICS_SEI
   Void  setSEIAlternativeTransferCharacteristicsSEIEnable( Bool b)   { m_alternativeTransferCharacteristicsSEIEnabled = b;    }
   Bool  getSEIAlternativeTransferCharacteristicsSEIEnable( ) const   { return m_alternativeTransferCharacteristicsSEIEnabled; }
   Void  setSEIPreferredTransferCharacteristics(UChar v)              { m_preferredTransferCharacteristics = v;    }
   UChar getSEIPreferredTransferCharacteristics() const               { return m_preferredTransferCharacteristics; }
-#endif
   Void  setSEIGreenMetadataInfoSEIEnable( Bool b)                    { m_greenMetadataInfoSEIEnabled = b;    }
   Bool  getSEIGreenMetadataInfoSEIEnable( ) const                    { return m_greenMetadataInfoSEIEnabled; }
   Void  setSEIGreenMetadataType(UChar v)                             { m_greenMetadataType = v;    }
@@ -943,14 +909,12 @@ public:
   Void         setInitialQP           ( Int QP )                     { m_RCInitialQP = QP;             }
   Bool         getForceIntraQP        ()                             { return m_RCForceIntraQP;        }
   Void         setForceIntraQP        ( Bool b )                     { m_RCForceIntraQP = b;           }
-#if U0132_TARGET_BITS_SATURATION
   Bool         getCpbSaturationEnabled()                             { return m_RCCpbSaturationEnabled;}
   Void         setCpbSaturationEnabled( Bool b )                     { m_RCCpbSaturationEnabled = b;   }
   UInt         getCpbSize             ()                             { return m_RCCpbSize;}
   Void         setCpbSize             ( UInt ui )                    { m_RCCpbSize = ui;   }
   Double       getInitialCpbFullness  ()                             { return m_RCInitialCpbFullness;  }
   Void         setInitialCpbFullness  (Double f)                     { m_RCInitialCpbFullness = f;     }
-#endif
   Bool         getTransquantBypassEnabledFlag()                      { return m_TransquantBypassEnabledFlag; }
   Void         setTransquantBypassEnabledFlag(Bool flag)             { m_TransquantBypassEnabledFlag = flag; }
   Bool         getCUTransquantBypassFlagForceValue()                 { return m_CUTransquantBypassFlagForce; }

@@ -98,13 +98,9 @@ private:
   TEncSbac                m_lastSliceSegmentEndContextState;    ///< context storage for state at the end of the previous slice-segment (used for dependent slices only).
   TEncSbac                m_entropyCodingSyncContextState;      ///< context storate for state of contexts at the wavefront/WPP/entropy-coding-sync second CTU of tile-row
   SliceType               m_encCABACTableIdx;
-#if SHARP_LUMA_DELTA_QP
   Int                     m_gopID;
-#endif
 
-#if SHARP_LUMA_DELTA_QP
   Double   calculateLambda( const TComSlice* pSlice, const Int GOPid, const Int depth, const Double refQP, const Double dQP, Int &iQP );
-#endif
   Void     setUpLambda(TComSlice* slice, const Double dLambda, Int iQP);
   Void     calculateBoundingCtuTsAddrForSlice(UInt &startCtuTSAddrSlice, UInt &boundingCtuTSAddrSlice, Bool &haveReachedTileBoundary, TComPic* pcPic, const Int sliceMode, const Int sliceArgument);
 
@@ -120,11 +116,9 @@ public:
   Void    initEncSlice        ( TComPic*  pcPic, const Int pocLast, const Int pocCurr,
                                 const Int iGOPid,   TComSlice*& rpcSlice, const Bool isField );
   Void    resetQP             ( TComPic* pic, Int sliceQP, Double lambda );
-#if SHARP_LUMA_DELTA_QP
-  Void setGopID( Int iGopID )      { m_gopID = iGopID; }
-  Int  getGopID() const            { return m_gopID;   }
-  Void updateLambda(TComSlice* pSlice, Double dQP);
-#endif
+  Void    setGopID( Int iGopID )      { m_gopID = iGopID; }
+  Int     getGopID() const            { return m_gopID;   }
+  Void    updateLambda(TComSlice* pSlice, Double dQP);
 
   // compress and encode slice
   Void    precompressSlice    ( TComPic* pcPic                                     );      ///< precompress slice for multi-loop slice-level QP opt.

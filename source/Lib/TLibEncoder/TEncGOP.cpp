@@ -98,10 +98,7 @@ TEncGOP::TEncGOP()
   m_bufferingPeriodSEIPresentInAU = false;
   m_associatedIRAPType = NAL_UNIT_CODED_SLICE_IDR_N_LP;
   m_associatedIRAPPOC  = 0;
-#if W0038_DB_OPT
   m_pcDeblockingTempPicYuv = NULL;
-#endif
-  return;
 }
 
 TEncGOP::~TEncGOP()
@@ -118,14 +115,12 @@ Void  TEncGOP::create()
 
 Void  TEncGOP::destroy()
 {
-#if W0038_DB_OPT
   if (m_pcDeblockingTempPicYuv)
   {
     m_pcDeblockingTempPicYuv->destroy();
     delete m_pcDeblockingTempPicYuv;
     m_pcDeblockingTempPicYuv = NULL;
   }
-#endif
 }
 
 Void TEncGOP::init ( TEncTop* pcTEncTop )
@@ -467,14 +462,12 @@ Void TEncGOP::xCreateIRAPLeadingSEIMessages (SEIMessages& seiMessages, const TCo
     m_seiEncoder.initSEIChromaResamplingFilterHint(seiChromaResamplingFilterHint, m_pcCfg->getChromaResamplingHorFilterIdc(), m_pcCfg->getChromaResamplingVerFilterIdc());
     seiMessages.push_back(seiChromaResamplingFilterHint);
   }
-#if U0033_ALTERNATIVE_TRANSFER_CHARACTERISTICS_SEI
   if(m_pcCfg->getSEIAlternativeTransferCharacteristicsSEIEnable())
   {
     SEIAlternativeTransferCharacteristics *seiAlternativeTransferCharacteristics = new SEIAlternativeTransferCharacteristics;
     m_seiEncoder.initSEIAlternativeTransferCharacteristics(seiAlternativeTransferCharacteristics);
     seiMessages.push_back(seiAlternativeTransferCharacteristics);
   }
-#endif
 }
 
 Void TEncGOP::xCreatePerPictureSEIMessages (Int picInGOP, SEIMessages& seiMessages, SEIMessages& nestedSeiMessages, TComSlice *slice)
@@ -1193,11 +1186,6 @@ Void TEncGOP::compressGOP( Int iPOCLast, Int iNumPicRcvd, TComList<TComPic*>& rc
 
     m_pcSliceEncoder->initEncSlice ( pcPic, iPOCLast, pocCurr, iGOPid, pcSlice, isField );
 
-#if !SHARP_LUMA_DELTA_QP
-    //Set Frame/Field coding
-    pcSlice->getPic()->setField(isField);
-#endif
-
     pcSlice->setLastIDR(m_iLastIDR);
     pcSlice->setSliceIdx(0);
     //set default slice level flag to the same as SPS level flag
@@ -1450,7 +1438,6 @@ Void TEncGOP::compressGOP( Int iPOCLast, Int iNumPicRcvd, TComList<TComPic*>& rc
     {
       pcSlice->setMvdL1ZeroFlag(false);
     }
-    pcPic->getSlice(pcSlice->getSliceIdx())->setMvdL1ZeroFlag(pcSlice->getMvdL1ZeroFlag());
 
 
     Double lambda            = 0.0;
@@ -1468,7 +1455,6 @@ Void TEncGOP::compressGOP( Int iPOCLast, Int iNumPicRcvd, TComList<TComPic*>& rc
       m_pcRateCtrl->initRCPic( frameLevel );
       estimatedBits = m_pcRateCtrl->getRCPic()->getTargetBits();
 
-#if U0132_TARGET_BITS_SATURATION
       if (m_pcRateCtrl->getCpbSaturationEnabled() && frameLevel != 0)
       {
         Int estimatedCpbFullness = m_pcRateCtrl->getCpbState() + m_pcRateCtrl->getBufferingRate();
@@ -1481,21 +1467,13 @@ Void TEncGOP::compressGOP( Int iPOCLast, Int iNumPicRcvd, TComList<TComPic*>& rc
 
         estimatedCpbFullness -= m_pcRateCtrl->getBufferingRate();
         // prevent underflow
-#if V0078_ADAPTIVE_LOWER_BOUND
         if (estimatedCpbFullness - estimatedBits < m_pcRateCtrl->getRCPic()->getLowerBound())
         {
           estimatedBits = max(200, estimatedCpbFullness - m_pcRateCtrl->getRCPic()->getLowerBound());
         }
-#else
-        if (estimatedCpbFullness - estimatedBits < (Int)(m_pcRateCtrl->getCpbSize()*0.1f))
-        {
-          estimatedBits = max(200, estimatedCpbFullness - (Int)(m_pcRateCtrl->getCpbSize()*0.1f));
-        }
-#endif
 
         m_pcRateCtrl->getRCPic()->setTargetBits(estimatedBits);
       }
-#endif
 
       Int sliceQP = m_pcCfg->getInitialQP();
       if ( ( pcSlice->getPOC() == 0 && m_pcCfg->getInitialQP() > 0 ) || ( frameLevel == 0 && m_pcCfg->getForceIntraQP() ) ) // QP is specified
@@ -1517,7 +1495,6 @@ Void TEncGOP::compressGOP( Int iPOCLast, Int iNumPicRcvd, TComList<TComPic*>& rc
           Int bits = m_pcRateCtrl->getRCSeq()->getLeftAverageBits();
           bits = m_pcRateCtrl->getRCPic()->getRefineBitsForIntra( bits );
 
-#if U0132_TARGET_BITS_SATURATION
           if (m_pcRateCtrl->getCpbSaturationEnabled() )
           {
             Int estimatedCpbFullness = m_pcRateCtrl->getCpbState() + m_pcRateCtrl->getBufferingRate();
@@ -1530,19 +1507,11 @@ Void TEncGOP::compressGOP( Int iPOCLast, Int iNumPicRcvd, TComList<TComPic*>& rc
 
             estimatedCpbFullness -= m_pcRateCtrl->getBufferingRate();
             // prevent underflow
-#if V0078_ADAPTIVE_LOWER_BOUND
             if (estimatedCpbFullness - bits < m_pcRateCtrl->getRCPic()->getLowerBound())
             {
               bits = estimatedCpbFullness - m_pcRateCtrl->getRCPic()->getLowerBound();
             }
-#else
-            if (estimatedCpbFullness - bits < (Int)(m_pcRateCtrl->getCpbSize()*0.1f))
-            {
-              bits = estimatedCpbFullness - (Int)(m_pcRateCtrl->getCpbSize()*0.1f);
-            }
-#endif
           }
-#endif
 
           if ( bits < 200 )
           {
@@ -1634,18 +1603,14 @@ Void TEncGOP::compressGOP( Int iPOCLast, Int iNumPicRcvd, TComList<TComPic*>& rc
     m_pcLoopFilter->setCfg(bLFCrossTileBoundary);
     if ( m_pcCfg->getDeblockingFilterMetric() )
     {
-#if W0038_DB_OPT
       if ( m_pcCfg->getDeblockingFilterMetric()==2 )
       {
         applyDeblockingFilterParameterSelection(pcPic, uiNumSliceSegments, iGOPid);
       }
       else
       {
-#endif
         applyDeblockingFilterMetric(pcPic, uiNumSliceSegments);
-#if W0038_DB_OPT
       }
-#endif
     }
     m_pcLoopFilter->loopFilterPic( pcPic );
 
@@ -1654,11 +1619,22 @@ Void TEncGOP::compressGOP( Int iPOCLast, Int iNumPicRcvd, TComList<TComPic*>& rc
     m_pcEntropyCoder->setEntropyCoder   ( m_pcCavlcCoder );
 
     // write various parameter sets
+#if JCTVC_Y0038_PARAMS
+    //bool writePS = m_bSeqFirst || (m_pcCfg->getReWriteParamSetsFlag() && (pcPic->getSlice(0)->getSliceType() == I_SLICE));
+    bool writePS = m_bSeqFirst || (m_pcCfg->getReWriteParamSetsFlag() && (pcSlice->isIRAP()));
+    if (writePS)
+    {
+      m_pcEncTop->setParamSetChanged(pcSlice->getSPS()->getSPSId(), pcSlice->getPPS()->getPPSId());
+    }
+    actualTotalBits += xWriteParameterSets(accessUnit, pcSlice, writePS);
+
+    if (writePS)
+#else
     actualTotalBits += xWriteParameterSets(accessUnit, pcSlice, m_bSeqFirst);
 
     if ( m_bSeqFirst )
+#endif
     {
-
       // create prefix SEI messages at the beginning of the sequence
       assert(leadingSeiMessages.empty());
       xCreateIRAPLeadingSEIMessages(leadingSeiMessages, pcSlice->getSPS(), pcSlice->getPPS());
@@ -1687,16 +1663,12 @@ Void TEncGOP::compressGOP( Int iPOCLast, Int iNumPicRcvd, TComList<TComPic*>& rc
       tempBitCounter.resetBits();
       m_pcEncTop->getRDGoOnSbacCoder()->setBitstream(&tempBitCounter);
       m_pcSAO->initRDOCabacCoder(m_pcEncTop->getRDGoOnSbacCoder(), pcSlice);
-#if OPTIONAL_RESET_SAO_ENCODING_AFTER_IRAP
       m_pcSAO->SAOProcess(pcPic, sliceEnabled, pcPic->getSlice(0)->getLambdas(),
                           m_pcCfg->getTestSAODisableAtPictureLevel(),
                           m_pcCfg->getSaoEncodingRate(),
                           m_pcCfg->getSaoEncodingRateChroma(),
                           m_pcCfg->getSaoCtuBoundary(),
                           m_pcCfg->getSaoResetEncoderStateAfterIRAP());
-#else
-      m_pcSAO->SAOProcess(pcPic, sliceEnabled, pcPic->getSlice(0)->getLambdas(), m_pcCfg->getTestSAODisableAtPictureLevel(), m_pcCfg->getSaoEncodingRate(), m_pcCfg->getSaoEncodingRateChroma(), m_pcCfg->getSaoCtuBoundary());
-#endif
       m_pcSAO->PCMLFDisableProcess(pcPic);
       m_pcEncTop->getRDGoOnSbacCoder()->setBitstream(NULL);
 
@@ -1876,13 +1848,11 @@ Void TEncGOP::compressGOP( Int iPOCLast, Int iNumPicRcvd, TComList<TComPic*>& rc
       {
         m_pcRateCtrl->getRCGOP()->updateAfterPicture( estimatedBits );
       }
-#if U0132_TARGET_BITS_SATURATION
       if (m_pcRateCtrl->getCpbSaturationEnabled())
       {
         m_pcRateCtrl->updateCpbState(actualTotalBits);
         printf(" [CPB %6d bits]", m_pcRateCtrl->getCpbState());
       }
-#endif
     }
 
     xCreatePictureTimingSEI(m_pcCfg->getEfficientFieldIRAPEnabled()?effFieldIRAPMap.GetIRAPGOPid():0, leadingSeiMessages, nestedSeiMessages, duInfoSeiMessages, pcSlice, isField, duData);
@@ -2729,7 +2699,6 @@ Void TEncGOP::applyDeblockingFilterMetric( TComPic* pcPic, UInt uiNumSlices )
   }
 }
 
-#if W0038_DB_OPT
 Void TEncGOP::applyDeblockingFilterParameterSelection( TComPic* pcPic, const UInt numSlices, const Int gopID )
 {
   enum DBFltParam
@@ -2848,5 +2817,5 @@ Void TEncGOP::applyDeblockingFilterParameterSelection( TComPic* pcPic, const UIn
     }
   }
 }
-#endif
+
 //! \}

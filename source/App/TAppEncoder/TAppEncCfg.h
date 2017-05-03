@@ -116,6 +116,9 @@ protected:
   Int       m_iIntraPeriod;                                   ///< period of I-slice (random access period)
   Int       m_iDecodingRefreshType;                           ///< random access type
   Int       m_iGOPSize;                                       ///< GOP size of hierarchical structure
+#if JCTVC_Y0038_PARAMS
+  Bool      m_bReWriteParamSetsFlag;                          ///< Flag to enable rewriting of parameter sets at random access points
+#endif  
   Int       m_extraRPSs;                                      ///< extra RPSs added to handle CRA
   GOPEntry  m_GOPList[MAX_GOP];                               ///< the coding structure entries from the config file
   Int       m_numReorderPics[MAX_TLAYER];                     ///< total number of reorder pictures
@@ -150,16 +153,10 @@ protected:
 
   Int       m_cbQpOffset;                                     ///< Chroma Cb QP Offset (0:default)
   Int       m_crQpOffset;                                     ///< Chroma Cr QP Offset (0:default)
-#if ER_CHROMA_QP_WCG_PPS
   WCGChromaQPControl m_wcgChromaQpControl;                    ///< Wide-colour-gamut chroma QP control.
-#endif
-#if W0038_CQP_ADJ
   UInt      m_sliceChromaQpOffsetPeriodicity;                 ///< Used in conjunction with Slice Cb/Cr QpOffsetIntraOrPeriodic. Use 0 (default) to disable periodic nature.
   Int       m_sliceChromaQpOffsetIntraOrPeriodic[2/*Cb,Cr*/]; ///< Chroma Cb QP Offset at slice level for I slice or for periodic inter slices as defined by SliceChromaQPOffsetPeriodicity. Replaces offset in the GOP table.
-#endif
-#if SHARP_LUMA_DELTA_QP
   LumaLevelToDeltaQPMapping m_lumaLevelToDeltaQPMapping;      ///< mapping from luma level to Delta QP.
-#endif
 #if ADAPTIVE_QP_SELECTION
   Bool      m_bUseAdaptQpSelect;
 #endif
@@ -206,19 +203,13 @@ protected:
   Double    m_saoEncodingRateChroma;                          ///< The SAO early picture termination rate to use for chroma (when m_SaoEncodingRate is >0). If <=0, use results for luma.
   Int       m_maxNumOffsetsPerPic;                            ///< SAO maximun number of offset per picture
   Bool      m_saoCtuBoundary;                                 ///< SAO parameter estimation using non-deblocked pixels for CTU bottom and right boundary areas
-#if OPTIONAL_RESET_SAO_ENCODING_AFTER_IRAP
   Bool      m_saoResetEncoderStateAfterIRAP;                  ///< When true, SAO encoder state will be reset following an IRAP.
-#endif
   // coding tools (loop filter)
   Bool      m_bLoopFilterDisable;                             ///< flag for using deblocking filter
-  Bool      m_loopFilterOffsetInPPS;                         ///< offset for deblocking filter in 0 = slice header, 1 = PPS
-  Int       m_loopFilterBetaOffsetDiv2;                     ///< beta offset for deblocking filter
-  Int       m_loopFilterTcOffsetDiv2;                       ///< tc offset for deblocking filter
-#if W0038_DB_OPT
+  Bool      m_loopFilterOffsetInPPS;                          ///< offset for deblocking filter in 0 = slice header, 1 = PPS
+  Int       m_loopFilterBetaOffsetDiv2;                       ///< beta offset for deblocking filter
+  Int       m_loopFilterTcOffsetDiv2;                         ///< tc offset for deblocking filter
   Int       m_deblockingFilterMetric;                         ///< blockiness metric in encoder
-#else
-  Bool      m_DeblockingFilterMetric;                         ///< blockiness metric in encoder
-#endif
   // coding tools (PCM)
   Bool      m_usePCM;                                         ///< flag for using IPCM
   UInt      m_pcmLog2MaxSize;                                 ///< log2 of maximum PCM block size
@@ -229,11 +220,9 @@ protected:
   // coding tools (encoder-only parameters)
   Bool      m_bUseASR;                                        ///< flag for using adaptive motion search range
   Bool      m_bUseHADME;                                      ///< flag for using HAD in sub-pel ME
-  Bool      m_useRDOQ;                                       ///< flag for using RD optimized quantization
-  Bool      m_useRDOQTS;                                     ///< flag for using RD optimized quantization for transform skip
-#if T0196_SELECTIVE_RDOQ
+  Bool      m_useRDOQ;                                        ///< flag for using RD optimized quantization
+  Bool      m_useRDOQTS;                                      ///< flag for using RD optimized quantization for transform skip
   Bool      m_useSelectiveRDOQ;                               ///< flag for using selective RDOQ
-#endif
   Int       m_rdPenalty;                                      ///< RD-penalty for 32x32 TU for intra in non-intra slices (0: no RD-penalty, 1: RD-penalty, 2: maximum RD-penalty)
   Bool      m_bDisableIntraPUsInInterSlices;                  ///< Flag for disabling intra predicted PUs in inter slices.
   MESearchMethod m_motionEstimationSearchMethod;
@@ -332,9 +321,7 @@ protected:
   Int       m_kneeSEINumKneePointsMinus1;
   Int*      m_kneeSEIInputKneePoint;
   Int*      m_kneeSEIOutputKneePoint;
-#if U0033_ALTERNATIVE_TRANSFER_CHARACTERISTICS_SEI
   Int       m_preferredTransferCharacteristics;
-#endif
   UInt      m_greenMetadataType;
   UInt      m_xsdMetricType;
 
@@ -355,11 +342,9 @@ protected:
   Bool      m_RCUseLCUSeparateModel;              ///< use separate R-lambda model at LCU level                        NOTE: code-tidy - rename to m_RCUseCtuSeparateModel
   Int       m_RCInitialQP;                        ///< inital QP for rate control
   Bool      m_RCForceIntraQP;                     ///< force all intra picture to use initial QP or not
-#if U0132_TARGET_BITS_SATURATION
   Bool      m_RCCpbSaturationEnabled;             ///< enable target bits saturation to avoid CPB overflow and underflow
   UInt      m_RCCpbSize;                          ///< CPB size
   Double    m_RCInitialCpbFullness;               ///< initial CPB fullness 
-#endif
   ScalingListMode m_useScalingListId;                         ///< using quantization matrix
   std::string m_scalingListFileName;                          ///< quantization matrix file name
 

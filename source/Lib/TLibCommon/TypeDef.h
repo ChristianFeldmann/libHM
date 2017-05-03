@@ -80,18 +80,15 @@
 // ====================================================================================================================
 
 #define DECODER_CHECK_SUBSTREAM_AND_SLICE_TRAILING_BYTES  1 ///< TODO: integrate this macro into a broader conformance checking system.
-#define T0196_SELECTIVE_RDOQ                              1 ///< selective RDOQ
-#define U0040_MODIFIED_WEIGHTEDPREDICTION_WITH_BIPRED_AND_CLIPPING 1
-#define U0033_ALTERNATIVE_TRANSFER_CHARACTERISTICS_SEI    1 ///< Alternative transfer characteristics SEI message (JCTVC-U0033, with syntax naming from V1005)
 #define X0038_LAMBDA_FROM_QP_CAPABILITY                   1 ///< This approach derives lambda from QP+QPoffset+QPoffset2. QPoffset2 is derived from QP+QPoffset using a linear model that is clipped between 0 and 3.
                                                             // To use this capability enable config parameter LambdaFromQpEnable
-#define OPTIONAL_RESET_SAO_ENCODING_AFTER_IRAP            1 ///< Adds command line option to reset SAO parameters after each IRAP.
-#define REDUCED_ENCODER_MEMORY                            1 ///< When 1, the encoder will allocate TComPic memory when required and release it when no longer required.
-#define FIX_RDOQ_BIT_ESTIMATE                             1 ///< Correct RDOQ initialisation of costs for configurations where a TU width!=height; this does not occur in current HEVC profiles but is included for future-proofing (eg JVET).
+#define JCTVC_Y0038_PARAMS                                1
 
 // ====================================================================================================================
 // Tool Switches
 // ====================================================================================================================
+
+#define REDUCED_ENCODER_MEMORY                            1 ///< When 1, the encoder will allocate TComPic memory when required and release it when no longer required.
 
 #define ADAPTIVE_QP_SELECTION                             1 ///< G382: Adaptive reconstruction levels, non-normative part for adaptive QP selection
 
@@ -121,17 +118,6 @@
 #ifndef RExt__HIGH_BIT_DEPTH_SUPPORT
 #define RExt__HIGH_BIT_DEPTH_SUPPORT                      0 ///< 0 (default) use data type definitions for 8-10 bit video, 1 = use larger data types to allow for up to 16-bit video (originally developed as part of N0188)
 #endif
-
-#define U0132_TARGET_BITS_SATURATION                      1 ///< Rate control with target bits saturation method
-#ifdef  U0132_TARGET_BITS_SATURATION
-#define V0078_ADAPTIVE_LOWER_BOUND                        1 ///< Target bits saturation with adaptive lower bound
-#endif
-#define W0038_DB_OPT                                      1 ///< adaptive DB parameter selection, LoopFilterOffsetInPPS and LoopFilterDisable are set to 0 and DeblockingFilterMetric=2;
-#define W0038_CQP_ADJ                                     1 ///< chroma QP adjustment based on TL, CQPTLAdjustEnabled is set to 1;
-
-#define SHARP_LUMA_DELTA_QP                               1 ///< inculde non-normative LCU deltaQP and normative chromaQP change
-#define ER_CHROMA_QP_WCG_PPS                              1 ///< Chroma QP model for WCG used in Anchor 3.2
-
 
 #if defined __SSE2__ || defined __AVX2__ || defined __AVX__ || defined _M_AMD64 || defined _M_X64
 #define VECTOR_CODING__INTERPOLATION_FILTER               1 ///< enable vector coding for the interpolation filter. 1 (default if SSE possible) disable SSE vector coding. Should not affect RD costs/decisions. Code back-ported from JEM2.0.
@@ -733,7 +719,6 @@ enum NalUnitType
   NAL_UNIT_INVALID,
 };
 
-#if SHARP_LUMA_DELTA_QP
 enum LumaLevelToDQPMode
 {
   LUMALVL_TO_DQP_DISABLED   = 0,
@@ -741,7 +726,6 @@ enum LumaLevelToDQPMode
   LUMALVL_TO_DQP_MAX_METHOD = 2,  // use maximum value of CTU to determine luma level
   LUMALVL_TO_DQP_NUM_MODES  = 3
 };
-#endif
 
 // ====================================================================================================================
 // Type definition
@@ -882,7 +866,6 @@ struct TComSEIMasteringDisplay
   UShort    whitePoint[2];
 };
 
-#if SHARP_LUMA_DELTA_QP
 struct LumaLevelToDeltaQPMapping
 {
   LumaLevelToDQPMode                 mode;             ///< use deltaQP determined by block luma level
@@ -890,9 +873,7 @@ struct LumaLevelToDeltaQPMapping
   std::vector< std::pair<Int, Int> > mapping;          ///< first=luma level, second=delta QP.
   Bool isEnabled() const { return mode!=LUMALVL_TO_DQP_DISABLED; }
 };
-#endif
 
-#if ER_CHROMA_QP_WCG_PPS
 struct WCGChromaQPControl
 {
   Bool isEnabled() const { return enabled; }
@@ -902,7 +883,6 @@ struct WCGChromaQPControl
   Double chromaQpScale;   ///< Chroma QP Scale (0.0:default)
   Double chromaQpOffset;  ///< Chroma QP Offset (0.0:default)
 };
-#endif
 
 //! \}
 

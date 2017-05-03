@@ -152,10 +152,8 @@ std::istringstream &operator>>(std::istringstream &in, GOPEntry &entry)     //in
   in>>entry.m_QPOffsetModelOffset;
   in>>entry.m_QPOffsetModelScale;
 #endif
-#if W0038_CQP_ADJ
   in>>entry.m_CbQPoffset;
   in>>entry.m_CrQPoffset;
-#endif
   in>>entry.m_QPFactor;
   in>>entry.m_tcOffsetDiv2;
   in>>entry.m_betaOffsetDiv2;
@@ -306,14 +304,12 @@ strToLevel[] =
   {"8.5", Level::LEVEL8_5},
 };
 
-#if U0132_TARGET_BITS_SATURATION
 UInt g_uiMaxCpbSize[2][21] =
 {
   //         LEVEL1,        LEVEL2,LEVEL2_1,     LEVEL3, LEVEL3_1,      LEVEL4, LEVEL4_1,       LEVEL5,  LEVEL5_1,  LEVEL5_2,    LEVEL6,  LEVEL6_1,  LEVEL6_2 
   { 0, 0, 0, 350000, 0, 0, 1500000, 3000000, 0, 6000000, 10000000, 0, 12000000, 20000000, 0,  25000000,  40000000,  60000000,  60000000, 120000000, 240000000 },
   { 0, 0, 0,      0, 0, 0,       0,       0, 0,       0,        0, 0, 30000000, 50000000, 0, 100000000, 160000000, 240000000, 240000000, 480000000, 800000000 }
 };
-#endif
 
 static const struct MapStrToCostMode
 {
@@ -630,13 +626,11 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
 
   SMultiValueInput<Double> cfg_adIntraLambdaModifier         (0, std::numeric_limits<Double>::max(), 0, MAX_TLAYER); ///< Lambda modifier for Intra pictures, one for each temporal layer. If size>temporalLayer, then use [temporalLayer], else if size>0, use [size()-1], else use m_adLambdaModifier.
 
-#if SHARP_LUMA_DELTA_QP
   const Int defaultLumaLevelTodQp_QpChangePoints[]   =  {-3,  -2,  -1,   0,   1,   2,   3,   4,   5,   6};
   const Int defaultLumaLevelTodQp_LumaChangePoints[] =  { 0, 301, 367, 434, 501, 567, 634, 701, 767, 834};
   SMultiValueInput<Int>  cfg_lumaLeveltoDQPMappingQP         (-MAX_QP, MAX_QP,                    0, LUMA_LEVEL_TO_DQP_LUT_MAXSIZE, defaultLumaLevelTodQp_QpChangePoints,   sizeof(defaultLumaLevelTodQp_QpChangePoints  )/sizeof(Int));
   SMultiValueInput<Int>  cfg_lumaLeveltoDQPMappingLuma       (0, std::numeric_limits<Int>::max(), 0, LUMA_LEVEL_TO_DQP_LUT_MAXSIZE, defaultLumaLevelTodQp_LumaChangePoints, sizeof(defaultLumaLevelTodQp_LumaChangePoints)/sizeof(Int));
   UInt lumaLevelToDeltaQPMode;
-#endif
 
   const UInt defaultInputKneeCodes[3]  = { 600, 800, 900 };
   const UInt defaultOutputKneeCodes[3] = { 100, 250, 450 };
@@ -757,6 +751,9 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
   ("IntraPeriod,-ip",                                 m_iIntraPeriod,                                      -1, "Intra period in frames, (-1: only first frame)")
   ("DecodingRefreshType,-dr",                         m_iDecodingRefreshType,                               0, "Intra refresh type (0:none 1:CRA 2:IDR 3:RecPointSEI)")
   ("GOPSize,g",                                       m_iGOPSize,                                           1, "GOP size of temporal structure")
+#if JCTVC_Y0038_PARAMS
+  ("ReWriteParamSetsFlag",                            m_bReWriteParamSetsFlag,                           true, "Enable rewriting of Parameter sets before every (intra) random access point")
+#endif 
 
   // motion search options
   ("DisableIntraInInter",                             m_bDisableIntraPUsInInterSlices,                  false, "Flag to disable intra PUs in inter slices")
@@ -794,27 +791,20 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
   ("MaxCuDQPDepth,-dqd",                              m_iMaxCuDQPDepth,                                     0, "max depth for a minimum CuDQP")
   ("MaxCUChromaQpAdjustmentDepth",                    m_diffCuChromaQpOffsetDepth,                         -1, "Maximum depth for CU chroma Qp adjustment - set less than 0 to disable")
   ("FastDeltaQP",                                     m_bFastDeltaQP,                                   false, "Fast Delta QP Algorithm")
-#if SHARP_LUMA_DELTA_QP
   ("LumaLevelToDeltaQPMode",                          lumaLevelToDeltaQPMode,                              0u, "Luma based Delta QP 0(default): not used. 1: Based on CTU average, 2: Based on Max luma in CTU")
   ("LumaLevelToDeltaQPMaxValWeight",                  m_lumaLevelToDeltaQPMapping.maxMethodWeight,        1.0, "Weight of block max luma val when LumaLevelToDeltaQPMode = 2")
   ("LumaLevelToDeltaQPMappingLuma",                   cfg_lumaLeveltoDQPMappingLuma,  cfg_lumaLeveltoDQPMappingLuma, "Luma to Delta QP Mapping - luma thresholds")
   ("LumaLevelToDeltaQPMappingDQP",                    cfg_lumaLeveltoDQPMappingQP,  cfg_lumaLeveltoDQPMappingQP, "Luma to Delta QP Mapping - DQP values")
-#endif
-
   ("CbQpOffset,-cbqpofs",                             m_cbQpOffset,                                         0, "Chroma Cb QP Offset")
   ("CrQpOffset,-crqpofs",                             m_crQpOffset,                                         0, "Chroma Cr QP Offset")
-#if ER_CHROMA_QP_WCG_PPS
   ("WCGPPSEnable",                                    m_wcgChromaQpControl.enabled,                     false, "1: Enable the WCG PPS chroma modulation scheme. 0 (default) disabled")
   ("WCGPPSCbQpScale",                                 m_wcgChromaQpControl.chromaCbQpScale,               1.0, "WCG PPS Chroma Cb QP Scale")
   ("WCGPPSCrQpScale",                                 m_wcgChromaQpControl.chromaCrQpScale,               1.0, "WCG PPS Chroma Cr QP Scale")
   ("WCGPPSChromaQpScale",                             m_wcgChromaQpControl.chromaQpScale,                 0.0, "WCG PPS Chroma QP Scale")
   ("WCGPPSChromaQpOffset",                            m_wcgChromaQpControl.chromaQpOffset,                0.0, "WCG PPS Chroma QP Offset")
-#endif
-#if W0038_CQP_ADJ
   ("SliceChromaQPOffsetPeriodicity",                  m_sliceChromaQpOffsetPeriodicity,                    0u, "Used in conjunction with Slice Cb/Cr QpOffsetIntraOrPeriodic. Use 0 (default) to disable periodic nature.")
   ("SliceCbQpOffsetIntraOrPeriodic",                  m_sliceChromaQpOffsetIntraOrPeriodic[0],              0, "Chroma Cb QP Offset at slice level for I slice or for periodic inter slices as defined by SliceChromaQPOffsetPeriodicity. Replaces offset in the GOP table.")
   ("SliceCrQpOffsetIntraOrPeriodic",                  m_sliceChromaQpOffsetIntraOrPeriodic[1],              0, "Chroma Cr QP Offset at slice level for I slice or for periodic inter slices as defined by SliceChromaQPOffsetPeriodicity. Replaces offset in the GOP table.")
-#endif
 #if ADAPTIVE_QP_SELECTION
   ("AdaptiveQpSelection,-aqps",                       m_bUseAdaptQpSelect,                              false, "AdaptiveQpSelection")
 #endif
@@ -824,9 +814,7 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
   ("dQPFile,m",                                       m_dQPFileName,                               string(""), "dQP file name")
   ("RDOQ",                                            m_useRDOQ,                                         true)
   ("RDOQTS",                                          m_useRDOQTS,                                       true)
-#if T0196_SELECTIVE_RDOQ
   ("SelectiveRDOQ",                                   m_useSelectiveRDOQ,                               false, "Enable selective RDOQ")
-#endif
   ("RDpenalty",                                       m_rdPenalty,                                          0,  "RD-penalty for 32x32 TU for intra in non-intra slices. 0:disabled  1:RD-penalty  2:maximum RD-penalty")
 
   // Deblocking filter parameters
@@ -834,11 +822,7 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
   ("LoopFilterOffsetInPPS",                           m_loopFilterOffsetInPPS,                           true)
   ("LoopFilterBetaOffset_div2",                       m_loopFilterBetaOffsetDiv2,                           0)
   ("LoopFilterTcOffset_div2",                         m_loopFilterTcOffsetDiv2,                             0)
-#if W0038_DB_OPT
   ("DeblockingFilterMetric",                          m_deblockingFilterMetric,                             0)
-#else
-  ("DeblockingFilterMetric",                          m_DeblockingFilterMetric,                         false)
-#endif
   // Coding tools
   ("AMP",                                             m_enableAMP,                                       true, "Enable asymmetric motion partitions")
   ("CrossComponentPrediction",                        m_crossComponentPredictionEnabledFlag,            false, "Enable the use of cross-component prediction (not valid in V1 profiles)")
@@ -860,9 +844,7 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
   ("SaoEncodingRateChroma",                           m_saoEncodingRateChroma,                            0.5, "The SAO early picture termination rate to use for chroma (when m_SaoEncodingRate is >0). If <=0, use results for luma")
   ("MaxNumOffsetsPerPic",                             m_maxNumOffsetsPerPic,                             2048, "Max number of SAO offset per picture (Default: 2048)")
   ("SAOLcuBoundary",                                  m_saoCtuBoundary,                                 false, "0: right/bottom CTU boundary areas skipped from SAO parameter estimation, 1: non-deblocked pixels are used for those areas")
-#if OPTIONAL_RESET_SAO_ENCODING_AFTER_IRAP
   ("SAOResetEncoderStateAfterIRAP",                   m_saoResetEncoderStateAfterIRAP,                  false, "When true, resets the encoder's SAO state after an IRAP (POC order). Disabled by default.")
-#endif
   ("SliceMode",                                       tmpSliceMode,                            Int(NO_SLICES), "0: Disable all Recon slice limits, 1: Enforce max # of CTUs, 2: Enforce max # of bytes, 3:specify tiles per dependent slice")
   ("SliceArgument",                                   m_sliceArgument,                                      0, "Depending on SliceMode being:"
                                                                                                                "\t1: max number of CTUs per slice"
@@ -925,12 +907,9 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
   ( "RCLCUSeparateModel",                             m_RCUseLCUSeparateModel,                           true, "Rate control: use CTU level separate R-lambda model" )
   ( "InitialQP",                                      m_RCInitialQP,                                        0, "Rate control: initial QP" )
   ( "RCForceIntraQP",                                 m_RCForceIntraQP,                                 false, "Rate control: force intra QP to be equal to initial QP" )
-#if U0132_TARGET_BITS_SATURATION
   ( "RCCpbSaturation",                                m_RCCpbSaturationEnabled,                         false, "Rate control: enable target bits saturation to avoid CPB overflow and underflow" )
   ( "RCCpbSize",                                      m_RCCpbSize,                                         0u, "Rate control: CPB size" )
   ( "RCInitialCpbFullness",                           m_RCInitialCpbFullness,                             0.9, "Rate control: initial CPB fullness" )
-#endif
-
   ("TransquantBypassEnable",                          m_TransquantBypassEnabledFlag,                    false, "transquant_bypass_enabled_flag indicator in PPS")
   ("TransquantBypassEnableFlag",                      m_TransquantBypassEnabledFlag,                    false, "deprecated alias for TransquantBypassEnable")
   ("CUTransquantBypassFlagForce",                     m_CUTransquantBypassFlagForce,                    false, "Force transquant bypass mode, when transquant_bypass_enabled_flag is enabled")
@@ -1078,9 +1057,7 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
   ("SEIMasteringDisplayMinLuminance",                 m_masteringDisplay.minLuminance,                      0u, "Specifies the mastering display minimum luminance value in units of 1/10000 candela per square metre (32-bit code value)")
   ("SEIMasteringDisplayPrimaries",                    cfg_DisplayPrimariesCode,       cfg_DisplayPrimariesCode, "Mastering display primaries for all three colour planes in CIE xy coordinates in increments of 1/50000 (results in the ranges 0 to 50000 inclusive)")
   ("SEIMasteringDisplayWhitePoint",                   cfg_DisplayWhitePointCode,     cfg_DisplayWhitePointCode, "Mastering display white point CIE xy coordinates in normalised increments of 1/50000 (e.g. 0.333 = 16667)")
-#if U0033_ALTERNATIVE_TRANSFER_CHARACTERISTICS_SEI
   ("SEIPreferredTransferCharacterisics",              m_preferredTransferCharacteristics,                   -1, "Value for the preferred_transfer_characteristics field of the Alternative transfer characteristics SEI which will override the corresponding entry in the VUI. If negative, do not produce the respective SEI message")
-#endif
   ("SEIGreenMetadataType",                            m_greenMetadataType,                   0u, "Value for the green_metadata_type specifies the type of metadata that is present in the SEI message. If green_metadata_type is 1, then metadata enabling quality recovery after low-power encoding is present")
   ("SEIXSDMetricType",                                m_xsdMetricType,                      0u, "Value for the xsd_metric_type indicates the type of the objective quality metric. PSNR is the only type currently supported")
   ;
@@ -1457,7 +1434,6 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
     }
   }
 
-#if SHARP_LUMA_DELTA_QP
   assert(lumaLevelToDeltaQPMode<LUMALVL_TO_DQP_NUM_MODES);
   if (lumaLevelToDeltaQPMode>=LUMALVL_TO_DQP_NUM_MODES)
   {
@@ -1474,7 +1450,6 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
       m_lumaLevelToDeltaQPMapping.mapping[i]=std::pair<Int,Int>(cfg_lumaLeveltoDQPMappingLuma.values[i], cfg_lumaLeveltoDQPMappingQP.values[i]);
     }
   }
-#endif
 
   // reading external dQP description from file
   if ( !m_dQPFileName.empty() )
@@ -1783,20 +1758,14 @@ Void TAppEncCfg::xCheckParameter()
   }
 
   xConfirmPara( m_iQP <  -6 * (m_internalBitDepth[CHANNEL_TYPE_LUMA] - 8) || m_iQP > 51,    "QP exceeds supported range (-QpBDOffsety to 51)" );
-#if W0038_DB_OPT
   xConfirmPara( m_deblockingFilterMetric!=0 && (m_bLoopFilterDisable || m_loopFilterOffsetInPPS), "If DeblockingFilterMetric is non-zero then both LoopFilterDisable and LoopFilterOffsetInPPS must be 0");
-#else
-  xConfirmPara( m_DeblockingFilterMetric && (m_bLoopFilterDisable || m_loopFilterOffsetInPPS), "If DeblockingFilterMetric is true then both LoopFilterDisable and LoopFilterOffsetInPPS must be 0");
-#endif
   xConfirmPara( m_loopFilterBetaOffsetDiv2 < -6 || m_loopFilterBetaOffsetDiv2 > 6,        "Loop Filter Beta Offset div. 2 exceeds supported range (-6 to 6)");
   xConfirmPara( m_loopFilterTcOffsetDiv2 < -6 || m_loopFilterTcOffsetDiv2 > 6,            "Loop Filter Tc Offset div. 2 exceeds supported range (-6 to 6)");
   xConfirmPara( m_iSearchRange < 0 ,                                                        "Search Range must be more than 0" );
   xConfirmPara( m_bipredSearchRange < 0 ,                                                   "Bi-prediction refinement search range must be more than 0" );
   xConfirmPara( m_minSearchWindow < 0,                                                      "Minimum motion search window size for the adaptive window ME must be greater than or equal to 0" );
   xConfirmPara( m_iMaxDeltaQP > 7,                                                          "Absolute Delta QP exceeds supported range (0 to 7)" );
-#if SHARP_LUMA_DELTA_QP
   xConfirmPara(m_lumaLevelToDeltaQPMapping.mode &&  m_uiDeltaQpRD > 0, "Luma-level-based Delta QP cannot be used together with slice level multiple-QP optimization\n" );
-#endif
   xConfirmPara( m_iMaxCuDQPDepth > m_uiMaxCUDepth - 1,                                          "Absolute depth for a minimum CuDQP exceeds maximum coding unit depth" );
 
   xConfirmPara( m_cbQpOffset < -12,   "Min. Chroma Cb QP Offset is -12" );
@@ -1809,12 +1778,10 @@ Void TAppEncCfg::xCheckParameter()
   {
     xConfirmPara( m_iIntraPeriod > 0 && m_iIntraPeriod <= m_iGOPSize ,                      "Intra period must be larger than GOP size for periodic IDR pictures");
   }
-#if OPTIONAL_RESET_SAO_ENCODING_AFTER_IRAP
   if (m_saoResetEncoderStateAfterIRAP)
   {
     xConfirmPara( m_iIntraPeriod > 0 && m_iIntraPeriod <= m_iGOPSize ,                      "Intra period must be larger than GOP size when SAOResetEncoderStateAfterIRAP is enabled");
   }
-#endif
   xConfirmPara( m_uiMaxCUDepth < 1,                                                         "MaxPartitionDepth must be greater than zero");
   xConfirmPara( (m_uiMaxCUWidth  >> m_uiMaxCUDepth) < 4,                                    "Minimum partition width size should be larger than or equal to 8");
   xConfirmPara( (m_uiMaxCUHeight >> m_uiMaxCUDepth) < 4,                                    "Minimum partition height size should be larger than or equal to 8");
@@ -1961,7 +1928,6 @@ Void TAppEncCfg::xCheckParameter()
     }
   }
 
-#if W0038_CQP_ADJ
   for(Int i=0; i<m_iGOPSize; i++)
   {
     xConfirmPara( abs(m_GOPList[i].m_CbQPoffset               ) > 12, "Cb QP Offset for one of the GOP entries exceeds supported range (-12 to 12)" );
@@ -1973,7 +1939,6 @@ Void TAppEncCfg::xCheckParameter()
   xConfirmPara( abs(m_sliceChromaQpOffsetIntraOrPeriodic[0]  + m_cbQpOffset ) > 12, "Intra/periodic Cb QP Offset, when combined with the PPS Cb offset, exceeds supported range (-12 to 12)" );
   xConfirmPara( abs(m_sliceChromaQpOffsetIntraOrPeriodic[1]                 ) > 12, "Intra/periodic Cr QP Offset exceeds supported range (-12 to 12)" );
   xConfirmPara( abs(m_sliceChromaQpOffsetIntraOrPeriodic[1]  + m_crQpOffset ) > 12, "Intra/periodic Cr QP Offset, when combined with the PPS Cr offset, exceeds supported range (-12 to 12)" );
-#endif
 
   m_extraRPSs=0;
   //start looping through frames in coding order until we can verify that the GOP structure is correct.
@@ -2355,16 +2320,13 @@ Void TAppEncCfg::xCheckParameter()
       }
     }
     xConfirmPara( m_uiDeltaQpRD > 0, "Rate control cannot be used together with slice level multiple-QP optimization!\n" );
-#if U0132_TARGET_BITS_SATURATION
     if ((m_RCCpbSaturationEnabled) && (m_level!=Level::NONE) && (m_profile!=Profile::NONE))
     {
       UInt uiLevelIdx = (m_level / 10) + (UInt)((m_level % 10) / 3);    // (m_level / 30)*3 + ((m_level % 10) / 3);
       xConfirmPara(m_RCCpbSize > g_uiMaxCpbSize[m_levelTier][uiLevelIdx], "RCCpbSize should be smaller than or equal to Max CPB size according to tier and level");
       xConfirmPara(m_RCInitialCpbFullness > 1, "RCInitialCpbFullness should be smaller than or equal to 1");
     }
-#endif
   }
-#if U0132_TARGET_BITS_SATURATION
   else
   {
     xConfirmPara( m_RCCpbSaturationEnabled != 0, "Target bits saturation cannot be processed without Rate control" );
@@ -2378,7 +2340,6 @@ Void TAppEncCfg::xCheckParameter()
       m_RCCpbSize = m_RCTargetBitrate;
     }
   }
-#endif
 
   xConfirmPara(!m_TransquantBypassEnabledFlag && m_CUTransquantBypassFlagForce, "CUTransquantBypassFlagForce cannot be 1 when TransquantBypassEnableFlag is 0");
 
@@ -2405,9 +2366,7 @@ Void TAppEncCfg::xCheckParameter()
     xConfirmPara(m_timeCodeSEINumTs > MAX_TIMECODE_SEI_SETS, "Number of time sets cannot exceed 3");
   }
 
-#if U0033_ALTERNATIVE_TRANSFER_CHARACTERISTICS_SEI
   xConfirmPara(m_preferredTransferCharacteristics > 255, "transfer_characteristics_idc should not be greater than 255.");
-#endif
 
 #undef xConfirmPara
   if (check_failed)
@@ -2545,14 +2504,12 @@ Void TAppEncCfg::xPrintParameter()
     printf("UseLCUSeparateModel                    : %d\n", m_RCUseLCUSeparateModel );
     printf("InitialQP                              : %d\n", m_RCInitialQP );
     printf("ForceIntraQP                           : %d\n", m_RCForceIntraQP );
-#if U0132_TARGET_BITS_SATURATION
     printf("CpbSaturation                          : %d\n", m_RCCpbSaturationEnabled );
     if (m_RCCpbSaturationEnabled)
     {
       printf("CpbSize                                : %d\n", m_RCCpbSize);
       printf("InitalCpbFullness                      : %.2f\n", m_RCInitialCpbFullness);
     }
-#endif
   }
 
   printf("Max Num Merge Candidates               : %d\n", m_maxNumMergeCand);
@@ -2564,9 +2521,7 @@ Void TAppEncCfg::xPrintParameter()
   printf("RDQ:%d ", m_useRDOQ                            );
   printf("RDQTS:%d ", m_useRDOQTS                        );
   printf("RDpenalty:%d ", m_rdPenalty                    );
-#if SHARP_LUMA_DELTA_QP
   printf("LQP:%d ", m_lumaLevelToDeltaQPMapping.mode     );
-#endif
   printf("SQP:%d ", m_uiDeltaQpRD                        );
   printf("ASR:%d ", m_bUseASR                            );
   printf("MinSearchWindow:%d ", m_minSearchWindow        );

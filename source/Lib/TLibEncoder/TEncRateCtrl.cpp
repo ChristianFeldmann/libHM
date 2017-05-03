@@ -545,7 +545,6 @@ Int TEncRCPic::xEstPicHeaderBits( list<TEncRCPic*>& listPreviousPictures, Int fr
   return estHeaderBits;
 }
 
-#if V0078_ADAPTIVE_LOWER_BOUND
 Int TEncRCPic::xEstPicLowerBound(TEncRCSeq* encRCSeq, TEncRCGOP* encRCGOP)
 {
   Int lowerBound = 0;
@@ -583,7 +582,6 @@ Int TEncRCPic::xEstPicLowerBound(TEncRCSeq* encRCSeq, TEncRCGOP* encRCGOP)
 
   return lowerBound;
 }
-#endif
 
 Void TEncRCPic::addToPictureLsit( list<TEncRCPic*>& listPreviousPictures )
 {
@@ -625,9 +623,7 @@ Void TEncRCPic::create( TEncRCSeq* encRCSeq, TEncRCGOP* encRCGOP, Int frameLevel
   Int LCUHeight      = encRCSeq->getLCUHeight();
   Int picWidthInLCU  = ( picWidth  % LCUWidth  ) == 0 ? picWidth  / LCUWidth  : picWidth  / LCUWidth  + 1;
   Int picHeightInLCU = ( picHeight % LCUHeight ) == 0 ? picHeight / LCUHeight : picHeight / LCUHeight + 1;
-#if V0078_ADAPTIVE_LOWER_BOUND
   m_lowerBound       = xEstPicLowerBound( encRCSeq, encRCGOP );
-#endif
 
   m_LCULeft         = m_numberOfLCU;
   m_bitsLeft       -= m_estHeaderBits;
@@ -1421,12 +1417,10 @@ Void TEncRateCtrl::init( Int totalFrames, Int targetBitrate, Int frameRate, Int 
   {
     m_encRCSeq->initLCUPara();
   }
-#if U0132_TARGET_BITS_SATURATION
   m_CpbSaturationEnabled = false;
   m_cpbSize              = targetBitrate;
   m_cpbState             = (UInt)(m_cpbSize*0.5f);
   m_bufferingRate        = (Int)(targetBitrate / frameRate);
-#endif
 
   delete[] bitsRatio;
   delete[] GOPID2Level;
@@ -1444,7 +1438,6 @@ Void TEncRateCtrl::initRCGOP( Int numberOfPictures )
   m_encRCGOP->create( m_encRCSeq, numberOfPictures );
 }
 
-#if U0132_TARGET_BITS_SATURATION
 Int  TEncRateCtrl::updateCpbState(Int actualBits)
 {
   Int cpbState = 1;
@@ -1472,7 +1465,6 @@ Void TEncRateCtrl::initHrdParam(const TComHRD* pcHrd, Int iFrameRate, Double fIn
   m_bufferingRate = (UInt)(((pcHrd->getBitRateValueMinus1(0, 0, 0) + 1) << (6 + pcHrd->getBitRateScale())) / iFrameRate);
   printf("\nHRD - [Initial CPB state %6d] [CPB Size %6d] [Buffering Rate %6d]\n", m_cpbState, m_cpbSize, m_bufferingRate);
 }
-#endif
 
 Void TEncRateCtrl::destroyRCGOP()
 {

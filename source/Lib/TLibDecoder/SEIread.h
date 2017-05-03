@@ -81,9 +81,7 @@ protected:
   Void xParseSEIKneeFunctionInfo              (SEIKneeFunctionInfo& sei,              UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
   Void xParseSEIMasteringDisplayColourVolume  (SEIMasteringDisplayColourVolume& sei,  UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
   Void xParseSEIColourRemappingInfo           (SEIColourRemappingInfo& sei,           UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
-#if U0033_ALTERNATIVE_TRANSFER_CHARACTERISTICS_SEI
-  Void xParseSEIAlternativeTransferCharacteristics(SEIAlternativeTransferCharacteristics& sei,              UInt payLoadSize,                     std::ostream *pDecodedMessageOutputStream);
-#endif
+  Void xParseSEIAlternativeTransferCharacteristics(SEIAlternativeTransferCharacteristics& sei, UInt payLoadSize,            std::ostream *pDecodedMessageOutputStream);
   Void xParseSEIGreenMetadataInfo             (SEIGreenMetadataInfo& sei,             UInt payLoadSize,                     std::ostream *pDecodedMessageOutputStream);
 
   Void sei_read_code(std::ostream *pOS, UInt uiLength, UInt& ruiCode, const TChar *pSymbolName);

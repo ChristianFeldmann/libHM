@@ -73,25 +73,6 @@ Distortion TComRdCostWeightPrediction::xGetSADw( DistParam* pcDtParam )
 
   Distortion uiSum = 0;
 
-#if !U0040_MODIFIED_WEIGHTEDPREDICTION_WITH_BIPRED_AND_CLIPPING
-  for(Int iRows = pcDtParam->iRows; iRows != 0; iRows-- )
-  {
-    for (Int n = 0; n < iCols; n++ )
-    {
-      const Pel pred = ( (w0*piCur[n] + round) >> shift ) + offset ;
-
-      uiSum += abs( piOrg[n] - pred );
-    }
-    if (pcDtParam->m_maximumDistortionForEarlyExit <  ( uiSum >> distortionShift))
-    {
-      return uiSum >> distortionShift;
-    }
-    piOrg += iStrideOrg;
-    piCur += iStrideCur;
-  }
-
-  pcDtParam->compIdx = MAX_NUM_COMPONENT;  // reset for DEBUG (assert test)
-#else
   // Default weight
   if (w0 == 1 << shift)
   {
@@ -221,7 +202,6 @@ Distortion TComRdCostWeightPrediction::xGetSADw( DistParam* pcDtParam )
     }
   }
   //pcDtParam->compIdx = MAX_NUM_COMPONENT;  // reset for DEBUG (assert test)
-#endif
 
   return uiSum >> distortionShift;
 }
@@ -255,21 +235,6 @@ Distortion TComRdCostWeightPrediction::xGetSSEw( DistParam* pcDtParam )
 
   Distortion sum = 0;
 
-#if !U0040_MODIFIED_WEIGHTEDPREDICTION_WITH_BIPRED_AND_CLIPPING
-  for(Int iRows = pcDtParam->iRows ; iRows != 0; iRows-- )
-  {
-    for (Int n = 0; n < iCols; n++ )
-    {
-      const Pel pred     = ( (w0*piCur[n] + round) >> shift ) + offset ;
-      const Pel residual = piOrg[n] - pred;
-      sum += ( Distortion(residual) * Distortion(residual) ) >> distortionShift;
-    }
-    piOrg += iStrideOrg;
-    piCur += iStrideCur;
-  }
-
-  pcDtParam->compIdx = MAX_NUM_COMPONENT; // reset for DEBUG (assert test)
-#else
   if (pcDtParam->bIsBiPred)
   {
     for(Int iRows = pcDtParam->iRows ; iRows != 0; iRows-- )
@@ -302,7 +267,6 @@ Distortion TComRdCostWeightPrediction::xGetSSEw( DistParam* pcDtParam )
   }
 
   //pcDtParam->compIdx = MAX_NUM_COMPONENT; // reset for DEBUG (assert test)
-#endif
 
   return sum;
 }

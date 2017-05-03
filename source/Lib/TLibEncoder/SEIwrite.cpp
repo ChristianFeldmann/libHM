@@ -123,11 +123,9 @@ Void SEIWriter::xWriteSEIpayloadData(TComBitIf& bs, const SEI& sei, const TComSP
   case SEI::MASTERING_DISPLAY_COLOUR_VOLUME:
     xWriteSEIMasteringDisplayColourVolume(*static_cast<const SEIMasteringDisplayColourVolume*>(&sei));
     break;
-#if U0033_ALTERNATIVE_TRANSFER_CHARACTERISTICS_SEI
   case SEI::ALTERNATIVE_TRANSFER_CHARACTERISTICS:
     xWriteSEIAlternativeTransferCharacteristics(*static_cast<const SEIAlternativeTransferCharacteristics*>(&sei));
     break;
-#endif
   case SEI::GREEN_METADATA:
       xWriteSEIGreenMetadataInfo(*static_cast<const SEIGreenMetadataInfo*>(&sei));
     break;
@@ -822,12 +820,10 @@ Void SEIWriter::xWriteByteAlign()
   }
 }
 
-#if U0033_ALTERNATIVE_TRANSFER_CHARACTERISTICS_SEI
 Void SEIWriter::xWriteSEIAlternativeTransferCharacteristics(const SEIAlternativeTransferCharacteristics& sei)
 {
   WRITE_CODE(sei.m_preferredTransferCharacteristics, 8, "preferred_transfer_characteristics");
 }
-#endif
 
 Void SEIWriter::xWriteSEIGreenMetadataInfo(const SEIGreenMetadataInfo& sei)
 {

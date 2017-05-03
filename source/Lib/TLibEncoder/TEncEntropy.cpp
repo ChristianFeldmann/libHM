@@ -682,19 +682,11 @@ Void TEncEntropy::encodeCoeffNxN( TComTU &rTu, TCoeff* pcCoef, const ComponentID
   }
 }
 
-#if FIX_RDOQ_BIT_ESTIMATE
 Void TEncEntropy::estimateBit (estBitsSbacStruct* pcEstBitsSbac, Int width, Int height, const ChannelType chType, COEFF_SCAN_TYPE scanType )
-#else
-Void TEncEntropy::estimateBit (estBitsSbacStruct* pcEstBitsSbac, Int width, Int height, const ChannelType chType)
-#endif
 {
   const UInt heightAtEntropyCoding = (width != height) ? (height >> 1) : height;
 
-#if FIX_RDOQ_BIT_ESTIMATE
   m_pcEntropyCoderIf->estBit ( pcEstBitsSbac, width, heightAtEntropyCoding, chType, scanType );
-#else
-  m_pcEntropyCoderIf->estBit ( pcEstBitsSbac, width, heightAtEntropyCoding, chType );
-#endif
 }
 
 Int TEncEntropy::countNonZeroCoeffs( TCoeff* pcCoef, UInt uiSize )

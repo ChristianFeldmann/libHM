@@ -101,9 +101,6 @@ Void TEncSlice::init( TEncTop* pcEncTop )
   m_pcRateCtrl        = pcEncTop->getRateCtrl();
 }
 
-
-
-#if SHARP_LUMA_DELTA_QP
 Void TEncSlice::updateLambda(TComSlice* pSlice, Double dQP)
 {
   Int iQP = (Int)dQP;
@@ -111,7 +108,6 @@ Void TEncSlice::updateLambda(TComSlice* pSlice, Double dQP)
 
   setUpLambda(pSlice, dLambda, iQP);
 }
-#endif
 
 Void
 TEncSlice::setUpLambda(TComSlice* slice, const Double dLambda, Int iQP)
@@ -171,11 +167,8 @@ Void TEncSlice::initEncSlice( TComPic* pcPic, const Int pocLast, const Int pocCu
   rpcSlice->initSlice();
   rpcSlice->setPicOutputFlag( true );
   rpcSlice->setPOC( pocCurr );
-
-#if SHARP_LUMA_DELTA_QP
   pcPic->setField(isField);
   m_gopID = iGOPid;
-#endif
 
   // depth computation based on GOP size
   Int depth;
@@ -264,11 +257,7 @@ Void TEncSlice::initEncSlice( TComPic* pcPic, const Int pocLast, const Int pocCu
   dQP = m_pcCfg->getQP();
   if(eSliceType!=I_SLICE)
   {
-#if SHARP_LUMA_DELTA_QP
     if (!(( m_pcCfg->getMaxDeltaQP() == 0) && (!m_pcCfg->getLumaLevelToDeltaQPMapping().isEnabled()) && (dQP == -rpcSlice->getSPS()->getQpBDOffset(CHANNEL_TYPE_LUMA) ) && (rpcSlice->getPPS()->getTransquantBypassEnabledFlag())))
-#else
-    if (!(( m_pcCfg->getMaxDeltaQP() == 0 ) && (dQP == -rpcSlice->getSPS()->getQpBDOffset(CHANNEL_TYPE_LUMA) ) && (rpcSlice->getPPS()->getTransquantBypassEnabledFlag())))
-#endif
     {
       dQP += m_pcCfg->getGOPEntry(iGOPid).m_QPOffset;
     }
@@ -294,9 +283,6 @@ Void TEncSlice::initEncSlice( TComPic* pcPic, const Int pocLast, const Int pocCu
 
 #if X0038_LAMBDA_FROM_QP_CAPABILITY
   const Int temporalId=m_pcCfg->getGOPEntry(iGOPid).m_temporalId;
-#if !SHARP_LUMA_DELTA_QP
-  const std::vector<Double> &intraLambdaModifiers=m_pcCfg->getIntraLambdaModifier();
-#endif
 #endif
   Int iQP;
   Double dOrigQP = dQP;
@@ -306,91 +292,7 @@ Void TEncSlice::initEncSlice( TComPic* pcPic, const Int pocLast, const Int pocCu
   {
     // compute QP value
     dQP = dOrigQP + ((iDQpIdx+1)>>1)*(iDQpIdx%2 ? -1 : 1);
-#if SHARP_LUMA_DELTA_QP
     dLambda = calculateLambda(rpcSlice, iGOPid, depth, dQP, dQP, iQP );
-#else
-    // compute lambda value
-    Int    NumberBFrames = ( m_pcCfg->getGOPSize() - 1 );
-    Int    SHIFT_QP = 12;
-
-#if FULL_NBIT
-    Int    bitdepth_luma_qp_scale = 6 * (rpcSlice->getSPS()->getBitDepth(CHANNEL_TYPE_LUMA) - 8);
-#else
-    Int    bitdepth_luma_qp_scale = 0;
-#endif
-    Double qp_temp = (Double) dQP + bitdepth_luma_qp_scale - SHIFT_QP;
-#if FULL_NBIT
-    Double qp_temp_orig = (Double) dQP - SHIFT_QP;
-#endif
-    // Case #1: I or P-slices (key-frame)
-    Double dQPFactor = m_pcCfg->getGOPEntry(iGOPid).m_QPFactor;
-    if ( eSliceType==I_SLICE )
-    {
-      if (m_pcCfg->getIntraQpFactor()>=0.0 && m_pcCfg->getGOPEntry(iGOPid).m_sliceType != I_SLICE)
-      {
-        dQPFactor=m_pcCfg->getIntraQpFactor();
-      }
-      else
-      {
-#if X0038_LAMBDA_FROM_QP_CAPABILITY
-        if(m_pcCfg->getLambdaFromQPEnable())
-        {
-          dQPFactor=0.57;
-        }
-        else
-        {
-#endif
-        Double dLambda_scale = 1.0 - Clip3( 0.0, 0.5, 0.05*(Double)(isField ? NumberBFrames/2 : NumberBFrames) );
-        
-        dQPFactor=0.57*dLambda_scale;
-#if X0038_LAMBDA_FROM_QP_CAPABILITY
-        }
-#endif
-      }
-    }
-#if X0038_LAMBDA_FROM_QP_CAPABILITY
-    else if( m_pcCfg->getLambdaFromQPEnable() )
-    {
-      dQPFactor=0.57;
-    }
-#endif
-
-    dLambda = dQPFactor*pow( 2.0, qp_temp/3.0 );
-
-#if X0038_LAMBDA_FROM_QP_CAPABILITY
-    if(!m_pcCfg->getLambdaFromQPEnable() && depth>0)
-#else
-    if ( depth>0 )
-#endif
-    {
-#if FULL_NBIT
-        dLambda *= Clip3( 2.00, 4.00, (qp_temp_orig / 6.0) ); // (j == B_SLICE && p_cur_frm->layer != 0 )
-#else
-        dLambda *= Clip3( 2.00, 4.00, (qp_temp / 6.0) ); // (j == B_SLICE && p_cur_frm->layer != 0 )
-#endif
-    }
-
-    // if hadamard is used in ME process
-    if ( !m_pcCfg->getUseHADME() && rpcSlice->getSliceType( ) != I_SLICE )
-    {
-      dLambda *= 0.95;
-    }
-
-#if X0038_LAMBDA_FROM_QP_CAPABILITY
-    Double lambdaModifier;
-    if( rpcSlice->getSliceType( ) != I_SLICE || intraLambdaModifiers.empty())
-    {
-      lambdaModifier = m_pcCfg->getLambdaModifier( temporalId );
-    }
-    else
-    {
-      lambdaModifier = intraLambdaModifiers[ (temporalId < intraLambdaModifiers.size()) ? temporalId : (intraLambdaModifiers.size()-1) ];
-    }
-    dLambda *= lambdaModifier;
-#endif
-
-    iQP = max( -rpcSlice->getSPS()->getQpBDOffset(CHANNEL_TYPE_LUMA), min( MAX_QP, (Int) floor( dQP + 0.5 ) ) );
-#endif
 
     m_vdRdPicLambda[iDQpIdx] = dLambda;
     m_vdRdPicQp    [iDQpIdx] = dQP;
@@ -407,7 +309,6 @@ Void TEncSlice::initEncSlice( TComPic* pcPic, const Int pocLast, const Int pocCu
   const std::vector<Double> &intraLambdaModifiers=m_pcCfg->getIntraLambdaModifier();
 #endif
 
-#if W0038_CQP_ADJ
   if(rpcSlice->getPPS()->getSliceChromaQpFlag())
   {
     const Bool bUseIntraOrPeriodicOffset = rpcSlice->getSliceType()==I_SLICE || (m_pcCfg->getSliceChromaOffsetQpPeriodicity()!=0 && (rpcSlice->getPOC()%m_pcCfg->getSliceChromaOffsetQpPeriodicity())==0);
@@ -426,7 +327,6 @@ Void TEncSlice::initEncSlice( TComPic* pcPic, const Int pocLast, const Int pocCu
     rpcSlice->setSliceChromaQpDelta( COMPONENT_Cb, 0 );
     rpcSlice->setSliceChromaQpDelta( COMPONENT_Cr, 0 );
   }
-#endif
 
 #if !X0038_LAMBDA_FROM_QP_CAPABILITY
   Double lambdaModifier;
@@ -474,10 +374,6 @@ Void TEncSlice::initEncSlice( TComPic* pcPic, const Int pocLast, const Int pocCu
   rpcSlice->setSliceQpBase       ( iQP );
 #endif
   rpcSlice->setSliceQpDelta      ( 0 );
-#if !W0038_CQP_ADJ
-  rpcSlice->setSliceChromaQpDelta( COMPONENT_Cb, 0 );
-  rpcSlice->setSliceChromaQpDelta( COMPONENT_Cr, 0 );
-#endif
   rpcSlice->setUseChromaQpAdj( rpcSlice->getPPS()->getPpsRangeExtension().getChromaQpOffsetListEnabledFlag() );
   rpcSlice->setNumRefIdx(REF_PIC_LIST_0,m_pcCfg->getGOPEntry(iGOPid).m_numRefPicsActive);
   rpcSlice->setNumRefIdx(REF_PIC_LIST_1,m_pcCfg->getGOPEntry(iGOPid).m_numRefPicsActive);
@@ -534,7 +430,6 @@ Void TEncSlice::initEncSlice( TComPic* pcPic, const Int pocLast, const Int pocCu
 }
 
 
-#if SHARP_LUMA_DELTA_QP
 Double TEncSlice::calculateLambda( const TComSlice* slice,
                                    const Int        GOPid, // entry in the GOP table
                                    const Int        depth, // slice GOP hierarchical depth.
@@ -630,7 +525,6 @@ Double TEncSlice::calculateLambda( const TComSlice* slice,
   // NOTE: the lambda modifiers that are sometimes applied later might be best always applied in here.
   return dLambda;
 }
-#endif
 
 Void TEncSlice::resetQP( TComPic* pic, Int sliceQP, Double lambda )
 {

@@ -1723,11 +1723,7 @@ Void TEncSbac::codeSAOBlkParam(SAOBlkParam& saoBlkParam, const BitDepths &bitDep
  *   estimate bit cost for CBP, significant map and significant coefficients
  ****************************************************************************
  */
-#if FIX_RDOQ_BIT_ESTIMATE
 Void TEncSbac::estBit( estBitsSbacStruct* pcEstBitsSbac, Int width, Int height, ChannelType chType, COEFF_SCAN_TYPE scanType )
-#else
-Void TEncSbac::estBit( estBitsSbacStruct* pcEstBitsSbac, Int width, Int height, ChannelType chType )
-#endif
 {
   estCBFBit( pcEstBitsSbac );
 
@@ -1737,11 +1733,7 @@ Void TEncSbac::estBit( estBitsSbacStruct* pcEstBitsSbac, Int width, Int height, 
   estSignificantMapBit( pcEstBitsSbac, width, height, chType );
 
   // encode last significant position
-#if FIX_RDOQ_BIT_ESTIMATE
   estLastSignificantPositionBit( pcEstBitsSbac, width, height, chType, scanType );
-#else
-  estLastSignificantPositionBit( pcEstBitsSbac, width, height, chType );
-#endif
 
   // encode significant coefficients
   estSignificantCoefficientsBit( pcEstBitsSbac, chType );
@@ -1875,18 +1867,13 @@ Void TEncSbac::estSignificantMapBit( estBitsSbacStruct* pcEstBitsSbac, Int width
  ****************************************************************************
  */
 
-#if FIX_RDOQ_BIT_ESTIMATE
 Void TEncSbac::estLastSignificantPositionBit( estBitsSbacStruct* pcEstBitsSbac, Int width, Int height, ChannelType chType, COEFF_SCAN_TYPE scanType )
-#else
-Void TEncSbac::estLastSignificantPositionBit( estBitsSbacStruct* pcEstBitsSbac, Int width, Int height, ChannelType chType )
-#endif
 {
-#if FIX_RDOQ_BIT_ESTIMATE
   if (scanType == SCAN_VER)
   {
     swap(width, height);
   }
-#endif
+
   //--------------------------------------------------------------------------------------------------.
 
   //set up the number of channels

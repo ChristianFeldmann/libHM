@@ -74,9 +74,7 @@ protected:
   Void xWriteSEIKneeFunctionInfo(const SEIKneeFunctionInfo &sei);
   Void xWriteSEIColourRemappingInfo(const SEIColourRemappingInfo& sei);
   Void xWriteSEIMasteringDisplayColourVolume( const SEIMasteringDisplayColourVolume& sei);
-#if U0033_ALTERNATIVE_TRANSFER_CHARACTERISTICS_SEI
   Void xWriteSEIAlternativeTransferCharacteristics(const SEIAlternativeTransferCharacteristics& sei);
-#endif
   Void xWriteSEIGreenMetadataInfo(const SEIGreenMetadataInfo &sei);
 
   Void xWriteSEIpayloadData(TComBitIf& bs, const SEI& sei, const TComSPS *sps);

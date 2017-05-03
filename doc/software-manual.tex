@@ -191,7 +191,7 @@
 \maketitle
 \begin{abstract}
 This document is a user manual describing usage of reference software
-for the HEVC project. It applies to version 16.13
+for the HEVC project. It applies to version 16.14
 of the software.
 \end{abstract}
 
@@ -1009,6 +1009,12 @@ picture.
 %\ShortOption{-g} &
 \Default{1} &
 Specifies the size of the cyclic GOP structure.
+\\
+
+\Option{ReWriteParamSetsFlag} &
+%\ShortOption{\None} &
+\Default{1} &
+When enabled, VPS, SPS and PPS are repeated in front of every IRAP picture.
 \\
 
 \Option{Frame\emph{N}} &
