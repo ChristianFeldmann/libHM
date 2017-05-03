@@ -34,8 +34,14 @@ DYN_RELEASE_OUT   	= $(LIB_DIR)/lib$(PRJ_NAME).so
 else
 ifeq ($(CONFIG), LIBSHARED)
 # the libraries that can be created
-STAT_DEBUG_OUT    	= $(LIB_DIR)/lib$(PRJ_NAME)Staticd.so
-STAT_RELEASE_OUT  	= $(LIB_DIR)/lib$(PRJ_NAME)Static.so
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+	STAT_DEBUG_OUT    	= $(LIB_DIR)/lib$(PRJ_NAME)Staticd.dylib
+	STAT_RELEASE_OUT  	= $(LIB_DIR)/lib$(PRJ_NAME)Static.dylib
+else
+	STAT_DEBUG_OUT    	= $(LIB_DIR)/lib$(PRJ_NAME)Staticd.so
+	STAT_RELEASE_OUT  	= $(LIB_DIR)/lib$(PRJ_NAME)Static.so
+endif
 DYN_DEBUG_OUT     	= $(LIB_DIR)/lib$(PRJ_NAME)d.so
 DYN_RELEASE_OUT   	= $(LIB_DIR)/lib$(PRJ_NAME).so
 #
@@ -134,10 +140,10 @@ ifeq ($(CONFIG), LIBSHARED)
 LDFLAGS           = $(ALL_LDFLAGS) -shared
 #
 # debug linker flags for libshared
-DEBUG_LDFLAGS     = -Wl,-soname,lib$(PRJ_NAME)d.so.$(VER)
+DEBUG_LDFLAGS     =
 #
 # release linker flags for libshared
-RELEASE_LDFLAGS   = -Wl,-soname,lib$(PRJ_NAME).so.$(VER)
+RELEASE_LDFLAGS   =
 #
 else
 ifeq ($(CONFIG), CONSOLE)
