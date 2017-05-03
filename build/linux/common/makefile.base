@@ -79,10 +79,6 @@ ifeq ($(HIGHBITDEPTH), 1)
 CPPFLAGS+="-DRExt__HIGH_BIT_DEPTH_SUPPORT=1"
 endif
 
-ifeq ($(CONFIG), LIBSHARED)
-CPPFLAGS+=-shared
-endif
-
 #
 # debug cpp flags
 DEBUG_CPPFLAGS    = -g  -D_DEBUG
