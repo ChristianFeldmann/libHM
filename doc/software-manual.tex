@@ -190,7 +190,7 @@
 \maketitle
 \begin{abstract}
 This document is a user manual describing usage of reference software
-for the HEVC project. It applies to version 16.8
+for the HEVC project. It applies to version 16.9
 of the software.
 \end{abstract}
 
@@ -321,6 +321,10 @@ from 1 to GOPSize.
 \item[]\textbf{QPOffset}: QP offset is added to the QP parameter to set
 the final QP value to use for this frame.
 
+\item[]\textbf{SliceCbQPOffset}: The slice-level Cb QP offset.
+
+\item[]\textbf{SliceCrQPOffset}: The slice-level Cr QP offset.
+
 \item[]\textbf{QPFactor}: Weight used during rate distortion
 optimization. Higher values mean lower quality and less bits. Typical
 range is between
@@ -450,7 +454,9 @@ Table~\ref{tab:gop-example} could be used.
 \hline
 Type                &   P  &    B   &      B   &       B \\
 POC                 &   4  &    2   &      1   &       3 \\
-QPoffset            &   1  &    2   &      3   &       3 \\
+QPOffset            &   1  &    2   &      3   &       3 \\
+SliceCbQPOffset     &   0  &    0   &      0   &       0 \\
+SliceCrQPOffset     &   0  &    0   &      0   &       0 \\
 QPfactor            & 0.5  &  0.5   &    0.5   &     0.5 \\
 tcOffsetDiv2        &   0  &    1   &      2   &       2 \\  
 betaOffsetDiv2      &   0  &    0   &      0   &       0 \\
@@ -475,10 +481,10 @@ line should contain information for one frame, so this
 configuration would be specified as:
 
 \begin{verbatim}
-Frame1: P 4 1 0.5 0 0 0 1 1 -4 0
-Frame2: B 2 2 0.5 1 0 1 1 2 -2 2 1 0 2 2 1 1
-Frame3: B 1 3 0.5 2 0 2 1 3 -1 1 3 1 0 1 3 1 1 1
-Frame4: B 3 3 0.5 2 0 2 1 2 -1 1 1 0 -2 4 0 1 1 0
+Frame1: P 4 1 0 0 0.5 0 0 0 1 1 -4 0
+Frame2: B 2 2 0 0 0.5 1 0 1 1 2 -2 2 1 0 2 2 1 1
+Frame3: B 1 3 0 0 0.5 2 0 2 1 3 -1 1 3 1 0 1 3 1 1 1
+Frame4: B 3 3 0 0 0.5 2 0 2 1 2 -1 1 1 0 -2 4 0 1 1 0
 \end{verbatim}
 
 The values of deltaRIdx$-1$, deltaRPS, num_ref_idcs and reference
@@ -759,7 +765,13 @@ Specifies a number of frames to skip at beginning of input video file.
 \Option{FramesToBeEncoded (-f)} &
 %\ShortOption{-f} &
 \Default{0} &
-Specifies the number of frames to be encoded. When 0, all frames are coded.
+Specifies the number of frames to be encoded (see note regarding TemporalSubsampleRatio). When 0, all frames are coded.
+\\
+
+\Option{TemporalSubsampleRatio (-ts)} &
+%\ShortOption{-fs} &
+\Default{1} &
+Temporally subsamples the input video sequence. A value of $N$ will skip $(N-1)$ frames of input video after each coded input video frame. Note the FramesToBeEncoded does not account for the temporal skipping of frames, which will reduce the number of frames encoded accordingly. The reported bit rates will be reduced and VUI information is scaled so as to present the video at the correct speed. The minimum and default value is 1.
 \\
 
 \Option{FieldCoding} &
@@ -1220,6 +1232,17 @@ and cr_qp_offset, that are transmitted in the PPS.  Valid values are in
 the range $[-12, 12]$.
 \\
 
+\Option{SliceChromaQPOffsetPeriodicity} &
+\Default{0} &
+Defines the periodicity for inter slices that use the slice-level chroma QP offsets, as defined by SliceCbQpOffsetIntraOrPeriodic and SliceCrQpOffsetIntraOrPeriodic. A value of 0 disables the periodicity. It is intended to be used in low-delay configurations where an regular intra period is not defined.
+\\
+
+\Option{SliceCbQpOffsetIntraOrPeriodic}%
+\Option{SliceCrQpOffsetIntraOrPeriodic} &
+\Default{0} &
+Defines the slice-level QP offset to be used for intra slices, or once every 'SliceChromaQPOffsetPeriodicity' pictures.
+\\
+
 \Option{MaxCuDQPDepth (-dqd)} &
 %\ShortOption{\None} &
 \Default{0} &
@@ -1478,9 +1501,9 @@ shall be an integer number in the range $-6..6$.
 
 \Option{DeblockingFilterMetric}&
 %\ShortOption{\None}&
-\Default{false}&
-Enables or disables the use of a deblocking filter metric to evaluate the suitability of deblocking. If enabled then
-LoopFilterOffsetInPPS and LoopFilterDisable must be 0.
+\Default{0}&
+Specifies the use of a deblocking filter metric to evaluate the suitability of deblocking. If non-zero then
+LoopFilterOffsetInPPS and LoopFilterDisable must be 0. Currently excepted values are 0, 1 and 2.
 \\
 
 \Option{LFCrossSliceBoundaryFlag}&
@@ -1534,6 +1557,12 @@ The SAO early picture termination rate to use for chroma (when m_SaoEncodingRate
 \Default{false} &
 Enables or disables SAO parameter estimation using non-deblocked pixels
 for LCU bottom and right boundary areas.
+\\
+
+\Option{SAOResetEncoderStateAfterIRAP} &
+%\ShortOption{\None} &
+\Default{false} &
+When true, resets the encoder's SAO state after an IRAP (POC order).
 \\
 
 \Option{ConstrainedIntraPred} &

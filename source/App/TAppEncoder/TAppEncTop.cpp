@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2015, ITU/ISO/IEC
+ * Copyright (c) 2010-2016, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -102,6 +102,7 @@ Void TAppEncTop::xInitLibCfg()
 
   m_cTEncTop.setFrameRate                                         ( m_iFrameRate );
   m_cTEncTop.setFrameSkip                                         ( m_FrameSkip );
+  m_cTEncTop.setTemporalSubsampleRatio                            ( m_temporalSubsampleRatio );
   m_cTEncTop.setSourceWidth                                       ( m_iSourceWidth );
   m_cTEncTop.setSourceHeight                                      ( m_iSourceHeight );
   m_cTEncTop.setConformanceWindow                                 ( m_confWinLeft, m_confWinRight, m_confWinTop, m_confWinBottom );
@@ -141,7 +142,11 @@ Void TAppEncTop::xInitLibCfg()
   m_cTEncTop.setLoopFilterOffsetInPPS                             ( m_loopFilterOffsetInPPS );
   m_cTEncTop.setLoopFilterBetaOffset                              ( m_loopFilterBetaOffsetDiv2  );
   m_cTEncTop.setLoopFilterTcOffset                                ( m_loopFilterTcOffsetDiv2    );
+#if W0038_DB_OPT
+  m_cTEncTop.setDeblockingFilterMetric                            ( m_deblockingFilterMetric );
+#else
   m_cTEncTop.setDeblockingFilterMetric                            ( m_DeblockingFilterMetric );
+#endif
 
   //====== Motion search ========
   m_cTEncTop.setDisableIntraPUsInInterSlices                      ( m_bDisableIntraPUsInInterSlices );
@@ -159,7 +164,9 @@ Void TAppEncTop::xInitLibCfg()
   m_cTEncTop.setDiffCuChromaQpOffsetDepth                         ( m_diffCuChromaQpOffsetDepth );
   m_cTEncTop.setChromaCbQpOffset                                  ( m_cbQpOffset     );
   m_cTEncTop.setChromaCrQpOffset                                  ( m_crQpOffset  );
-
+#if W0038_CQP_ADJ
+  m_cTEncTop.setSliceChromaOffsetQpIntraOrPeriodic                ( m_sliceChromaQpOffsetPeriodicity, m_sliceChromaQpOffsetIntraOrPeriodic );
+#endif
   m_cTEncTop.setChromaFormatIdc                                   ( m_chromaFormatIDC  );
 
 #if ADAPTIVE_QP_SELECTION
@@ -258,6 +265,9 @@ Void TAppEncTop::xInitLibCfg()
   m_cTEncTop.setMaxNumOffsetsPerPic                               ( m_maxNumOffsetsPerPic);
 
   m_cTEncTop.setSaoCtuBoundary                                    ( m_saoCtuBoundary);
+#if OPTIONAL_RESET_SAO_ENCODING_AFTER_IRAP
+  m_cTEncTop.setSaoResetEncoderStateAfterIRAP                     ( m_saoResetEncoderStateAfterIRAP);
+#endif
   m_cTEncTop.setPCMInputBitDepthFlag                              ( m_bPCMInputBitDepthFlag);
   m_cTEncTop.setPCMFilterDisableFlag                              ( m_bPCMFilterDisableFlag);
 
@@ -536,6 +546,11 @@ Void TAppEncTop::encode()
       xWriteOutput(bitstreamFile, iNumEncoded, outputAccessUnits);
       outputAccessUnits.clear();
     }
+    // temporally skip frames
+    if( m_temporalSubsampleRatio > 1 )
+    {
+      m_cTVideoIOYuvInputFile.skipFrames(m_temporalSubsampleRatio-1, m_iSourceWidth - m_aiPad[0], m_iSourceHeight - m_aiPad[1], m_InputChromaFormatIDC);
+    }
   }
 
   m_cTEncTop.printSummary(m_isField);
@@ -715,7 +730,7 @@ Void TAppEncTop::rateStatsAccum(const AccessUnit& au, const std::vector<UInt>& a
 
 Void TAppEncTop::printRateSummary()
 {
-  Double time = (Double) m_iFrameRcvd / m_iFrameRate;
+  Double time = (Double) m_iFrameRcvd / m_iFrameRate * m_temporalSubsampleRatio;
   printf("Bytes written to file: %u (%.3f kbps)\n", m_totalBytes, 0.008 * m_totalBytes / time);
   if (m_summaryVerboseness > 0)
   {

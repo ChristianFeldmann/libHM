@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2015, ITU/ISO/IEC
+ * Copyright (c) 2010-2016, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -109,8 +109,8 @@ Void TEncTop::create ()
 
   if ( m_RCEnableRateControl )
   {
-    m_cRateCtrl.init( m_framesToBeEncoded, m_RCTargetBitrate, m_iFrameRate, m_iGOPSize, m_iSourceWidth, m_iSourceHeight,
-        m_maxCUWidth, m_maxCUHeight, m_RCKeepHierarchicalBit, m_RCUseLCUSeparateModel, m_GOPList );
+    m_cRateCtrl.init( m_framesToBeEncoded, m_RCTargetBitrate, (Int)( (Double)m_iFrameRate/m_temporalSubsampleRatio + 0.5), m_iGOPSize, m_iSourceWidth, m_iSourceHeight,
+                      m_maxCUWidth, m_maxCUHeight,m_RCKeepHierarchicalBit, m_RCUseLCUSeparateModel, m_GOPList );
   }
 
   m_pppcRDSbacCoder = new TEncSbac** [m_maxTotalCUDepth+1];
@@ -756,6 +756,19 @@ Void TEncTop::xInitHrdParameters()
     break;
   }
 
+  if (getTemporalSubsampleRatio()>1)
+  {
+    UInt temporalSubsampleRatio = getTemporalSubsampleRatio();
+    if ( Double(timingInfo->getNumUnitsInTick()) * temporalSubsampleRatio > std::numeric_limits<UInt>::max() )
+    {
+      timingInfo->setTimeScale( timingInfo->getTimeScale() / temporalSubsampleRatio );
+    }
+    else
+    {
+      timingInfo->setNumUnitsInTick( timingInfo->getNumUnitsInTick() * temporalSubsampleRatio );
+    }
+  }
+
   Bool rateCnt = ( bitRate > 0 );
   hrd->setNalHrdParametersPresentFlag( rateCnt );
   hrd->setVclHrdParametersPresentFlag( rateCnt );
@@ -906,6 +919,24 @@ Void TEncTop::xInitPPS()
 
   m_cPPS.setQpOffset(COMPONENT_Cb, m_chromaCbQpOffset );
   m_cPPS.setQpOffset(COMPONENT_Cr, m_chromaCrQpOffset );
+#if W0038_CQP_ADJ
+  Bool bChromaDeltaQPEnabled = false;
+  {
+    bChromaDeltaQPEnabled = ( m_sliceChromaQpOffsetIntraOrPeriodic[0] || m_sliceChromaQpOffsetIntraOrPeriodic[1] );
+    if( !bChromaDeltaQPEnabled )
+    {
+      for( Int i=0; i<m_iGOPSize; i++ )
+      {
+        if( m_GOPList[i].m_CbQPoffset || m_GOPList[i].m_CrQPoffset )
+        {
+          bChromaDeltaQPEnabled = true;
+          break;
+        }
+      }
+    }
+  }
+  m_cPPS.setSliceChromaQpFlag(bChromaDeltaQPEnabled);
+#endif
 
   m_cPPS.setEntropyCodingSyncEnabledFlag( m_entropyCodingSyncEnabledFlag );
   m_cPPS.setTilesEnabledFlag( (m_iNumColumnsMinus1 > 0 || m_iNumRowsMinus1 > 0) );
