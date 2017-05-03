@@ -1003,7 +1003,7 @@ TEncSearch::xEncIntraHeader( TComDataCU*  pcCU,
     {
       if( !pcCU->getSlice()->isIntra() )
       {
-        if (pcCU->getSlice()->getPPS()->getTransquantBypassEnableFlag())
+        if (pcCU->getSlice()->getPPS()->getTransquantBypassEnabledFlag())
         {
           m_pcEntropyCoder->encodeCUTransquantBypassFlag( pcCU, 0, true );
         }
@@ -4441,7 +4441,7 @@ Void TEncSearch::encodeResAndCalcRdInterCU( TComDataCU* pcCU, TComYuv* pcYuvOrg,
     m_pcRDGoOnSbacCoder->load(m_pppcRDSbacCoder[pcCU->getDepth(0)][CI_CURR_BEST]);
     m_pcEntropyCoder->resetBits();
 
-    if (pcCU->getSlice()->getPPS()->getTransquantBypassEnableFlag())
+    if (pcCU->getSlice()->getPPS()->getTransquantBypassEnabledFlag())
     {
       m_pcEntropyCoder->encodeCUTransquantBypassFlag(pcCU, 0, true);
     }
@@ -5423,7 +5423,7 @@ Void  TEncSearch::xAddSymbolBitsInter( TComDataCU* pcCU, UInt& ruiBits )
     pcCU->setSkipFlagSubParts( true, 0, pcCU->getDepth(0) );
 
     m_pcEntropyCoder->resetBits();
-    if(pcCU->getSlice()->getPPS()->getTransquantBypassEnableFlag())
+    if(pcCU->getSlice()->getPPS()->getTransquantBypassEnabledFlag())
     {
       m_pcEntropyCoder->encodeCUTransquantBypassFlag(pcCU, 0, true);
     }
@@ -5436,7 +5436,7 @@ Void  TEncSearch::xAddSymbolBitsInter( TComDataCU* pcCU, UInt& ruiBits )
   {
     m_pcEntropyCoder->resetBits();
 
-    if(pcCU->getSlice()->getPPS()->getTransquantBypassEnableFlag())
+    if(pcCU->getSlice()->getPPS()->getTransquantBypassEnabledFlag())
     {
       m_pcEntropyCoder->encodeCUTransquantBypassFlag(pcCU, 0, true);
     }

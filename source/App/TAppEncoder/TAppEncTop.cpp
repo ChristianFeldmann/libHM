@@ -346,6 +346,9 @@ Void TAppEncTop::xInitLibCfg()
   m_cTEncTop.setSEIAlternativeTransferCharacteristicsSEIEnable    ( m_preferredTransferCharacteristics>=0     );
   m_cTEncTop.setSEIPreferredTransferCharacteristics               ( UChar(m_preferredTransferCharacteristics) );
 #endif
+  m_cTEncTop.setSEIGreenMetadataInfoSEIEnable                     ( m_greenMetadataType > 0 );
+  m_cTEncTop.setSEIGreenMetadataType                              ( UChar(m_greenMetadataType) );
+  m_cTEncTop.setSEIXSDMetricType                                  ( UChar(m_xsdMetricType) );
 
   m_cTEncTop.setTileUniformSpacingFlag                            ( m_tileUniformSpacingFlag );
   m_cTEncTop.setNumColumnsMinus1                                  ( m_numTileColumnsMinus1 );
@@ -366,7 +369,7 @@ Void TAppEncTop::xInitLibCfg()
   m_cTEncTop.setTMVPModeId                                        ( m_TMVPModeId );
   m_cTEncTop.setUseScalingListId                                  ( m_useScalingListId  );
   m_cTEncTop.setScalingListFileName                               ( m_scalingListFileName );
-  m_cTEncTop.setSignHideFlag                                      ( m_signHideFlag);
+  m_cTEncTop.setSignDataHidingEnabledFlag                         ( m_signDataHidingEnabledFlag);
   m_cTEncTop.setUseRateCtrl                                       ( m_RCEnableRateControl );
   m_cTEncTop.setTargetBitrate                                     ( m_RCTargetBitrate );
   m_cTEncTop.setKeepHierBit                                       ( m_RCKeepHierarchicalBit );
@@ -379,7 +382,7 @@ Void TAppEncTop::xInitLibCfg()
   m_cTEncTop.setCpbSize                                           ( m_RCCpbSize );
   m_cTEncTop.setInitialCpbFullness                                ( m_RCInitialCpbFullness );
 #endif
-  m_cTEncTop.setTransquantBypassEnableFlag                        ( m_TransquantBypassEnableFlag );
+  m_cTEncTop.setTransquantBypassEnabledFlag                       ( m_TransquantBypassEnabledFlag );
   m_cTEncTop.setCUTransquantBypassFlagForceValue                  ( m_CUTransquantBypassFlagForce );
   m_cTEncTop.setCostMode                                          ( m_costMode );
   m_cTEncTop.setUseRecalculateQPAccordingToLambda                 ( m_recalculateQPAccordingToLambda );

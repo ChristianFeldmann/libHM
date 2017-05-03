@@ -1242,7 +1242,7 @@ Void TComTrQuant::xQuant(       TComTU       &rTu,
       piQCoef[uiBlockPos] = Clip3<TCoeff>( entropyCodingMinimum, entropyCodingMaximum, quantisedCoefficient );
     } // for n
 
-    if( pcCU->getSlice()->getPPS()->getSignHideFlag() )
+    if( pcCU->getSlice()->getPPS()->getSignDataHidingEnabledFlag() )
     {
       if(uiAbsSum >= 2) //this prevents TUs with only one coefficient of value 1 from being tested
       {
@@ -2537,7 +2537,7 @@ Void TComTrQuant::xRateDistOptQuant                 (       TComTU       &rTu,
   }
 
 
-  if( pcCU->getSlice()->getPPS()->getSignHideFlag() && uiAbsSum>=2)
+  if( pcCU->getSlice()->getPPS()->getSignDataHidingEnabledFlag() && uiAbsSum>=2)
   {
     const Double inverseQuantScale = Double(g_invQuantScales[cQP.rem]);
     Int64 rdFactor = (Int64)(inverseQuantScale * inverseQuantScale * (1 << (2 * cQP.per))

@@ -556,13 +556,13 @@ Void TComLoopFilter::xGetBoundaryStrengthSingle ( TComDataCU* pCtu, DeblockEdgeD
 
 Void TComLoopFilter::xEdgeFilterLuma( TComDataCU* const pcCU, const UInt uiAbsZorderIdx, const UInt uiDepth, const DeblockEdgeDir edgeDir, const Int iEdge  )
 {
-        TComPicYuv *pcPicYuvRec                   = pcCU->getPic()->getPicYuvRec();
-        Pel        *piSrc                         = pcPicYuvRec->getAddr(COMPONENT_Y, pcCU->getCtuRsAddr(), uiAbsZorderIdx );
-        Pel        *piTmpSrc                      = piSrc;
-  const TComSPS    &sps                           = *(pcCU->getSlice()->getSPS());
-  const Bool        ppsTransquantBypassEnableFlag = pcCU->getSlice()->getPPS()->getTransquantBypassEnableFlag();
-  const Int         bitDepthLuma                  = sps.getBitDepth(CHANNEL_TYPE_LUMA);
-  const Bool        lfCrossSliceBoundaryFlag      = pcCU->getSlice()->getLFCrossSliceBoundaryFlag();
+        TComPicYuv *pcPicYuvRec                    = pcCU->getPic()->getPicYuvRec();
+        Pel        *piSrc                          = pcPicYuvRec->getAddr(COMPONENT_Y, pcCU->getCtuRsAddr(), uiAbsZorderIdx );
+        Pel        *piTmpSrc                       = piSrc;
+  const TComSPS    &sps                            = *(pcCU->getSlice()->getSPS());
+  const Bool        ppsTransquantBypassEnabledFlag = pcCU->getSlice()->getPPS()->getTransquantBypassEnabledFlag();
+  const Int         bitDepthLuma                   = sps.getBitDepth(CHANNEL_TYPE_LUMA);
+  const Bool        lfCrossSliceBoundaryFlag       = pcCU->getSlice()->getLFCrossSliceBoundaryFlag();
 
   Int  iStride = pcPicYuvRec->getStride(COMPONENT_Y);
   Int iQP = 0;
@@ -643,7 +643,7 @@ Void TComLoopFilter::xEdgeFilterLuma( TComDataCU* const pcCU, const UInt uiAbsZo
         Int dq = dq0 + dq3;
         Int d =  d0 + d3;
 
-        if (bPCMFilter || ppsTransquantBypassEnableFlag)
+        if (bPCMFilter || ppsTransquantBypassEnabledFlag)
         {
           // Check if each of PUs is I_PCM with LF disabling
           bPartPNoFilter = (bPCMFilter && pcCUP->getIPCMFlag(uiPartPIdx));
@@ -768,7 +768,7 @@ Void TComLoopFilter::xEdgeFilterChroma( TComDataCU* const pcCU, const UInt uiAbs
 
       iQP_P = pcCUP->getQP(uiPartPIdx);
 
-      if (bPCMFilter || pcCU->getSlice()->getPPS()->getTransquantBypassEnableFlag())
+      if (bPCMFilter || pcCU->getSlice()->getPPS()->getTransquantBypassEnabledFlag())
       {
         // Check if each of PUs is I_PCM with LF disabling
         bPartPNoFilter = (bPCMFilter && pcCUP->getIPCMFlag(uiPartPIdx));

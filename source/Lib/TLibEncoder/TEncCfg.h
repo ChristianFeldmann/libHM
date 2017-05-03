@@ -347,6 +347,9 @@ protected:
   Bool      m_alternativeTransferCharacteristicsSEIEnabled;
   UChar     m_preferredTransferCharacteristics;
 #endif
+  Bool      m_greenMetadataInfoSEIEnabled;
+  UChar     m_greenMetadataType;
+  UChar     m_xsdMetricType;
   //====== Weighted Prediction ========
   Bool      m_useWeightedPred;       //< Use of Weighting Prediction (P_SLICE)
   Bool      m_useWeightedBiPred;    //< Use of Bi-directional Weighting Prediction (B_SLICE)
@@ -356,7 +359,7 @@ protected:
   ScalingListMode m_useScalingListId;             ///< Using quantization matrix i.e. 0=off, 1=default, 2=file.
   std::string m_scalingListFileName;              ///< quantization matrix file name
   Int       m_TMVPModeId;
-  Bool      m_signHideFlag;
+  Bool      m_SignDataHidingEnabledFlag;
   Bool      m_RCEnableRateControl;
   Int       m_RCTargetBitrate;
   Int       m_RCKeepHierarchicalBit;
@@ -369,8 +372,8 @@ protected:
   UInt      m_RCCpbSize;
   Double    m_RCInitialCpbFullness;
 #endif
-  Bool      m_TransquantBypassEnableFlag;                     ///< transquant_bypass_enable_flag setting in PPS.
-  Bool      m_CUTransquantBypassFlagForce;                    ///< if transquant_bypass_enable_flag, then, if true, all CU transquant bypass flags will be set to true.
+  Bool      m_TransquantBypassEnabledFlag;                    ///< transquant_bypass_enabled_flag setting in PPS.
+  Bool      m_CUTransquantBypassFlagForce;                    ///< if transquant_bypass_enabled_flag, then, if true, all CU transquant bypass flags will be set to true.
 
   CostMode  m_costMode;                                       ///< The cost function to use, primarily when considering lossless coding.
 
@@ -863,6 +866,13 @@ public:
   Void  setSEIPreferredTransferCharacteristics(UChar v)              { m_preferredTransferCharacteristics = v;    }
   UChar getSEIPreferredTransferCharacteristics() const               { return m_preferredTransferCharacteristics; }
 #endif
+  Void  setSEIGreenMetadataInfoSEIEnable( Bool b)                    { m_greenMetadataInfoSEIEnabled = b;    }
+  Bool  getSEIGreenMetadataInfoSEIEnable( ) const                    { return m_greenMetadataInfoSEIEnabled; }
+  Void  setSEIGreenMetadataType(UChar v)                             { m_greenMetadataType = v;    }
+  UChar getSEIGreenMetadataType() const                              { return m_greenMetadataType; }
+  Void  setSEIXSDMetricType(UChar v)                                 { m_xsdMetricType = v;    }
+  UChar getSEIXSDMetricType() const                                  { return m_xsdMetricType; }
+
   const TComSEIMasteringDisplay &getMasteringDisplaySEI() const      { return m_masteringDisplay; }
   Void         setUseWP               ( Bool b )                     { m_useWeightedPred   = b;    }
   Void         setWPBiPred            ( Bool b )                     { m_useWeightedBiPred = b;    }
@@ -880,8 +890,8 @@ public:
   Int          getTMVPModeId ()                                      { return m_TMVPModeId; }
   WeightedPredictionMethod getWeightedPredictionMethod() const       { return m_weightedPredictionMethod; }
   Void         setWeightedPredictionMethod( WeightedPredictionMethod m ) { m_weightedPredictionMethod = m; }
-  Void         setSignHideFlag( Bool signHideFlag )                  { m_signHideFlag = signHideFlag; }
-  Bool         getSignHideFlag()                                     { return m_signHideFlag; }
+  Void         setSignDataHidingEnabledFlag( Bool b )                { m_SignDataHidingEnabledFlag = b;    }
+  Bool         getSignDataHidingEnabledFlag()                        { return m_SignDataHidingEnabledFlag; }
   Bool         getUseRateCtrl         ()                             { return m_RCEnableRateControl;   }
   Void         setUseRateCtrl         ( Bool b )                     { m_RCEnableRateControl = b;      }
   Int          getTargetBitrate       ()                             { return m_RCTargetBitrate;       }
@@ -904,8 +914,8 @@ public:
   Double       getInitialCpbFullness  ()                             { return m_RCInitialCpbFullness;  }
   Void         setInitialCpbFullness  (Double f)                     { m_RCInitialCpbFullness = f;     }
 #endif
-  Bool         getTransquantBypassEnableFlag()                       { return m_TransquantBypassEnableFlag; }
-  Void         setTransquantBypassEnableFlag(Bool flag)              { m_TransquantBypassEnableFlag = flag; }
+  Bool         getTransquantBypassEnabledFlag()                      { return m_TransquantBypassEnabledFlag; }
+  Void         setTransquantBypassEnabledFlag(Bool flag)             { m_TransquantBypassEnabledFlag = flag; }
   Bool         getCUTransquantBypassFlagForceValue()                 { return m_CUTransquantBypassFlagForce; }
   Void         setCUTransquantBypassFlagForceValue(Bool flag)        { m_CUTransquantBypassFlagForce = flag; }
   CostMode     getCostMode( )                                        { return m_costMode; }

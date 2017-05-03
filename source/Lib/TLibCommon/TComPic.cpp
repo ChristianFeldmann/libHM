@@ -67,7 +67,11 @@ TComPic::~TComPic()
   destroy();
 }
 
+#if REDUCED_ENCODER_MEMORY
+Void TComPic::create( const TComSPS &sps, const TComPPS &pps, const Bool bCreateEncoderSourcePicYuv, const Bool bCreateForImmediateReconstruction )
+#else
 Void TComPic::create( const TComSPS &sps, const TComPPS &pps, const Bool bIsVirtual)
+#endif
 {
   destroy();
 
@@ -78,13 +82,25 @@ Void TComPic::create( const TComSPS &sps, const TComPPS &pps, const Bool bIsVirt
   const UInt         uiMaxCuHeight   = sps.getMaxCUHeight();
   const UInt         uiMaxDepth      = sps.getMaxTotalCUDepth();
 
+#if REDUCED_ENCODER_MEMORY
+  m_picSym.create( sps, pps, uiMaxDepth, bCreateForImmediateReconstruction );
+  if (bCreateEncoderSourcePicYuv)
+#else
   m_picSym.create( sps, pps, uiMaxDepth );
   if (!bIsVirtual)
+#endif
   {
     m_apcPicYuv[PIC_YUV_ORG    ]   = new TComPicYuv;  m_apcPicYuv[PIC_YUV_ORG     ]->create( iWidth, iHeight, chromaFormatIDC, uiMaxCuWidth, uiMaxCuHeight, uiMaxDepth, true );
     m_apcPicYuv[PIC_YUV_TRUE_ORG]  = new TComPicYuv;  m_apcPicYuv[PIC_YUV_TRUE_ORG]->create( iWidth, iHeight, chromaFormatIDC, uiMaxCuWidth, uiMaxCuHeight, uiMaxDepth, true );
   }
-  m_apcPicYuv[PIC_YUV_REC]  = new TComPicYuv;  m_apcPicYuv[PIC_YUV_REC]->create( iWidth, iHeight, chromaFormatIDC, uiMaxCuWidth, uiMaxCuHeight, uiMaxDepth, true );
+#if REDUCED_ENCODER_MEMORY
+  if (bCreateForImmediateReconstruction)
+  {
+#endif
+    m_apcPicYuv[PIC_YUV_REC]  = new TComPicYuv;  m_apcPicYuv[PIC_YUV_REC]->create( iWidth, iHeight, chromaFormatIDC, uiMaxCuWidth, uiMaxCuHeight, uiMaxDepth, true );
+#if REDUCED_ENCODER_MEMORY
+  }
+#endif
 
   // there are no SEI messages associated with this picture initially
   if (m_SEIs.size() > 0)
@@ -93,6 +109,82 @@ Void TComPic::create( const TComSPS &sps, const TComPPS &pps, const Bool bIsVirt
   }
   m_bUsedByCurr = false;
 }
+
+#if REDUCED_ENCODER_MEMORY
+Void TComPic::prepareForEncoderSourcePicYuv()
+{
+  const TComSPS &sps=m_picSym.getSPS();
+
+  const ChromaFormat chromaFormatIDC = sps.getChromaFormatIdc();
+  const Int          iWidth          = sps.getPicWidthInLumaSamples();
+  const Int          iHeight         = sps.getPicHeightInLumaSamples();
+  const UInt         uiMaxCuWidth    = sps.getMaxCUWidth();
+  const UInt         uiMaxCuHeight   = sps.getMaxCUHeight();
+  const UInt         uiMaxDepth      = sps.getMaxTotalCUDepth();
+
+  if (m_apcPicYuv[PIC_YUV_ORG    ]==NULL)
+  {
+    m_apcPicYuv[PIC_YUV_ORG    ]   = new TComPicYuv;  m_apcPicYuv[PIC_YUV_ORG     ]->create( iWidth, iHeight, chromaFormatIDC, uiMaxCuWidth, uiMaxCuHeight, uiMaxDepth, true );
+  }
+  if (m_apcPicYuv[PIC_YUV_TRUE_ORG    ]==NULL)
+  {
+    m_apcPicYuv[PIC_YUV_TRUE_ORG]  = new TComPicYuv;  m_apcPicYuv[PIC_YUV_TRUE_ORG]->create( iWidth, iHeight, chromaFormatIDC, uiMaxCuWidth, uiMaxCuHeight, uiMaxDepth, true );
+  }
+}
+
+Void TComPic::prepareForReconstruction()
+{
+  if (m_apcPicYuv[PIC_YUV_REC] == NULL)
+  {
+    const TComSPS &sps=m_picSym.getSPS();
+    const ChromaFormat chromaFormatIDC = sps.getChromaFormatIdc();
+    const Int          iWidth          = sps.getPicWidthInLumaSamples();
+    const Int          iHeight         = sps.getPicHeightInLumaSamples();
+    const UInt         uiMaxCuWidth    = sps.getMaxCUWidth();
+    const UInt         uiMaxCuHeight   = sps.getMaxCUHeight();
+    const UInt         uiMaxDepth      = sps.getMaxTotalCUDepth();
+
+    m_apcPicYuv[PIC_YUV_REC]  = new TComPicYuv;  m_apcPicYuv[PIC_YUV_REC]->create( iWidth, iHeight, chromaFormatIDC, uiMaxCuWidth, uiMaxCuHeight, uiMaxDepth, true );
+  }
+
+  // mark it should be extended
+  m_apcPicYuv[PIC_YUV_REC]->setBorderExtension(false);
+
+  m_picSym.prepareForReconstruction();
+}
+
+Void TComPic::releaseReconstructionIntermediateData()
+{
+  m_picSym.releaseReconstructionIntermediateData();
+}
+
+Void TComPic::releaseEncoderSourceImageData()
+{
+  if (m_apcPicYuv[PIC_YUV_ORG    ])
+  {
+    m_apcPicYuv[PIC_YUV_ORG]->destroy();
+    delete m_apcPicYuv[PIC_YUV_ORG];
+    m_apcPicYuv[PIC_YUV_ORG] = NULL;
+  }
+  if (m_apcPicYuv[PIC_YUV_TRUE_ORG    ])
+  {
+    m_apcPicYuv[PIC_YUV_TRUE_ORG]->destroy();
+    delete m_apcPicYuv[PIC_YUV_TRUE_ORG];
+    m_apcPicYuv[PIC_YUV_TRUE_ORG] = NULL;
+  }
+}
+
+Void TComPic::releaseAllReconstructionData()
+{
+  if (m_apcPicYuv[PIC_YUV_REC    ])
+  {
+    m_apcPicYuv[PIC_YUV_REC]->destroy();
+    delete m_apcPicYuv[PIC_YUV_REC];
+    m_apcPicYuv[PIC_YUV_REC] = NULL;
+  }
+  m_picSym.releaseAllReconstructionData();
+}
+#endif
 
 Void TComPic::destroy()
 {

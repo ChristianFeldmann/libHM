@@ -402,7 +402,7 @@ Void TEncCu::xCompressCU( TComDataCU*& rpcBestCU, TComDataCU*& rpcTempCU, const 
 
   const Int lowestQP = iMinQP; // For TQB, use this QP which is the lowest non TQB QP tested (rather than QP'=0) - that way delta QPs are smaller, and TQB can be tested at all CU levels.
 
-  if ( (pps.getTransquantBypassEnableFlag()) )
+  if ( (pps.getTransquantBypassEnabledFlag()) )
   {
     isAddLowestQP = true; // mark that the first iteration is to cost TQB mode.
     iMinQP = iMinQP - 1;  // increase loop variable range by 1, to allow testing of TQB mode along with other QPs
@@ -988,7 +988,7 @@ Void TEncCu::xEncodeCU( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth )
     setCodeChromaQpAdjFlag(true);
   }
 
-  if (pps.getTransquantBypassEnableFlag())
+  if (pps.getTransquantBypassEnabledFlag())
   {
     m_pcEntropyCoder->encodeCUTransquantBypassFlag( pcCU, uiAbsPartIdx );
   }
@@ -1370,7 +1370,7 @@ Void TEncCu::xCheckRDCostIntra( TComDataCU *&rpcBestCU,
 
   m_pcEntropyCoder->resetBits();
 
-  if ( rpcTempCU->getSlice()->getPPS()->getTransquantBypassEnableFlag())
+  if ( rpcTempCU->getSlice()->getPPS()->getTransquantBypassEnabledFlag())
   {
     m_pcEntropyCoder->encodeCUTransquantBypassFlag( rpcTempCU, 0,          true );
   }
@@ -1436,7 +1436,7 @@ Void TEncCu::xCheckIntraPCM( TComDataCU*& rpcBestCU, TComDataCU*& rpcTempCU )
 
   m_pcEntropyCoder->resetBits();
 
-  if ( rpcTempCU->getSlice()->getPPS()->getTransquantBypassEnableFlag())
+  if ( rpcTempCU->getSlice()->getPPS()->getTransquantBypassEnabledFlag())
   {
     m_pcEntropyCoder->encodeCUTransquantBypassFlag( rpcTempCU, 0,          true );
   }

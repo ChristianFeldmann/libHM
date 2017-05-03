@@ -190,7 +190,7 @@
 \maketitle
 \begin{abstract}
 This document is a user manual describing usage of reference software
-for the HEVC project. It applies to version 16.9
+for the HEVC project. It applies to version 16.10
 of the software.
 \end{abstract}
 
@@ -1591,13 +1591,13 @@ If enabled use a fast ME for generalised B Low Delay slices
 Enables use of B-Lambda for non-key low-delay pictures
 \\
 
-\Option{TransquantBypassEnableFlag} &
+\Option{TransquantBypassEnable} &
 %\ShortOption{\None} &
 \Default{false} &
 Enables or disables the ability to bypass the transform,
 quantization and filtering stages at CU level.
 This option corresponds to the value of
-transquant_bypass_enable_flag that is transmitted in the PPS.
+transquant_bypass_enabled_flag that is transmitted in the PPS.
 
 See CUTransquantBypassFlagForce for further details.
 \\
@@ -1614,7 +1614,7 @@ This option controls the value of the per CU cu_transquant_bypass_flag.
  1 & Bypass is forced for all CUs. \\
 \end{tabular}
 
-This option has no effect if TransquantBypassEnableFlag is disabled.
+This option has no effect if TransquantBypassEnable is disabled.
 \\
 
 \Option{PCMEnabledFlag} &

@@ -105,6 +105,24 @@ private:
   UInt*         m_puiTileIdxMap;       ///< the map of the tile index relative to CTU raster scan address
   UInt*         m_ctuRsToTsAddrMap;    ///< for a given RS (Raster-Scan) address, returns the TS (Tile-Scan; coding order) address. cf CtbAddrRsToTs in specification.
 
+#if REDUCED_ENCODER_MEMORY
+public:
+  struct DPBPerCtuData
+  {
+    Bool isInter(const UInt absPartAddr)                const { return m_pePredMode[absPartAddr] == MODE_INTER; }
+    PartSize getPartitionSize( const UInt absPartAddr ) const { return static_cast<PartSize>( m_pePartSize[absPartAddr] ); }
+    const TComCUMvField* getCUMvField ( RefPicList e )  const { return &m_CUMvField[e];                  }
+    const TComSlice* getSlice()                         const { return m_pSlice; }
+
+    SChar        * m_pePredMode;
+    SChar        * m_pePartSize;
+    TComCUMvField  m_CUMvField[NUM_REF_PIC_LIST_01];
+    TComSlice    * m_pSlice;
+  };
+
+private:
+  DPBPerCtuData *m_dpbPerCtuData;
+#endif
   SAOBlkParam  *m_saoBlkParams;
 #if ADAPTIVE_QP_SELECTION
   TCoeff*       m_pParentARLBuffer;
@@ -120,7 +138,14 @@ private:
   Void               setCtuRsToTsAddrMap( Int ctuRsAddr, Int ctuTsOrder )  { *(m_ctuRsToTsAddrMap + ctuRsAddr) = ctuTsOrder; }
 
 public:
+#if REDUCED_ENCODER_MEMORY
+  Void               create  ( const TComSPS &sps, const TComPPS &pps, UInt uiMaxDepth, const Bool bAllocateCtuArray );
+  Void               prepareForReconstruction();
+  Void               releaseReconstructionIntermediateData();
+  Void               releaseAllReconstructionData();
+#else
   Void               create  ( const TComSPS &sps, const TComPPS &pps, UInt uiMaxDepth );
+#endif
   Void               destroy ();
 
   TComPicSym  ();
@@ -137,6 +162,11 @@ public:
   const TComDataCU*  getCtu( UInt ctuRsAddr ) const                        { return m_pictureCtuArray[ctuRsAddr];  }
   const TComSPS&     getSPS()                 const                        { return m_sps; }
   const TComPPS&     getPPS()                 const                        { return m_pps; }
+#if REDUCED_ENCODER_MEMORY
+  Bool                 hasDPBPerCtuData() const                            { return (m_dpbPerCtuData!=0); };
+  DPBPerCtuData&       getDPBPerCtuData(UInt ctuRsAddr)                    { return m_dpbPerCtuData[ctuRsAddr]; }
+  const DPBPerCtuData& getDPBPerCtuData(UInt ctuRsAddr) const              { return m_dpbPerCtuData[ctuRsAddr]; }
+#endif
 
   TComSlice *        swapSliceObject(TComSlice* p, UInt i)                 { p->setSPS(&m_sps); p->setPPS(&m_pps); TComSlice *pTmp=m_apSlices[i];m_apSlices[i] = p; pTmp->setSPS(0); pTmp->setPPS(0); return pTmp; }
   UInt               getNumAllocatedSlice() const                          { return UInt(m_apSlices.size());       }

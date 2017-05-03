@@ -256,7 +256,7 @@ Void TDecCu::xDecodeCU( TComDataCU*const pcCU, const UInt uiAbsPartIdx, const UI
     setIsChromaQpAdjCoded(true);
   }
 
-  if (pps.getTransquantBypassEnableFlag())
+  if (pps.getTransquantBypassEnabledFlag())
   {
     m_pcEntropyDecoder->decodeCUTransquantBypassFlag( pcCU, uiAbsPartIdx, uiDepth );
   }

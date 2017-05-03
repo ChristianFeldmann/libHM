@@ -654,7 +654,7 @@ Void TComSampleAdaptiveOffset::xPCMRestoration(TComPic* pcPic)
 {
   Bool  bPCMFilter = (pcPic->getSlice(0)->getSPS()->getUsePCM() && pcPic->getSlice(0)->getSPS()->getPCMFilterDisableFlag())? true : false;
 
-  if(bPCMFilter || pcPic->getSlice(0)->getPPS()->getTransquantBypassEnableFlag())
+  if(bPCMFilter || pcPic->getSlice(0)->getPPS()->getTransquantBypassEnabledFlag())
   {
     for( UInt ctuRsAddr = 0; ctuRsAddr < pcPic->getNumberOfCtusInFrame() ; ctuRsAddr++ )
     {

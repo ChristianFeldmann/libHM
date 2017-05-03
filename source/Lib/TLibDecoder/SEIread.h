@@ -84,6 +84,7 @@ protected:
 #if U0033_ALTERNATIVE_TRANSFER_CHARACTERISTICS_SEI
   Void xParseSEIAlternativeTransferCharacteristics(SEIAlternativeTransferCharacteristics& sei,              UInt payLoadSize,                     std::ostream *pDecodedMessageOutputStream);
 #endif
+  Void xParseSEIGreenMetadataInfo             (SEIGreenMetadataInfo& sei,             UInt payLoadSize,                     std::ostream *pDecodedMessageOutputStream);
 
   Void sei_read_code(std::ostream *pOS, UInt uiLength, UInt& ruiCode, const TChar *pSymbolName);
   Void sei_read_uvlc(std::ostream *pOS,                UInt& ruiCode, const TChar *pSymbolName);

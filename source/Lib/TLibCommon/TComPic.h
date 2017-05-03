@@ -85,7 +85,16 @@ public:
   TComPic();
   virtual ~TComPic();
 
+#if REDUCED_ENCODER_MEMORY
+  Void          create( const TComSPS &sps, const TComPPS &pps, const Bool bCreateEncoderSourcePicYuv, const Bool bCreateForImmediateReconstruction );
+  Void          prepareForEncoderSourcePicYuv();
+  Void          prepareForReconstruction();
+  Void          releaseReconstructionIntermediateData();
+  Void          releaseAllReconstructionData();
+  Void          releaseEncoderSourceImageData();
+#else
   Void          create( const TComSPS &sps, const TComPPS &pps, const Bool bIsVirtual /*= false*/ );
+#endif
 
   virtual Void  destroy();
 

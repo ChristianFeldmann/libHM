@@ -152,7 +152,11 @@ public:
     m_piRefIdx = src->m_piRefIdx + offset;
   }
 
+#if REDUCED_ENCODER_MEMORY
+  Void compress(SChar *pePredMode, const SChar* pePredModeSource, const Int scale, const TComCUMvField &source);
+#else
   Void compress(SChar* pePredMode, Int scale);
+#endif
 };
 
 //! \}

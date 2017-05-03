@@ -135,6 +135,7 @@ const TChar *SEI::getSEIMessageString(SEI::PayloadType payloadType)
     case SEI::KNEE_FUNCTION_INFO:                   return "Knee function information";
     case SEI::FRAME_PACKING:                        return "Frame packing arrangement";
     case SEI::DISPLAY_ORIENTATION:                  return "Display orientation";
+    case SEI::GREEN_METADATA:                       return "Green metadata information";
     case SEI::SOP_DESCRIPTION:                      return "Structure of pictures information";
     case SEI::ACTIVE_PARAMETER_SETS:                return "Active parameter sets";
     case SEI::DECODING_UNIT_INFO:                   return "Decoding unit information";

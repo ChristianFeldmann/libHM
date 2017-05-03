@@ -312,6 +312,10 @@ Void SEIReader::xReadSEImessage(SEIMessages& seis, const NalUnitType nalUnitType
         sei = new SEIDecodedPictureHash;
         xParseSEIDecodedPictureHash((SEIDecodedPictureHash&) *sei, payloadSize, pDecodedMessageOutputStream);
         break;
+      case SEI::GREEN_METADATA:
+        sei = new SEIGreenMetadataInfo;
+        xParseSEIGreenMetadataInfo((SEIGreenMetadataInfo&) *sei, payloadSize, pDecodedMessageOutputStream);
+        break;
       default:
         for (UInt i = 0; i < payloadSize; i++)
         {
@@ -1170,5 +1174,20 @@ Void SEIReader::xParseSEIAlternativeTransferCharacteristics(SEIAlternativeTransf
   sei_read_code(pDecodedMessageOutputStream, 8, code, "preferred_transfer_characteristics"); sei.m_preferredTransferCharacteristics = code;
 }
 #endif
+
+Void SEIReader::xParseSEIGreenMetadataInfo(SEIGreenMetadataInfo& sei, UInt payloadSize, ostream* pDecodedMessageOutputStream)
+{
+  UInt code;
+  output_sei_message_header(sei, pDecodedMessageOutputStream, payloadSize);
+  
+  sei_read_code(pDecodedMessageOutputStream, 8, code, "green_metadata_type");
+  sei.m_greenMetadataType = code;
+  
+  sei_read_code(pDecodedMessageOutputStream, 8, code, "xsd_metric_type");
+  sei.m_xsdMetricType = code;
+  
+  sei_read_code(pDecodedMessageOutputStream, 16, code, "xsd_metric_value");
+  sei.m_xsdMetricValue = code;
+}
 
 //! \}

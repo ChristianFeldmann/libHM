@@ -491,19 +491,31 @@ Void TEncTop::xGetNewPicBuffer ( TComPic*& rpcPic )
         break;
       }
     }
+#if REDUCED_ENCODER_MEMORY
+    rpcPic->releaseAllReconstructionData();
+    rpcPic->prepareForEncoderSourcePicYuv();
+#endif
   }
   else
   {
     if ( getUseAdaptiveQP() )
     {
       TEncPic* pcEPic = new TEncPic;
+#if REDUCED_ENCODER_MEMORY
+      pcEPic->create( m_cSPS, m_cPPS, m_cPPS.getMaxCuDQPDepth()+1);
+#else
       pcEPic->create( m_cSPS, m_cPPS, m_cPPS.getMaxCuDQPDepth()+1, false);
+#endif
       rpcPic = pcEPic;
     }
     else
     {
       rpcPic = new TComPic;
+#if REDUCED_ENCODER_MEMORY
+      rpcPic->create( m_cSPS, m_cPPS, true, false );
+#else
       rpcPic->create( m_cSPS, m_cPPS, false );
+#endif
     }
 
     m_cListPic.pushBack( rpcPic );
@@ -514,8 +526,10 @@ Void TEncTop::xGetNewPicBuffer ( TComPic*& rpcPic )
   m_iNumPicRcvd++;
 
   rpcPic->getSlice(0)->setPOC( m_iPOCLast );
+#if !REDUCED_ENCODER_MEMORY
   // mark it should be extended
   rpcPic->getPicYuvRec()->setBorderExtension(false);
+#endif
 }
 
 Void TEncTop::xInitVPS()
@@ -595,7 +609,7 @@ Void TEncTop::xInitSPS()
   m_cSPS.setQuadtreeTUMaxDepthInter( m_uiQuadtreeTUMaxDepthInter    );
   m_cSPS.setQuadtreeTUMaxDepthIntra( m_uiQuadtreeTUMaxDepthIntra    );
 
-  m_cSPS.setTMVPFlagsPresent((getTMVPModeId() == 2 || getTMVPModeId() == 1));
+  m_cSPS.setSPSTemporalMVPEnabledFlag((getTMVPModeId() == 2 || getTMVPModeId() == 1));
 
   m_cSPS.setMaxTrSize   ( 1 << m_uiQuadtreeTULog2MaxSize );
 
@@ -701,6 +715,10 @@ Void TEncTop::xInitSPS()
 // calculate scale value of bitrate and initial delay
 Int calcScale(Int x)
 {
+  if (x==0)
+  {
+    return 0;
+  }
   UInt iMask = 0xffffffff;
   Int ScaleValue = 32;
 
@@ -720,7 +738,7 @@ Void TEncTop::xInitHrdParameters()
   Bool isRandomAccess  = getIntraPeriod() > 0;
 # if U0132_TARGET_BITS_SATURATION
   Int cpbSize          = getCpbSize();
-
+  assert (cpbSize!=0);  // CPB size may not be equal to zero. ToDo: have a better default and check for level constraints
   if( !getVuiParametersPresentFlag() && !getCpbSaturationEnabled() )
 #else
   if( !getVuiParametersPresentFlag() )
@@ -943,20 +961,20 @@ Void TEncTop::xInitPPS()
   m_cPPS.setUseWP( m_useWeightedPred );
   m_cPPS.setWPBiPred( m_useWeightedBiPred );
   m_cPPS.setOutputFlagPresentFlag( false );
-  m_cPPS.setSignHideFlag(getSignHideFlag());
+  m_cPPS.setSignDataHidingEnabledFlag(getSignDataHidingEnabledFlag());
 
   if ( getDeblockingFilterMetric() )
   {
     m_cPPS.setDeblockingFilterOverrideEnabledFlag(true);
-    m_cPPS.setPicDisableDeblockingFilterFlag(false);
+    m_cPPS.setPPSDeblockingFilterDisabledFlag(false);
   }
   else
   {
     m_cPPS.setDeblockingFilterOverrideEnabledFlag( !getLoopFilterOffsetInPPS() );
-    m_cPPS.setPicDisableDeblockingFilterFlag( getLoopFilterDisable() );
+    m_cPPS.setPPSDeblockingFilterDisabledFlag( getLoopFilterDisable() );
   }
 
-  if (! m_cPPS.getPicDisableDeblockingFilterFlag())
+  if (! m_cPPS.getPPSDeblockingFilterDisabledFlag())
   {
     m_cPPS.setDeblockingFilterBetaOffsetDiv2( getLoopFilterBetaOffset() );
     m_cPPS.setDeblockingFilterTcOffsetDiv2( getLoopFilterTcOffset() );
@@ -969,7 +987,7 @@ Void TEncTop::xInitPPS()
 
   // deblockingFilterControlPresentFlag is true if any of the settings differ from the inferred values:
   const Bool deblockingFilterControlPresentFlag = m_cPPS.getDeblockingFilterOverrideEnabledFlag() ||
-                                                  m_cPPS.getPicDisableDeblockingFilterFlag()      ||
+                                                  m_cPPS.getPPSDeblockingFilterDisabledFlag()      ||
                                                   m_cPPS.getDeblockingFilterBetaOffsetDiv2() != 0 ||
                                                   m_cPPS.getDeblockingFilterTcOffsetDiv2() != 0;
 
@@ -1004,7 +1022,7 @@ Void TEncTop::xInitPPS()
   assert(bestPos <= 15);
   m_cPPS.setNumRefIdxL0DefaultActive(bestPos);
   m_cPPS.setNumRefIdxL1DefaultActive(bestPos);
-  m_cPPS.setTransquantBypassEnableFlag(getTransquantBypassEnableFlag());
+  m_cPPS.setTransquantBypassEnabledFlag(getTransquantBypassEnabledFlag());
   m_cPPS.setUseTransformSkip( m_useTransformSkip );
   m_cPPS.getPpsRangeExtension().setLog2MaxTransformSkipBlockSize( m_log2MaxTransformSkipBlockSize  );
 

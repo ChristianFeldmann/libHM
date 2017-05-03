@@ -798,7 +798,7 @@ private:
 
   TComRPSList      m_RPSList;
   Bool             m_bLongTermRefsPresent;
-  Bool             m_TMVPFlagsPresent;
+  Bool             m_SPSTemporalMVPEnabledFlag;
   Int              m_numReorderPics[MAX_TLAYER];
 
   // Tool list
@@ -922,8 +922,8 @@ public:
   TComRPSList*           getRPSList()                                                                    { return &m_RPSList;                                                   }
   Bool                   getLongTermRefsPresent() const                                                  { return m_bLongTermRefsPresent;                                       }
   Void                   setLongTermRefsPresent(Bool b)                                                  { m_bLongTermRefsPresent=b;                                            }
-  Bool                   getTMVPFlagsPresent() const                                                     { return m_TMVPFlagsPresent;                                           }
-  Void                   setTMVPFlagsPresent(Bool b)                                                     { m_TMVPFlagsPresent=b;                                                }
+  Bool                   getSPSTemporalMVPEnabledFlag() const                                            { return m_SPSTemporalMVPEnabledFlag;                                  }
+  Void                   setSPSTemporalMVPEnabledFlag(Bool b)                                            { m_SPSTemporalMVPEnabledFlag=b;                                       }
   // physical transform
   Void                   setMaxTrSize( UInt u )                                                          { m_uiMaxTrSize = u;                                                   }
   UInt                   getMaxTrSize() const                                                            { return  m_uiMaxTrSize;                                               }
@@ -1091,7 +1091,7 @@ private:
   Bool             m_bUseWeightPred;                    //!< Use of Weighting Prediction (P_SLICE)
   Bool             m_useWeightedBiPred;                 //!< Use of Weighting Bi-Prediction (B_SLICE)
   Bool             m_OutputFlagPresentFlag;             //!< Indicates the presence of output_flag in slice header
-  Bool             m_TransquantBypassEnableFlag;        //!< Indicates presence of cu_transquant_bypass_flag in CUs.
+  Bool             m_TransquantBypassEnabledFlag;       //!< Indicates presence of cu_transquant_bypass_flag in CUs.
   Bool             m_useTransformSkip;
   Bool             m_dependentSliceSegmentsEnabledFlag; //!< Indicates the presence of dependent slices
   Bool             m_tilesEnabledFlag;                  //!< Indicates the presence of tiles
@@ -1104,7 +1104,7 @@ private:
   std::vector<Int> m_tileColumnWidth;
   std::vector<Int> m_tileRowHeight;
 
-  Bool             m_signHideFlag;
+  Bool             m_signDataHidingEnabledFlag;
 
   Bool             m_cabacInitPresentFlag;
 
@@ -1112,7 +1112,7 @@ private:
   Bool             m_loopFilterAcrossSlicesEnabledFlag;
   Bool             m_deblockingFilterControlPresentFlag;
   Bool             m_deblockingFilterOverrideEnabledFlag;
-  Bool             m_picDisableDeblockingFilterFlag;
+  Bool             m_ppsDeblockingFilterDisabledFlag;
   Int              m_deblockingFilterBetaOffsetDiv2;    //< beta offset for deblocking filter
   Int              m_deblockingFilterTcOffsetDiv2;      //< tc offset for deblocking filter
   Bool             m_scalingListPresentFlag;
@@ -1176,8 +1176,8 @@ public:
 
   Void                   setOutputFlagPresentFlag( Bool b )                               { m_OutputFlagPresentFlag = b;                  }
   Bool                   getOutputFlagPresentFlag() const                                 { return m_OutputFlagPresentFlag;               }
-  Void                   setTransquantBypassEnableFlag( Bool b )                          { m_TransquantBypassEnableFlag = b;             }
-  Bool                   getTransquantBypassEnableFlag() const                            { return m_TransquantBypassEnableFlag;          }
+  Void                   setTransquantBypassEnabledFlag( Bool b )                         { m_TransquantBypassEnabledFlag = b;            }
+  Bool                   getTransquantBypassEnabledFlag() const                           { return m_TransquantBypassEnabledFlag;         }
 
   Bool                   getUseTransformSkip() const                                      { return m_useTransformSkip;                    }
   Void                   setUseTransformSkip( Bool b )                                    { m_useTransformSkip  = b;                      }
@@ -1202,8 +1202,8 @@ public:
   Void                   setTileRowHeight(const std::vector<Int>& rowHeight)              { m_tileRowHeight = rowHeight;                  }
   UInt                   getTileRowHeight(UInt rowIdx) const                              { return m_tileRowHeight[rowIdx];               }
 
-  Void                   setSignHideFlag( Bool signHideFlag )                             { m_signHideFlag = signHideFlag;                }
-  Bool                   getSignHideFlag() const                                          { return m_signHideFlag;                        }
+  Void                   setSignDataHidingEnabledFlag( Bool b )                           { m_signDataHidingEnabledFlag = b;              }
+  Bool                   getSignDataHidingEnabledFlag() const                             { return m_signDataHidingEnabledFlag;           }
 
   Void                   setCabacInitPresentFlag( Bool flag )                             { m_cabacInitPresentFlag = flag;                }
   Bool                   getCabacInitPresentFlag() const                                  { return m_cabacInitPresentFlag;                }
@@ -1211,8 +1211,8 @@ public:
   Bool                   getDeblockingFilterControlPresentFlag() const                    { return m_deblockingFilterControlPresentFlag;  }
   Void                   setDeblockingFilterOverrideEnabledFlag( Bool val )               { m_deblockingFilterOverrideEnabledFlag = val;  }
   Bool                   getDeblockingFilterOverrideEnabledFlag() const                   { return m_deblockingFilterOverrideEnabledFlag; }
-  Void                   setPicDisableDeblockingFilterFlag(Bool val)                      { m_picDisableDeblockingFilterFlag = val;       } //!< set offset for deblocking filter disabled
-  Bool                   getPicDisableDeblockingFilterFlag() const                        { return m_picDisableDeblockingFilterFlag;      } //!< get offset for deblocking filter disabled
+  Void                   setPPSDeblockingFilterDisabledFlag(Bool val)                     { m_ppsDeblockingFilterDisabledFlag = val;      } //!< set offset for deblocking filter disabled
+  Bool                   getPPSDeblockingFilterDisabledFlag() const                       { return m_ppsDeblockingFilterDisabledFlag;     } //!< get offset for deblocking filter disabled
   Void                   setDeblockingFilterBetaOffsetDiv2(Int val)                       { m_deblockingFilterBetaOffsetDiv2 = val;       } //!< set beta offset for deblocking filter
   Int                    getDeblockingFilterBetaOffsetDiv2() const                        { return m_deblockingFilterBetaOffsetDiv2;      } //!< get beta offset for deblocking filter
   Void                   setDeblockingFilterTcOffsetDiv2(Int val)                         { m_deblockingFilterTcOffsetDiv2 = val;         } //!< set tc offset for deblocking filter
