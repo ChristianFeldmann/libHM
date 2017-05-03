@@ -200,7 +200,7 @@ protected:
   Int xWriteVPS (AccessUnit &accessUnit, const TComVPS *vps);
   Int xWriteSPS (AccessUnit &accessUnit, const TComSPS *sps);
   Int xWritePPS (AccessUnit &accessUnit, const TComPPS *pps);
-  Int xWriteParameterSets (AccessUnit &accessUnit, TComSlice *slice);
+  Int xWriteParameterSets (AccessUnit &accessUnit, TComSlice *slice, const Bool bSeqFirst);
 
   Void applyDeblockingFilterMetric( TComPic* pcPic, UInt uiNumSlices );
 #if W0038_DB_OPT

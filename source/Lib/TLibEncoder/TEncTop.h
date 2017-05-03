@@ -92,8 +92,8 @@ private:
   TEncSlice               m_cSliceEncoder;                ///< slice encoder
   TEncCu                  m_cCuEncoder;                   ///< CU encoder
   // SPS
-  TComSPS                 m_cSPS;                         ///< SPS. This is the base value. This is copied to TComPicSym
-  TComPPS                 m_cPPS;                         ///< PPS. This is the base value. This is copied to TComPicSym
+  ParameterSetMap<TComSPS> m_spsMap;                      ///< SPS. This is the base value. This is copied to TComPicSym
+  ParameterSetMap<TComPPS> m_ppsMap;                      ///< PPS. This is the base value. This is copied to TComPicSym
   // RD cost computation
   TComRdCost              m_cRdCost;                      ///< RD cost computation class
   TEncSbac***             m_pppcRDSbacCoder;              ///< temporal storage for RD computation
@@ -112,15 +112,15 @@ private:
   TEncRateCtrl            m_cRateCtrl;                    ///< Rate control class
 
 protected:
-  Void  xGetNewPicBuffer  ( TComPic*& rpcPic );           ///< get picture buffer which will be processed
-  Void  xInitVPS          ();                             ///< initialize VPS from encoder options
-  Void  xInitSPS          ();                             ///< initialize SPS from encoder options
-  Void  xInitPPS          ();                             ///< initialize PPS from encoder options
-  Void  xInitScalingLists ();                             ///< initialize scaling lists
-  Void  xInitHrdParameters();                             ///< initialize HRD parameters
+  Void  xGetNewPicBuffer  ( TComPic*& rpcPic, Int ppsId ); ///< get picture buffer which will be processed. If ppsId<0, then the ppsMap will be queried for the first match.
+  Void  xInitVPS          (TComVPS &vps, const TComSPS &sps); ///< initialize VPS from encoder options
+  Void  xInitSPS          (TComSPS &sps);                 ///< initialize SPS from encoder options
+  Void  xInitPPS          (TComPPS &pps, const TComSPS &sps); ///< initialize PPS from encoder options
+  Void  xInitScalingLists (TComSPS &sps, TComPPS &pps);   ///< initialize scaling lists
+  Void  xInitHrdParameters(TComSPS &sps);                 ///< initialize HRD parameters
 
-  Void  xInitPPSforTiles  ();
-  Void  xInitRPS          (Bool isFieldCoding);           ///< initialize PPS from encoder options
+  Void  xInitPPSforTiles  (TComPPS &pps);
+  Void  xInitRPS          (TComSPS &sps, Bool isFieldCoding);           ///< initialize PPS from encoder options
 
 public:
   TEncTop();
@@ -155,6 +155,10 @@ public:
   TEncRateCtrl*           getRateCtrl           () { return &m_cRateCtrl;             }
   Void selectReferencePictureSet(TComSlice* slice, Int POCCurr, Int GOPid );
   Int getReferencePictureSetIdxForSOP(Int POCCurr, Int GOPid );
+
+  Bool                   PPSNeedsWriting(Int ppsId);
+  Bool                   SPSNeedsWriting(Int spsId);
+
   // -------------------------------------------------------------------------------------------------------------------
   // encoder function
   // -------------------------------------------------------------------------------------------------------------------
@@ -172,7 +176,7 @@ public:
                TComList<TComPicYuv*>& rcListPicYuvRecOut,
                std::list<AccessUnit>& accessUnitsOut, Int& iNumEncoded, Bool isTff);
 
-  Void printSummary(Bool isField) { m_cGOPEncoder.printOutSummary (m_uiNumAllPicCoded, isField, m_printMSEBasedSequencePSNR, m_printSequenceMSE, m_cSPS.getBitDepths()); }
+  Void printSummary(Bool isField) { m_cGOPEncoder.printOutSummary (m_uiNumAllPicCoded, isField, m_printMSEBasedSequencePSNR, m_printSequenceMSE, m_spsMap.getFirstPS()->getBitDepths()); }
 
 };
 

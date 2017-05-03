@@ -163,7 +163,7 @@ public:
    Void              setTopField(Bool b)                  {m_isTop = b;}
    Bool              isTopField()                         {return m_isTop;}
    Void              setField(Bool b)                     {m_isField = b;}
-   Bool              isField()                            {return m_isField;}
+   Bool              isField() const                      {return m_isField;}
 
   /** transfer ownership of seis to this picture */
   Void setSEIs(SEIMessages& seis) { m_SEIs = seis; }

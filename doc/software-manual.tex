@@ -190,7 +190,7 @@
 \maketitle
 \begin{abstract}
 This document is a user manual describing usage of reference software
-for the HEVC project. It applies to version 16.11
+for the HEVC project. It applies to version 16.12
 of the software.
 \end{abstract}
 
@@ -1230,6 +1230,63 @@ Global offset to apply to the luma QP to derive the QP of Cb and Cr
 respectively.  These options correspond to the values of cb_qp_offset
 and cr_qp_offset, that are transmitted in the PPS.  Valid values are in
 the range $[-12, 12]$.
+\\
+
+\Option{LumaLevelToDeltaQPMode} &
+\Default{0} &
+Luma-level based Delta QP modulation.
+\par
+\begin{tabular}{cp{0.45\textwidth}}
+ 0 & not used \\
+ 1 & Based on CTU average \\
+ 2 & Based on Max luma in CTU\\
+\end{tabular}
+\\
+
+\Option{LumaLevelToDeltaQPMaxValWeight} &
+\Default{1.0} &
+Weight of per block maximum luma value when LumaLevelToDeltaQPMode=2.
+\\
+
+\Option{LumaLevelToDeltaQPMappingLuma} &
+\Default{\NotSet} &
+Specify luma values to use for the luma to delta QP mapping instead of using default values. Default values are: 0, 301, 367, 434, 501, 567, 634, 701, 767, 834.
+\\
+
+\Option{LumaLevelToDeltaQPMappingDQP} &
+\Default{\NotSet} &
+Specify DQP values to use for the luma to delta QP mapping instead of using default values. Default values are: -3, -2, -1, 0, 1, 2, 3, 4, 5, 6.
+\\
+
+\Option{WCGPPSEnable} &
+\Default{0} &
+Enable the WCG PPS modulation of the chroma QP, rather than the slice,
+which, unlike slice-level modulation, allows the deblocking process
+to consider the adjustment.
+To use, specify a fractional QP:
+the first part of the sequence will use $qpc=floor(QP)$ in the following
+calculation and PPS-0; the second part of the sequence will use $qpc=ceil(QP)$
+and PPS-1. The $chromaQp$ that is then stored in the PPS is given as:
+$clip(round(WCGPPSXXQpScale*baseCQp)+XXQpOffset)$ where $baseCQp=(WCGPPSChromaQpScale*qpc+WCGPPSChromaQpOffset)$.
+Note that the slices will continue to have a delta QP applied.
+\\
+
+\Option{WCGPPSChromaQpScale} &
+\Default{0.0} &
+Scale parameter for the linear chroma QP offset mapping used for WCG content.
+\\
+
+\Option{WCGPPSChromaQpOffset} &
+\Default{0.0} &
+Offset parameter for the linear chroma QP offset mapping used for WCG content.
+\\
+
+\Option{WCGPPSCbQpScale}%
+\Option{WCGPPSCrQpScale} &
+\Default{1.0} &
+Per chroma component QP scale factor depending on capture and representation color space.
+For Cb component with BT.2020 container use 1.14; for BT.709 material and 1.04 for P3 material.
+For Cr component with BT.2020 container use 1.79; for BT.709 material and 1.39 for P3 material.
 \\
 
 \Option{SliceChromaQPOffsetPeriodicity} &

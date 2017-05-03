@@ -164,6 +164,9 @@ Void TAppEncTop::xInitLibCfg()
   m_cTEncTop.setDiffCuChromaQpOffsetDepth                         ( m_diffCuChromaQpOffsetDepth );
   m_cTEncTop.setChromaCbQpOffset                                  ( m_cbQpOffset     );
   m_cTEncTop.setChromaCrQpOffset                                  ( m_crQpOffset  );
+#if ER_CHROMA_QP_WCG_PPS
+  m_cTEncTop.setWCGChromaQpControl                                ( m_wcgChromaQpControl );
+#endif
 #if W0038_CQP_ADJ
   m_cTEncTop.setSliceChromaOffsetQpIntraOrPeriodic                ( m_sliceChromaQpOffsetPeriodicity, m_sliceChromaQpOffsetIntraOrPeriodic );
 #endif
@@ -181,6 +184,9 @@ Void TAppEncTop::xInitLibCfg()
   m_cTEncTop.setWeightedPredictionMethod( m_weightedPredictionMethod );
 
   //====== Tool list ========
+#if SHARP_LUMA_DELTA_QP
+  m_cTEncTop.setLumaLevelToDeltaQPControls                        ( m_lumaLevelToDeltaQPMapping );
+#endif
   m_cTEncTop.setDeltaQpRD                                         ( m_uiDeltaQpRD  );
   m_cTEncTop.setFastDeltaQp                                       ( m_bFastDeltaQP  );
   m_cTEncTop.setUseASR                                            ( m_bUseASR      );

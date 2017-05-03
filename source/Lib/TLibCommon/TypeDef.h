@@ -43,6 +43,7 @@
 #endif
 
 #include <vector>
+#include <utility>
 
 //! \ingroup TLibCommon
 //! \{
@@ -125,6 +126,10 @@
 #endif
 #define W0038_DB_OPT                                      1 ///< adaptive DB parameter selection, LoopFilterOffsetInPPS and LoopFilterDisable are set to 0 and DeblockingFilterMetric=2;
 #define W0038_CQP_ADJ                                     1 ///< chroma QP adjustment based on TL, CQPTLAdjustEnabled is set to 1;
+
+#define SHARP_LUMA_DELTA_QP                               1 ///< inculde non-normative LCU deltaQP and normative chromaQP change
+#define ER_CHROMA_QP_WCG_PPS                              1 ///< Chroma QP model for WCG used in Anchor 3.2
+
 
 #if defined __SSE2__ || defined __AVX2__ || defined __AVX__ || defined _M_AMD64 || defined _M_X64
 #define VECTOR_CODING__INTERPOLATION_FILTER               1 ///< enable vector coding for the interpolation filter. 1 (default if SSE possible) disable SSE vector coding. Should not affect RD costs/decisions. Code back-ported from JEM2.0.
@@ -726,6 +731,16 @@ enum NalUnitType
   NAL_UNIT_INVALID,
 };
 
+#if SHARP_LUMA_DELTA_QP
+enum LumaLevelToDQPMode
+{
+  LUMALVL_TO_DQP_DISABLED   = 0,
+  LUMALVL_TO_DQP_AVG_METHOD = 1, // use average of CTU to determine luma level
+  LUMALVL_TO_DQP_MAX_METHOD = 2,  // use maximum value of CTU to determine luma level
+  LUMALVL_TO_DQP_NUM_MODES  = 3
+};
+#endif
+
 // ====================================================================================================================
 // Type definition
 // ====================================================================================================================
@@ -864,6 +879,29 @@ struct TComSEIMasteringDisplay
   UShort    primaries[3][2];
   UShort    whitePoint[2];
 };
+
+#if SHARP_LUMA_DELTA_QP
+struct LumaLevelToDeltaQPMapping
+{
+  LumaLevelToDQPMode                 mode;             ///< use deltaQP determined by block luma level
+  Double                             maxMethodWeight;  ///< weight of max luma value when mode = 2
+  std::vector< std::pair<Int, Int> > mapping;          ///< first=luma level, second=delta QP.
+  Bool isEnabled() const { return mode!=LUMALVL_TO_DQP_DISABLED; }
+};
+#endif
+
+#if ER_CHROMA_QP_WCG_PPS
+struct WCGChromaQPControl
+{
+  Bool isEnabled() const { return enabled; }
+  Bool   enabled;         ///< Enabled flag (0:default)
+  Double chromaCbQpScale; ///< Chroma Cb QP Scale (1.0:default)
+  Double chromaCrQpScale; ///< Chroma Cr QP Scale (1.0:default)
+  Double chromaQpScale;   ///< Chroma QP Scale (0.0:default)
+  Double chromaQpOffset;  ///< Chroma QP Offset (0.0:default)
+};
+#endif
+
 //! \}
 
 #endif

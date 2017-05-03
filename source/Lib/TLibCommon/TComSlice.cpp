@@ -2184,6 +2184,18 @@ Bool ParameterSetManager::activatePPS(Int ppsId, Bool isIRAP)
   return false;
 }
 
+template <>
+Void ParameterSetMap<TComPPS>::setID(TComPPS* parameterSet, const Int psId)
+{
+  parameterSet->setPPSId(psId);
+}
+
+template <>
+Void ParameterSetMap<TComSPS>::setID(TComSPS* parameterSet, const Int psId)
+{
+  parameterSet->setSPSId(psId);
+}
+
 ProfileTierLevel::ProfileTierLevel()
   : m_profileSpace    (0)
   , m_tierFlag        (Level::MAIN)
@@ -2203,24 +2215,24 @@ TComPTL::TComPTL()
   ::memset(m_subLayerLevelPresentFlag,   0, sizeof(m_subLayerLevelPresentFlag  ));
 }
 
-Void calculateParameterSetChangedFlag(Bool &bChanged, const std::vector<UChar> *pOldData, const std::vector<UChar> &newData)
+Void calculateParameterSetChangedFlag(Bool &bChanged, const std::vector<UChar> *pOldData, const std::vector<UChar> *pNewData)
 {
   if (!bChanged)
   {
-    if ((pOldData==0 && pOldData!=0) || (pOldData!=0 && pOldData==0))
+    if ((pOldData==0 && pNewData!=0) || (pOldData!=0 && pNewData==0))
     {
       bChanged=true;
     }
-    else if (pOldData!=0 && pOldData!=0)
+    else if (pOldData!=0 && pNewData!=0)
     {
       // compare the two
-      if (pOldData->size() != pOldData->size())
+      if (pOldData->size() != pNewData->size())
       {
         bChanged=true;
       }
       else
       {
-        const UChar *pNewDataArray=&(newData)[0];
+        const UChar *pNewDataArray=&(*pNewData)[0];
         const UChar *pOldDataArray=&(*pOldData)[0];
         if (memcmp(pOldDataArray, pNewDataArray, pOldData->size()))
         {

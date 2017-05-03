@@ -626,6 +626,13 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
 
   SMultiValueInput<Double> cfg_adIntraLambdaModifier         (0, std::numeric_limits<Double>::max(), 0, MAX_TLAYER); ///< Lambda modifier for Intra pictures, one for each temporal layer. If size>temporalLayer, then use [temporalLayer], else if size>0, use [size()-1], else use m_adLambdaModifier.
 
+#if SHARP_LUMA_DELTA_QP
+  const Int defaultLumaLevelTodQp_QpChangePoints[]   =  {-3,  -2,  -1,   0,   1,   2,   3,   4,   5,   6};
+  const Int defaultLumaLevelTodQp_LumaChangePoints[] =  { 0, 301, 367, 434, 501, 567, 634, 701, 767, 834};
+  SMultiValueInput<Int>  cfg_lumaLeveltoDQPMappingQP         (-MAX_QP, MAX_QP,                    0, LUMA_LEVEL_TO_DQP_LUT_MAXSIZE, defaultLumaLevelTodQp_QpChangePoints,   sizeof(defaultLumaLevelTodQp_QpChangePoints  )/sizeof(Int));
+  SMultiValueInput<Int>  cfg_lumaLeveltoDQPMappingLuma       (0, std::numeric_limits<Int>::max(), 0, LUMA_LEVEL_TO_DQP_LUT_MAXSIZE, defaultLumaLevelTodQp_LumaChangePoints, sizeof(defaultLumaLevelTodQp_LumaChangePoints)/sizeof(Int));
+  UInt lumaLevelToDeltaQPMode;
+#endif
 
   const UInt defaultInputKneeCodes[3]  = { 600, 800, 900 };
   const UInt defaultOutputKneeCodes[3] = { 100, 250, 450 };
@@ -779,9 +786,22 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
   ("MaxCuDQPDepth,-dqd",                              m_iMaxCuDQPDepth,                                     0, "max depth for a minimum CuDQP")
   ("MaxCUChromaQpAdjustmentDepth",                    m_diffCuChromaQpOffsetDepth,                         -1, "Maximum depth for CU chroma Qp adjustment - set less than 0 to disable")
   ("FastDeltaQP",                                     m_bFastDeltaQP,                                   false, "Fast Delta QP Algorithm")
+#if SHARP_LUMA_DELTA_QP
+  ("LumaLevelToDeltaQPMode",                          lumaLevelToDeltaQPMode,                              0u, "Luma based Delta QP 0(default): not used. 1: Based on CTU average, 2: Based on Max luma in CTU")
+  ("LumaLevelToDeltaQPMaxValWeight",                  m_lumaLevelToDeltaQPMapping.maxMethodWeight,        1.0, "Weight of block max luma val when LumaLevelToDeltaQPMode = 2")
+  ("LumaLevelToDeltaQPMappingLuma",                   cfg_lumaLeveltoDQPMappingLuma,  cfg_lumaLeveltoDQPMappingLuma, "Luma to Delta QP Mapping - luma thresholds")
+  ("LumaLevelToDeltaQPMappingDQP",                    cfg_lumaLeveltoDQPMappingQP,  cfg_lumaLeveltoDQPMappingQP, "Luma to Delta QP Mapping - DQP values")
+#endif
 
   ("CbQpOffset,-cbqpofs",                             m_cbQpOffset,                                         0, "Chroma Cb QP Offset")
   ("CrQpOffset,-crqpofs",                             m_crQpOffset,                                         0, "Chroma Cr QP Offset")
+#if ER_CHROMA_QP_WCG_PPS
+  ("WCGPPSEnable",                                    m_wcgChromaQpControl.enabled,                     false, "1: Enable the WCG PPS chroma modulation scheme. 0 (default) disabled")
+  ("WCGPPSCbQpScale",                                 m_wcgChromaQpControl.chromaCbQpScale,               1.0, "WCG PPS Chroma Cb QP Scale")
+  ("WCGPPSCrQpScale",                                 m_wcgChromaQpControl.chromaCrQpScale,               1.0, "WCG PPS Chroma Cr QP Scale")
+  ("WCGPPSChromaQpScale",                             m_wcgChromaQpControl.chromaQpScale,                 0.0, "WCG PPS Chroma QP Scale")
+  ("WCGPPSChromaQpOffset",                            m_wcgChromaQpControl.chromaQpOffset,                0.0, "WCG PPS Chroma QP Offset")
+#endif
 #if W0038_CQP_ADJ
   ("SliceChromaQPOffsetPeriodicity",                  m_sliceChromaQpOffsetPeriodicity,                    0u, "Used in conjunction with Slice Cb/Cr QpOffsetIntraOrPeriodic. Use 0 (default) to disable periodic nature.")
   ("SliceCbQpOffsetIntraOrPeriodic",                  m_sliceChromaQpOffsetIntraOrPeriodic[0],              0, "Chroma Cb QP Offset at slice level for I slice or for periodic inter slices as defined by SliceChromaQPOffsetPeriodicity. Replaces offset in the GOP table.")
@@ -1429,6 +1449,25 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
     }
   }
 
+#if SHARP_LUMA_DELTA_QP
+  assert(lumaLevelToDeltaQPMode<LUMALVL_TO_DQP_NUM_MODES);
+  if (lumaLevelToDeltaQPMode>=LUMALVL_TO_DQP_NUM_MODES)
+  {
+    exit(EXIT_FAILURE);
+  }
+  m_lumaLevelToDeltaQPMapping.mode=LumaLevelToDQPMode(lumaLevelToDeltaQPMode);
+
+  if (m_lumaLevelToDeltaQPMapping.mode)
+  {
+    assert(  cfg_lumaLeveltoDQPMappingLuma.values.size() == cfg_lumaLeveltoDQPMappingQP.values.size() );
+    m_lumaLevelToDeltaQPMapping.mapping.resize(cfg_lumaLeveltoDQPMappingLuma.values.size());
+    for(UInt i=0; i<cfg_lumaLeveltoDQPMappingLuma.values.size(); i++)
+    {
+      m_lumaLevelToDeltaQPMapping.mapping[i]=std::pair<Int,Int>(cfg_lumaLeveltoDQPMappingLuma.values[i], cfg_lumaLeveltoDQPMappingQP.values[i]);
+    }
+  }
+#endif
+
   // reading external dQP description from file
   if ( !m_dQPFileName.empty() )
   {
@@ -1747,6 +1786,9 @@ Void TAppEncCfg::xCheckParameter()
   xConfirmPara( m_bipredSearchRange < 0 ,                                                   "Bi-prediction refinement search range must be more than 0" );
   xConfirmPara( m_minSearchWindow < 0,                                                      "Minimum motion search window size for the adaptive window ME must be greater than or equal to 0" );
   xConfirmPara( m_iMaxDeltaQP > 7,                                                          "Absolute Delta QP exceeds supported range (0 to 7)" );
+#if SHARP_LUMA_DELTA_QP
+  xConfirmPara(m_lumaLevelToDeltaQPMapping.mode &&  m_uiDeltaQpRD > 0, "Luma-level-based Delta QP cannot be used together with slice level multiple-QP optimization\n" );
+#endif
   xConfirmPara( m_iMaxCuDQPDepth > m_uiMaxCUDepth - 1,                                          "Absolute depth for a minimum CuDQP exceeds maximum coding unit depth" );
 
   xConfirmPara( m_cbQpOffset < -12,   "Min. Chroma Cb QP Offset is -12" );
@@ -2514,6 +2556,9 @@ Void TAppEncCfg::xPrintParameter()
   printf("RDQ:%d ", m_useRDOQ                            );
   printf("RDQTS:%d ", m_useRDOQTS                        );
   printf("RDpenalty:%d ", m_rdPenalty                    );
+#if SHARP_LUMA_DELTA_QP
+  printf("LQP:%d ", m_lumaLevelToDeltaQPMapping.mode     );
+#endif
   printf("SQP:%d ", m_uiDeltaQpRD                        );
   printf("ASR:%d ", m_bUseASR                            );
   printf("MinSearchWindow:%d ", m_minSearchWindow        );

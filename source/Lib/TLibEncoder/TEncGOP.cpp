@@ -178,13 +178,23 @@ Int TEncGOP::xWritePPS (AccessUnit &accessUnit, const TComPPS *pps)
 }
 
 
-Int TEncGOP::xWriteParameterSets (AccessUnit &accessUnit, TComSlice *slice)
+Int TEncGOP::xWriteParameterSets (AccessUnit &accessUnit, TComSlice *slice, const Bool bSeqFirst)
 {
   Int actualTotalBits = 0;
 
-  actualTotalBits += xWriteVPS(accessUnit, m_pcEncTop->getVPS());
-  actualTotalBits += xWriteSPS(accessUnit, slice->getSPS());
-  actualTotalBits += xWritePPS(accessUnit, slice->getPPS());
+  if (bSeqFirst)
+  {
+    actualTotalBits += xWriteVPS(accessUnit, m_pcEncTop->getVPS());
+  }
+  if (m_pcEncTop->SPSNeedsWriting(slice->getSPS()->getSPSId())) // Note this assumes that all changes to the SPS are made at the TEncTop level prior to picture creation (TEncTop::xGetNewPicBuffer).
+  {
+    assert(bSeqFirst); // Implementations that use more than 1 SPS need to be aware of activation issues.
+    actualTotalBits += xWriteSPS(accessUnit, slice->getSPS());
+  }
+  if (m_pcEncTop->PPSNeedsWriting(slice->getPPS()->getPPSId())) // Note this assumes that all changes to the PPS are made at the TEncTop level prior to picture creation (TEncTop::xGetNewPicBuffer).
+  {
+    actualTotalBits += xWritePPS(accessUnit, slice->getPPS());
+  }
 
   return actualTotalBits;
 }
@@ -1622,10 +1632,11 @@ Void TEncGOP::compressGOP( Int iPOCLast, Int iNumPicRcvd, TComList<TComPic*>& rc
     // Set entropy coder
     m_pcEntropyCoder->setEntropyCoder   ( m_pcCavlcCoder );
 
+    // write various parameter sets
+    actualTotalBits += xWriteParameterSets(accessUnit, pcSlice, m_bSeqFirst);
+
     if ( m_bSeqFirst )
     {
-      // write various parameter sets
-      actualTotalBits += xWriteParameterSets(accessUnit, pcSlice);
 
       // create prefix SEI messages at the beginning of the sequence
       assert(leadingSeiMessages.empty());

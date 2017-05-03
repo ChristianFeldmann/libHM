@@ -83,6 +83,11 @@ private:
   Bool                    m_bFastDeltaQP;
   Bool                    m_stillToCodeChromaQpOffsetFlag; //indicates whether chroma QP offset flag needs to coded at this particular CU granularity.
   Int                     m_cuChromaQpOffsetIdxPlus1; // if 0, then cu_chroma_qp_offset_flag will be 0, otherwise cu_chroma_qp_offset_flag will be 1.
+#if SHARP_LUMA_DELTA_QP
+  Int                     m_lumaLevelToDeltaQPLUT[LUMA_LEVEL_TO_DQP_LUT_MAXSIZE];
+  Int                     m_lumaQPOffset;
+  TEncSlice*              m_pcSliceEncoder;
+#endif
 
   //  Access channel
   TEncCfg*                m_pcEncCfg;
@@ -101,6 +106,13 @@ private:
 public:
   /// copy parameters from encoder class
   Void  init                ( TEncTop* pcEncTop );
+
+#if SHARP_LUMA_DELTA_QP
+  Void       setSliceEncoder( TEncSlice* pSliceEncoder ) { m_pcSliceEncoder = pSliceEncoder; }
+  TEncSlice* getSliceEncoder() { return m_pcSliceEncoder; }
+  Void       initLumaDeltaQpLUT();
+  Int        calculateLumaDQP( TComDataCU *pCU, const UInt absPartIdx, const TComYuv * pOrgYuv );
+#endif
 
   /// create internal buffers
   Void  create              ( UChar uhTotalDepth, UInt iMaxWidth, UInt iMaxHeight, ChromaFormat chromaFormat );
