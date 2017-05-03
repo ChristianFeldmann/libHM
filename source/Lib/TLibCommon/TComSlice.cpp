@@ -77,15 +77,15 @@ TComSlice::TComSlice()
 , m_colRefIdx                     ( 0 )
 , m_uiTLayer                      ( 0 )
 , m_bTLayerSwitchingFlag          ( false )
-, m_sliceMode                     ( 0 )
+, m_sliceMode                     ( NO_SLICES )
 , m_sliceArgument                 ( 0 )
-, m_sliceCurStartCUAddr           ( 0 )
-, m_sliceCurEndCUAddr             ( 0 )
+, m_sliceCurStartCtuTsAddr        ( 0 )
+, m_sliceCurEndCtuTsAddr          ( 0 )
 , m_sliceIdx                      ( 0 )
-, m_sliceSegmentMode              ( 0 )
+, m_sliceSegmentMode              ( NO_SLICES )
 , m_sliceSegmentArgument          ( 0 )
-, m_sliceSegmentCurStartCUAddr    ( 0 )
-, m_sliceSegmentCurEndCUAddr      ( 0 )
+, m_sliceSegmentCurStartCtuTsAddr ( 0 )
+, m_sliceSegmentCurEndCtuTsAddr   ( 0 )
 , m_nextSlice                     ( false )
 , m_nextSliceSegment              ( false )
 , m_sliceBits                     ( 0 )
@@ -747,13 +747,13 @@ Void TComSlice::copySliceInfo(TComSlice *pSrc)
 
   m_sliceMode                     = pSrc->m_sliceMode;
   m_sliceArgument                 = pSrc->m_sliceArgument;
-  m_sliceCurStartCUAddr           = pSrc->m_sliceCurStartCUAddr;
-  m_sliceCurEndCUAddr             = pSrc->m_sliceCurEndCUAddr;
+  m_sliceCurStartCtuTsAddr        = pSrc->m_sliceCurStartCtuTsAddr;
+  m_sliceCurEndCtuTsAddr          = pSrc->m_sliceCurEndCtuTsAddr;
   m_sliceIdx                      = pSrc->m_sliceIdx;
   m_sliceSegmentMode              = pSrc->m_sliceSegmentMode;
   m_sliceSegmentArgument          = pSrc->m_sliceSegmentArgument;
-  m_sliceSegmentCurStartCUAddr    = pSrc->m_sliceSegmentCurStartCUAddr;
-  m_sliceSegmentCurEndCUAddr      = pSrc->m_sliceSegmentCurEndCUAddr;
+  m_sliceSegmentCurStartCtuTsAddr = pSrc->m_sliceSegmentCurStartCtuTsAddr;
+  m_sliceSegmentCurEndCtuTsAddr   = pSrc->m_sliceSegmentCurEndCtuTsAddr;
   m_nextSlice                     = pSrc->m_nextSlice;
   m_nextSliceSegment              = pSrc->m_nextSliceSegment;
 
@@ -1325,6 +1325,9 @@ Void TComSlice::createExplicitReferencePictureSetFromReference( TComList<TComPic
   Int nrOfNegativePictures = 0;
   Int nrOfPositivePictures = 0;
   TComReferencePictureSet* pcRPS = this->getLocalRPS();
+#if EFFICIENT_FIELD_IRAP
+  Bool irapIsInRPS = false;
+#endif
 
   // loop through all pictures in the Reference Picture Set
   for(i=0;i<pReferencePictureSet->getNumberOfPictures();i++)
@@ -1353,6 +1356,12 @@ Void TComSlice::createExplicitReferencePictureSetFromReference( TComList<TComPic
         }
         else
         {
+#if EFFICIENT_FIELD_IRAP
+          if(rpcPic->getPicSym()->getSlice(0)->getPOC() == this->getAssociatedIRAPPOC() && this->getAssociatedIRAPPOC() == this->getPOC()+1)
+          {
+            irapIsInRPS = true;
+          }
+#endif
           nrOfPositivePictures++;
         }
         k++;
@@ -1363,7 +1372,7 @@ Void TComSlice::createExplicitReferencePictureSetFromReference( TComList<TComPic
 #if EFFICIENT_FIELD_IRAP
   Bool useNewRPS = false;
   // if current picture is complimentary field associated to IRAP, add the IRAP to its RPS. 
-  if(m_pcPic->isField())
+  if(m_pcPic->isField() && !irapIsInRPS)
   {
     TComList<TComPic*>::iterator iterPic = rcListPic.begin();
     while ( iterPic != rcListPic.end())
@@ -1702,8 +1711,8 @@ Void TComSPS::setHrdParameters( UInt frameRate, UInt numDU, UInt bitRate, Bool r
    Note: only the case of "vps_max_temporal_layers_minus1 = 0" is supported.
 */
   Int i, j;
-  UInt birateValue, cpbSizeValue;
-  UInt ducpbSizeValue;
+  UInt bitrateValue, cpbSizeValue;
+  UInt duCpbSizeValue;
   UInt duBitRateValue = 0;
 
   for( i = 0; i < MAX_TLAYER; i ++ )
@@ -1713,21 +1722,21 @@ Void TComSPS::setHrdParameters( UInt frameRate, UInt numDU, UInt bitRate, Bool r
     hrd->setLowDelayHrdFlag( i, 0 );
     hrd->setCpbCntMinus1( i, 0 );
 
-    birateValue  = bitRate;
+    bitrateValue = bitRate;
     cpbSizeValue = bitRate;                                     // 1 second
-    ducpbSizeValue = bitRate/numDU;
+    duCpbSizeValue = bitRate/numDU;
     duBitRateValue = bitRate;
 
     for( j = 0; j < ( hrd->getCpbCntMinus1( i ) + 1 ); j ++ )
     {
-      hrd->setBitRateValueMinus1( i, j, 0, ( birateValue  - 1 ) );
+      hrd->setBitRateValueMinus1( i, j, 0, ( bitrateValue - 1 ) );
       hrd->setCpbSizeValueMinus1( i, j, 0, ( cpbSizeValue - 1 ) );
-      hrd->setDuCpbSizeValueMinus1( i, j, 0, ( ducpbSizeValue - 1 ) );
+      hrd->setDuCpbSizeValueMinus1( i, j, 0, ( duCpbSizeValue - 1 ) );
       hrd->setCbrFlag( i, j, 0, ( j == 0 ) );
 
-      hrd->setBitRateValueMinus1( i, j, 1, ( birateValue  - 1) );
+      hrd->setBitRateValueMinus1( i, j, 1, ( bitrateValue - 1) );
       hrd->setCpbSizeValueMinus1( i, j, 1, ( cpbSizeValue - 1 ) );
-      hrd->setDuCpbSizeValueMinus1( i, j, 1, ( ducpbSizeValue - 1 ) );
+      hrd->setDuCpbSizeValueMinus1( i, j, 1, ( duCpbSizeValue - 1 ) );
       hrd->setDuBitRateValueMinus1( i, j, 1, ( duBitRateValue - 1 ) );
       hrd->setCbrFlag( i, j, 1, ( j == 0 ) );
     }
@@ -2048,35 +2057,99 @@ Void TComScalingList::processRefMatrix( UInt sizeId, UInt listId , UInt refListI
  *  \param pchFile syntax infomation
  *  \returns false if successful
  */
+
+static Void outputScalingListHelp(std::ostream &os)
+{
+  os << "The scaling list file specifies all matrices and their DC values; none can be missing,\n"
+         "but their order is arbitrary.\n\n"
+         "The matrices are specified by:\n"
+         "<matrix name><unchecked data>\n"
+         "  <value>,<value>,<value>,....\n\n"
+         "  Line-feeds can be added arbitrarily between values, and the number of values needs to be\n"
+         "  at least the number of entries for the matrix (superfluous entries are ignored).\n"
+         "  The <unchecked data> is text on the same line as the matrix that is not checked\n"
+         "  except to ensure that the matrix name token is unique. It is recommended that it is ' ='\n"
+         "  The values in the matrices are the absolute values (0-255), not the delta values as\n"
+         "  exchanged between the encoder and decoder\n\n"
+         "The DC values (for matrix sizes larger than 8x8) are specified by:\n"
+         "<matrix name>_DC<unchecked data>\n"
+         "  <value>\n";
+
+  os << "The permitted matrix names are:\n";
+  for(UInt sizeIdc = 0; sizeIdc < SCALING_LIST_SIZE_NUM; sizeIdc++)
+  {
+    for(UInt listIdc = 0; listIdc < SCALING_LIST_NUM; listIdc++)
+    {
+      if ((sizeIdc!=SCALING_LIST_32x32) || (listIdc%(SCALING_LIST_NUM/NUMBER_OF_PREDICTION_MODES) == 0))
+      {
+        os << "  " << MatrixType[sizeIdc][listIdc] << '\n';
+      }
+    }
+  }
+}
+
+Void TComScalingList::outputScalingLists(std::ostream &os) const
+{
+  for(UInt sizeIdc = 0; sizeIdc < SCALING_LIST_SIZE_NUM; sizeIdc++)
+  {
+    const UInt size = min(8,4<<(sizeIdc));
+    for(UInt listIdc = 0; listIdc < SCALING_LIST_NUM; listIdc++)
+    {
+      if ((sizeIdc!=SCALING_LIST_32x32) || (listIdc%(SCALING_LIST_NUM/NUMBER_OF_PREDICTION_MODES) == 0))
+      {
+        const Int *src = getScalingListAddress(sizeIdc, listIdc);
+        os << (MatrixType[sizeIdc][listIdc]) << " =\n  ";
+        for(UInt y=0; y<size; y++)
+        {
+          for(UInt x=0; x<size; x++, src++)
+          {
+            os << std::setw(3) << (*src) << ", ";
+          }
+          os << (y+1<size?"\n  ":"\n");
+        }
+        if(sizeIdc > SCALING_LIST_8x8)
+        {
+          os << MatrixType_DC[sizeIdc][listIdc] << " = \n  " << std::setw(3) << getScalingListDC(sizeIdc, listIdc) << "\n";
+        }
+        os << "\n";
+      }
+    }
+  }
+}
+
 Bool TComScalingList::xParseScalingList(Char* pchFile)
 {
   static const Int LINE_SIZE=1024;
-  FILE *fp;
+  FILE *fp = NULL;
   Char line[LINE_SIZE];
-  UInt sizeIdc,listIdc;
-  UInt i,size = 0;
-  Int *src=0,data;
-  Char *ret;
-  UInt  retval;
 
-  if((fp = fopen(pchFile,"r")) == (FILE*)NULL)
+  if (pchFile == NULL)
   {
-    printf("can't open file %s :: set Default Matrix\n",pchFile);
+    fprintf(stderr, "Error: no scaling list file specified. Help on scaling lists being output\n");
+    outputScalingListHelp(std::cout);
+    std::cout << "\n\nExample scaling list file using default values:\n\n";
+    outputScalingLists(std::cout);
+    exit (1);
+    return true;
+  }
+  else if ((fp = fopen(pchFile,"r")) == (FILE*)NULL)
+  {
+    fprintf(stderr, "Error: cannot open scaling list file %s for reading\n",pchFile);
     return true;
   }
 
-  for(sizeIdc = 0; sizeIdc < SCALING_LIST_SIZE_NUM; sizeIdc++)
+  for(UInt sizeIdc = 0; sizeIdc < SCALING_LIST_SIZE_NUM; sizeIdc++)
   {
-    size = min(MAX_MATRIX_COEF_NUM,(Int)g_scalingListSize[sizeIdc]);
+    const UInt size = min(MAX_MATRIX_COEF_NUM,(Int)g_scalingListSize[sizeIdc]);
 
-    for(listIdc = 0; listIdc < SCALING_LIST_NUM; listIdc++)
+    for(UInt listIdc = 0; listIdc < SCALING_LIST_NUM; listIdc++)
     {
-      src = getScalingListAddress(sizeIdc, listIdc);
+      Int * const src = getScalingListAddress(sizeIdc, listIdc);
 
       if ((sizeIdc==SCALING_LIST_32x32) && (listIdc%(SCALING_LIST_NUM/NUMBER_OF_PREDICTION_MODES) != 0)) // derive chroma32x32 from chroma16x16
       {
         const Int *srcNextSmallerSize = getScalingListAddress(sizeIdc-1, listIdc);
-        for(i=0; i<size; i++)
+        for(UInt i=0; i<size; i++)
         {
           src[i] = srcNextSmallerSize[i];
         }
@@ -2084,47 +2157,74 @@ Bool TComScalingList::xParseScalingList(Char* pchFile)
       }
       else
       {
-        fseek(fp,0,0);
-        do
         {
-          ret = fgets(line, LINE_SIZE, fp);
-          if ((ret==NULL)||(strstr(line, MatrixType[sizeIdc][listIdc])==NULL && feof(fp)))
+          fseek(fp, 0, SEEK_SET);
+          Bool bFound=false;
+          while ((!feof(fp)) && (!bFound))
           {
-            printf("Error: can't read Matrix :: set Default Matrix\n");
+            Char *ret = fgets(line, LINE_SIZE, fp);
+            Char *findNamePosition= ret==NULL ? NULL : strstr(line, MatrixType[sizeIdc][listIdc]);
+            // This could be a match against the DC string as well, so verify it isn't
+            if (findNamePosition!= NULL && (MatrixType_DC[sizeIdc][listIdc]==NULL || strstr(line, MatrixType_DC[sizeIdc][listIdc])==NULL))
+            {
+              bFound=true;
+            }
+          }
+          if (!bFound)
+          {
+            fprintf(stderr, "Error: cannot find Matrix %s from scaling list file %s\n", MatrixType[sizeIdc][listIdc], pchFile);
             return true;
           }
         }
-        while (strstr(line, MatrixType[sizeIdc][listIdc]) == NULL);
-        for (i=0; i<size; i++)
+        for (UInt i=0; i<size; i++)
         {
-          retval = fscanf(fp, "%d,", &data);
-          if (retval!=1)
+          Int data;
+          if (fscanf(fp, "%d,", &data)!=1)
           {
-            printf("Error: can't read Matrix :: set Default Matrix\n");
+            fprintf(stderr, "Error: cannot read value #%d for Matrix %s from scaling list file %s at file position %ld\n", i, MatrixType[sizeIdc][listIdc], pchFile, ftell(fp));
+            return true;
+          }
+          if (data<0 || data>255)
+          {
+            fprintf(stderr, "Error: QMatrix entry #%d of value %d for Matrix %s from scaling list file %s at file position %ld is out of range (0 to 255)\n", i, data, MatrixType[sizeIdc][listIdc], pchFile, ftell(fp));
             return true;
           }
           src[i] = data;
         }
+
         //set DC value for default matrix check
         setScalingListDC(sizeIdc,listIdc,src[0]);
 
         if(sizeIdc > SCALING_LIST_8x8)
         {
-          fseek(fp,0,0);
-          do
           {
-            ret = fgets(line, LINE_SIZE, fp);
-            if ((ret==NULL)||(strstr(line, MatrixType_DC[sizeIdc][listIdc])==NULL && feof(fp)))
+            fseek(fp, 0, SEEK_SET);
+            Bool bFound=false;
+            while ((!feof(fp)) && (!bFound))
             {
-              printf("Error: can't read DC :: set Default Matrix\n");
+              Char *ret = fgets(line, LINE_SIZE, fp);
+              Char *findNamePosition= ret==NULL ? NULL : strstr(line, MatrixType_DC[sizeIdc][listIdc]);
+              if (findNamePosition!= NULL)
+              {
+                // This won't be a match against the non-DC string.
+                bFound=true;
+              }
+            }
+            if (!bFound)
+            {
+              fprintf(stderr, "Error: cannot find DC Matrix %s from scaling list file %s\n", MatrixType_DC[sizeIdc][listIdc], pchFile);
               return true;
             }
           }
-          while (strstr(line, MatrixType_DC[sizeIdc][listIdc]) == NULL);
-          retval = fscanf(fp, "%d,", &data);
-          if (retval!=1)
+          Int data;
+          if (fscanf(fp, "%d,", &data)!=1)
           {
-            printf("Error: can't read Matrix :: set Default Matrix\n");
+            fprintf(stderr, "Error: cannot read DC %s from scaling list file %s at file position %ld\n", MatrixType_DC[sizeIdc][listIdc], pchFile, ftell(fp));
+            return true;
+          }
+          if (data<0 || data>255)
+          {
+            fprintf(stderr, "Error: DC value %d for Matrix %s from scaling list file %s at file position %ld is out of range (0 to 255)\n", data, MatrixType[sizeIdc][listIdc], pchFile, ftell(fp));
             return true;
           }
           //overwrite DC value when size of matrix is larger than 16x16
@@ -2133,6 +2233,9 @@ Bool TComScalingList::xParseScalingList(Char* pchFile)
       }
     }
   }
+//  std::cout << "\n\nRead scaling lists of:\n\n";
+//  outputScalingLists(std::cout);
+
   fclose(fp);
   return false;
 }

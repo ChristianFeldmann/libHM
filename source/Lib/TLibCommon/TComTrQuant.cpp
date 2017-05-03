@@ -1088,7 +1088,7 @@ Void TComTrQuant::xQuant(       TComTU       &rTu,
                                 TCoeff      * pSrc,
                                 TCoeff      * pDes,
 #if ADAPTIVE_QP_SELECTION
-                                TCoeff      *&pArlDes,
+                                TCoeff      *pArlDes,
 #endif
                                 TCoeff       &uiAbsSum,
                           const ComponentID   compID,
@@ -1340,7 +1340,7 @@ Void TComTrQuant::transformNxN(       TComTU        & rTu,
                                 const UInt            uiStride,
                                       TCoeff       *  rpcCoeff,
 #if ADAPTIVE_QP_SELECTION
-                                      TCoeff       *& rpcArlCoeff,
+                                      TCoeff       *  pcArlCoeff,
 #endif
                                       TCoeff        & uiAbsSum,
                                 const QpParam       & cQP
@@ -1404,7 +1404,7 @@ Void TComTrQuant::transformNxN(       TComTU        & rTu,
       xQuant( rTu, m_plTempCoeff, rpcCoeff,
 
 #if ADAPTIVE_QP_SELECTION
-              rpcArlCoeff,
+              pcArlCoeff,
 #endif
               uiAbsSum, compID, cQP );
 
@@ -1422,7 +1422,7 @@ Void TComTrQuant::transformNxN(       TComTU        & rTu,
 
 Void TComTrQuant::invTransformNxN(      TComTU        &rTu,
                                   const ComponentID    compID,
-                                        Pel          *&rpcResidual,
+                                        Pel          *pcResidual,
                                   const UInt           uiStride,
                                         TCoeff       * pcCoeff,
                                   const QpParam       &cQP
@@ -1448,7 +1448,7 @@ Void TComTrQuant::invTransformNxN(      TComTU        &rTu,
 
       const UInt lineOffset = subTURecurse.GetSectionNumber() * subTURecurse.getRect(compID).height;
 
-      Pel    *subTUResidual     = rpcResidual + (lineOffset * uiStride);
+      Pel    *subTUResidual     = pcResidual + (lineOffset * uiStride);
       TCoeff *subTUCoefficients = pcCoeff     + (lineOffset * subTURecurse.getRect(compID).width);
 
       invTransformNxN(subTURecurse, compID, subTUResidual, uiStride, subTUCoefficients, cQP DEBUG_STRING_PASS_INTO(psDebug));
@@ -1481,7 +1481,7 @@ Void TComTrQuant::invTransformNxN(      TComTU        &rTu,
     {
       for (UInt x = 0; x<uiWidth; x++, coefficientIndex++)
       {
-        rpcResidual[(y * uiStride) + x] = Pel(pcCoeff[rotateResidual ? (uiSizeMinus1 - coefficientIndex) : coefficientIndex]);
+        pcResidual[(y * uiStride) + x] = Pel(pcCoeff[rotateResidual ? (uiSizeMinus1 - coefficientIndex) : coefficientIndex]);
       }
     }
   }
@@ -1510,13 +1510,13 @@ Void TComTrQuant::invTransformNxN(      TComTU        &rTu,
 
     if(pcCU->getTransformSkip(uiAbsPartIdx, compID))
     {
-      xITransformSkip( m_plTempCoeff, rpcResidual, uiStride, rTu, compID );
+      xITransformSkip( m_plTempCoeff, pcResidual, uiStride, rTu, compID );
 
 #if defined DEBUG_STRING
       if (psDebug)
       {
         std::stringstream ss(stringstream::out);
-        printBlockToStream(ss, "###InvTran resi: ", rpcResidual, uiWidth, uiHeight, uiStride);
+        printBlockToStream(ss, "###InvTran resi: ", pcResidual, uiWidth, uiHeight, uiStride);
         (*psDebug)+=ss.str();
         (*psDebug)+="(<- was a Transform-skipped block)\n";
       }
@@ -1524,13 +1524,13 @@ Void TComTrQuant::invTransformNxN(      TComTU        &rTu,
     }
     else
     {
-      xIT( compID, rTu.useDST(compID), m_plTempCoeff, rpcResidual, uiStride, uiWidth, uiHeight );
+      xIT( compID, rTu.useDST(compID), m_plTempCoeff, pcResidual, uiStride, uiWidth, uiHeight );
 
 #if defined DEBUG_STRING
       if (psDebug)
       {
         std::stringstream ss(stringstream::out);
-        printBlockToStream(ss, "###InvTran resi: ", rpcResidual, uiWidth, uiHeight, uiStride);
+        printBlockToStream(ss, "###InvTran resi: ", pcResidual, uiWidth, uiHeight, uiStride);
         (*psDebug)+=ss.str();
         (*psDebug)+="(<- was a Transformed block)\n";
       }
@@ -1539,12 +1539,12 @@ Void TComTrQuant::invTransformNxN(      TComTU        &rTu,
 
 #ifdef DEBUG_TRANSFORM_AND_QUANTISE
     std::cout << g_debugCounter << ": " << uiWidth << "x" << uiHeight << " channel " << compID << " TU at output of inverse-transform\n";
-    printBlock(rpcResidual, uiWidth, uiHeight, uiStride);
+    printBlock(pcResidual, uiWidth, uiHeight, uiStride);
     g_debugCounter++;
 #endif
   }
 
-  invRdpcmNxN( rTu, compID, rpcResidual, uiStride );
+  invRdpcmNxN( rTu, compID, pcResidual, uiStride );
 }
 
 Void TComTrQuant::invRecurTransformNxN( const ComponentID compID,
@@ -1568,7 +1568,7 @@ Void TComTrQuant::invRecurTransformNxN( const ComponentID compID,
           Pel           *rpcResidual = pResidual->getAddr( compID );
           UInt           uiAddr      = (tuRect.x0 + uiStride*tuRect.y0);
           Pel           *pResi       = rpcResidual + uiAddr;
-          TCoeff        *rpcCoeff    = pcCU->getCoeff(compID) + rTu.getCoefficientOffset(compID);
+          TCoeff        *pcCoeff     = pcCU->getCoeff(compID) + rTu.getCoefficientOffset(compID);
 
     const QpParam cQP(*pcCU, compID);
 
@@ -1579,7 +1579,7 @@ Void TComTrQuant::invRecurTransformNxN( const ComponentID compID,
       std::string *psDebug=((DebugOptionList::DebugString_InvTran.getInt()&(pcCU->isIntra(absPartIdxTU)?1:(pcCU->isInter(absPartIdxTU)?2:4)))!=0) ? &sTemp : 0;
 #endif
 
-      invTransformNxN( rTu, compID, pResi, uiStride, rpcCoeff, cQP DEBUG_STRING_PASS_INTO(psDebug) );
+      invTransformNxN( rTu, compID, pResi, uiStride, pcCoeff, cQP DEBUG_STRING_PASS_INTO(psDebug) );
 
 #ifdef DEBUG_STRING
       if (psDebug != 0)
@@ -1975,7 +1975,7 @@ Void TComTrQuant::xRateDistOptQuant                 (       TComTU       &rTu,
                                                             TCoeff      * plSrcCoeff,
                                                             TCoeff      * piDstCoeff,
 #if ADAPTIVE_QP_SELECTION
-                                                            TCoeff      *&piArlDstCoeff,
+                                                            TCoeff      * piArlDstCoeff,
 #endif
                                                             TCoeff       &uiAbsSum,
                                                       const ComponentID   compID,

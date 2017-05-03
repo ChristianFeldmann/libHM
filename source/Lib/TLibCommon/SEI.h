@@ -68,7 +68,6 @@ public:
     FILM_GRAIN_CHARACTERISTICS           = 19,
     POST_FILTER_HINT                     = 22,
     TONE_MAPPING_INFO                    = 23,
-    KNEE_FUNCTION_INFO                   = 24,
     FRAME_PACKING                        = 45,
     DISPLAY_ORIENTATION                  = 47,
     SOP_DESCRIPTION                      = 128,
@@ -83,7 +82,8 @@ public:
     MASTERING_DISPLAY_COLOUR_VOLUME      = 137,
     SEGM_RECT_FRAME_PACKING              = 138,
     TEMP_MOTION_CONSTRAINED_TILE_SETS    = 139,
-    CHROMA_SAMPLING_FILTER_HINT          = 140
+    CHROMA_SAMPLING_FILTER_HINT          = 140,
+    KNEE_FUNCTION_INFO                   = 141
   };
 
   SEI() {}
@@ -418,7 +418,6 @@ public:
   Int   m_kneeId;
   Bool  m_kneeCancelFlag;
   Bool  m_kneePersistenceFlag;
-  Bool  m_kneeMappingFlag;
   Int   m_kneeInputDrange;
   Int   m_kneeInputDispLuminance;
   Int   m_kneeOutputDrange;

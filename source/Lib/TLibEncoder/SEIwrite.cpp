@@ -766,7 +766,6 @@ Void SEIWriter::xWriteSEIKneeFunctionInfo(const SEIKneeFunctionInfo &sei)
   if ( !sei.m_kneeCancelFlag )
   {
     WRITE_FLAG( sei.m_kneePersistenceFlag, "knee_function_persistence_flag" );
-    WRITE_FLAG( sei.m_kneeMappingFlag, "mapping_flag" );
     WRITE_CODE( (UInt)sei.m_kneeInputDrange , 32,  "input_d_range" );
     WRITE_CODE( (UInt)sei.m_kneeInputDispLuminance, 32,  "input_disp_luminance" );
     WRITE_CODE( (UInt)sei.m_kneeOutputDrange, 32,  "output_d_range" );

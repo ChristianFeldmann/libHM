@@ -193,9 +193,9 @@ public:
   /// encoder estimation - inter prediction (non-skip)
   Void predInterSearch          ( TComDataCU* pcCU,
                                   TComYuv*    pcOrgYuv,
-                                  TComYuv*&   rpcPredYuv,
-                                  TComYuv*&   rpcResiYuv,
-                                  TComYuv*&   rpcRecoYuv
+                                  TComYuv*    pcPredYuv,
+                                  TComYuv*    pcResiYuv,
+                                  TComYuv*    pcRecoYuv
                                   DEBUG_STRING_FN_DECLARE(sDebug),
                                   Bool        bUseRes = false
 #if AMP_MRG
@@ -207,9 +207,9 @@ public:
   Void encodeResAndCalcRdInterCU( TComDataCU* pcCU,
                                   TComYuv*    pcYuvOrg,
                                   TComYuv*    pcYuvPred,
-                                  TComYuv*&   rpcYuvResi,
-                                  TComYuv*&   rpcYuvResiBest,
-                                  TComYuv*&   rpcYuvRec,
+                                  TComYuv*    pcYuvResi,
+                                  TComYuv*    pcYuvResiBest,
+                                  TComYuv*    pcYuvRec,
                                   Bool        bSkipRes
                                   DEBUG_STRING_FN_DECLARE(sDebug) );
 
@@ -217,7 +217,7 @@ public:
   Void setAdaptiveSearchRange   ( Int iDir, Int iRefIdx, Int iSearchRange) { assert(iDir < MAX_NUM_REF_LIST_ADAPT_SR && iRefIdx<Int(MAX_IDX_ADAPT_SR)); m_aaiAdaptSR[iDir][iRefIdx] = iSearchRange; }
 
   Void xEncPCM    (TComDataCU* pcCU, UInt uiAbsPartIdx, Pel* piOrg, Pel* piPCM, Pel* piPred, Pel* piResi, Pel* piReco, UInt uiStride, UInt uiWidth, UInt uiHeight, const ComponentID compID );
-  Void IPCMSearch (TComDataCU* pcCU, TComYuv* pcOrgYuv, TComYuv*& rpcPredYuv, TComYuv*& rpcResiYuv, TComYuv*& rpcRecoYuv );
+  Void IPCMSearch (TComDataCU* pcCU, TComYuv* pcOrgYuv, TComYuv* rpcPredYuv, TComYuv* rpcResiYuv, TComYuv* rpcRecoYuv );
 protected:
 
   // -------------------------------------------------------------------------------------------------------------------
@@ -465,13 +465,10 @@ protected:
   // compute symbol bits
   // -------------------------------------------------------------------------------------------------------------------
 
-  Void xAddSymbolBitsInter        ( TComDataCU*   pcCU,
+  Void xAddSymbolBitsInter       ( TComDataCU*   pcCU,
                                    UInt          uiQp,
                                    UInt          uiTrMode,
-                                   UInt&         ruiBits,
-                                   TComYuv*&     rpcYuvRec,
-                                   TComYuv*      pcYuvPred,
-                                   TComYuv*&     rpcYuvResi );
+                                   UInt&         ruiBits);
 
   Void  setWpScalingDistParam( TComDataCU* pcCU, Int iRefIdx, RefPicList eRefPicListCur );
   inline  Void  setDistParamComp( ComponentID compIdx )  { m_cDistParam.compIdx = compIdx; }

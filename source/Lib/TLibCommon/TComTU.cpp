@@ -53,7 +53,7 @@ TComTU::TComTU(TComDataCU *pcCU, const UInt absPartIdxCU, const UInt cuDepth, co
     mSplitMode(DONT_SPLIT),
     mAbsPartIdxCU(absPartIdxCU),
     mAbsPartIdxTURelCU(0),
-    mAbsPartIdxStep(pcCU->getPic()->getNumPartInCU() >> (pcCU->getDepth(absPartIdxCU)<<1)),
+    mAbsPartIdxStep(pcCU->getPic()->getNumPartitionsInCtu() >> (pcCU->getDepth(absPartIdxCU)<<1)),
     mpcCU(pcCU),
     mLog2TrLumaSize(0),
     mpParent(NULL)

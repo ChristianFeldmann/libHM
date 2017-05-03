@@ -104,7 +104,7 @@ private:
   std::vector<TEncSbac*> CTXMem;
 
   Void     setUpLambda(TComSlice* slice, const Double dLambda, Int iQP);
-  Void     calculateBoundingCUAddrForSlice(UInt &uiStartCUAddrSlice, UInt &uiBoundingCUAddrSlice, Bool &bReachedTileBoundary, TComPic*& rpcPic, Bool bEncodeSlice, Int sliceMode, Int sliceArgument, UInt uiSliceCurEndCUAddr);
+  Void     calculateBoundingCtuTsAddrForSlice(UInt &startCtuTSAddrSlice, UInt &boundingCtuTSAddrSlice, Bool &haveReachedTileBoundary, TComPic* pcPic, const Bool encodingSlice, const Int sliceMode, const Int sliceArgument, const UInt uiSliceCurEndCtuTSAddr);
 
 public:
   TEncSlice();
@@ -119,17 +119,17 @@ public:
                                 Int iGOPid,   TComSlice*& rpcSlice, TComSPS* pSPS, TComPPS *pPPS, Bool isField );
   Void    resetQP             ( TComPic* pic, Int sliceQP, Double lambda );
   // compress and encode slice
-  Void    precompressSlice    ( TComPic*& rpcPic                                );      ///< precompress slice for multi-loop opt.
-  Void    compressSlice       ( TComPic*& rpcPic                                );      ///< analysis stage of slice
-  Void    calCostSliceI       ( TComPic*& rpcPic );
-  Void    encodeSlice         ( TComPic*& rpcPic, TComOutputBitstream* pcSubstreams  );
+  Void    precompressSlice    ( TComPic* pcPic                                     );      ///< precompress slice for multi-loop opt.
+  Void    compressSlice       ( TComPic* pcPic                                     );      ///< analysis stage of slice
+  Void    calCostSliceI       ( TComPic* pcPic );
+  Void    encodeSlice         ( TComPic* pcPic, TComOutputBitstream* pcSubstreams  );
 
   // misc. functions
   Void    setSearchRange      ( TComSlice* pcSlice  );                                  ///< set ME range adaptively
   UInt64  getTotalBits        ()  { return m_uiPicTotalBits; }
 
   TEncCu*        getCUEncoder() { return m_pcCuEncoder; }                        ///< CU encoder
-  Void    xDetermineStartAndBoundingCUAddr  ( UInt& uiStartCUAddr, UInt& uiBoundingCUAddr, TComPic*& rpcPic, Bool bEncodeSlice );
+  Void    xDetermineStartAndBoundingCtuTsAddr  ( UInt& startCtuTsAddr, UInt& boundingCtuTsAddr, TComPic* pcPic, const Bool encodingSlice );
   UInt    getSliceIdx()         { return m_uiSliceIdx;                    }
   Void    setSliceIdx(UInt i)   { m_uiSliceIdx = i;                       }
   Void      initCtxMem( UInt i );

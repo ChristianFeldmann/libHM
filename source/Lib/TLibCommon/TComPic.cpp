@@ -122,46 +122,45 @@ Void TComPic::destroy()
 Void TComPic::compressMotion()
 {
   TComPicSym* pPicSym = getPicSym();
-  for ( UInt uiCUAddr = 0; uiCUAddr < pPicSym->getFrameHeightInCU()*pPicSym->getFrameWidthInCU(); uiCUAddr++ )
+  for ( UInt uiCUAddr = 0; uiCUAddr < pPicSym->getNumberOfCtusInFrame(); uiCUAddr++ )
   {
-    TComDataCU* pcCU = pPicSym->getCU(uiCUAddr);
-    pcCU->compressMV();
+    TComDataCU* pCtu = pPicSym->getCtu(uiCUAddr);
+    pCtu->compressMV();
   }
 }
 
 Bool  TComPic::getSAOMergeAvailability(Int currAddr, Int mergeAddr)
 {
-  Bool mergeCtbInSliceSeg = (mergeAddr >= getPicSym()->getCUOrderMap(getCU(currAddr)->getSlice()->getSliceCurStartCUAddr()/getNumPartInCU()));
+  Bool mergeCtbInSliceSeg = (mergeAddr >= getPicSym()->getCtuTsToRsAddrMap(getCtu(currAddr)->getSlice()->getSliceCurStartCtuTsAddr()));
   Bool mergeCtbInTile     = (getPicSym()->getTileIdxMap(mergeAddr) == getPicSym()->getTileIdxMap(currAddr));
   return (mergeCtbInSliceSeg && mergeCtbInTile);
 }
 
-UInt TComPic::getSubstreamForLCUAddr(const UInt uiLCUAddr, const Bool bAddressInRaster, TComSlice *pcSlice)
+UInt TComPic::getSubstreamForCtuAddr(const UInt ctuAddr, const Bool bAddressInRaster, TComSlice *pcSlice)
 {
-  const Int iNumSubstreams = pcSlice->getPPS()->getNumSubstreams();
-  UInt uiSubStrm;
+  UInt subStrm;
 
-  if (iNumSubstreams > 1) // wavefronts, and possibly tiles being used.
+  if (pcSlice->getPPS()->getNumSubstreams() > 1) // wavefronts, and possibly tiles being used.
   {
-    TComPicSym &picSym=*(getPicSym());
-    const UInt uiLCUAddrRaster = bAddressInRaster?uiLCUAddr : picSym.getCUOrderMap(uiLCUAddr);
-    const UInt uiWidthInLCUs  = picSym.getFrameWidthInCU();
-    const UInt uiTileIndex=picSym.getTileIdxMap(uiLCUAddrRaster);
-    const UInt widthInTiles=(picSym.getNumColumnsMinus1()+1);
-    TComTile *pTile=picSym.getTComTile(uiTileIndex);
-    const UInt uiTileStartLCU = pTile->getFirstCUAddr();
-    const UInt uiTileLCUY = uiTileStartLCU / uiWidthInLCUs;
-    // independent tiles => substreams are "per tile".  iNumSubstreams has already been multiplied.
-    const UInt uiLin = uiLCUAddrRaster / uiWidthInLCUs;
-          UInt uiStartingSubstreamForTile=(uiTileLCUY*widthInTiles) + (pTile->getTileHeight()*(uiTileIndex%widthInTiles));
-    uiSubStrm = uiStartingSubstreamForTile + (uiLin-uiTileLCUY);
+    const TComPicSym &picSym            = *(getPicSym());
+    const UInt ctuRsAddr                = bAddressInRaster?ctuAddr : picSym.getCtuTsToRsAddrMap(ctuAddr);
+    const UInt frameWidthInCtus         = picSym.getFrameWidthInCtus();
+    const UInt tileIndex                = picSym.getTileIdxMap(ctuRsAddr);
+    const UInt numTileColumns           = (picSym.getNumTileColumnsMinus1()+1);
+    const TComTile *pTile               = picSym.getTComTile(tileIndex);
+    const UInt firstCtuRsAddrOfTile     = pTile->getFirstCtuRsAddr();
+    const UInt tileYInCtus              = firstCtuRsAddrOfTile / frameWidthInCtus;
+    // independent tiles => substreams are "per tile"
+    const UInt ctuLine                  = ctuRsAddr / frameWidthInCtus;
+    const UInt startingSubstreamForTile =(tileYInCtus*numTileColumns) + (pTile->getTileHeightInCtus()*(tileIndex%numTileColumns));
+    subStrm = startingSubstreamForTile + (ctuLine - tileYInCtus);
   }
   else
   {
     // dependent tiles => substreams are "per frame".
-    uiSubStrm = 0;//uiLin % iNumSubstreams; // x modulo 1 = 0 !
+    subStrm = 0;
   }
-  return uiSubStrm;
+  return subStrm;
 }
 
 

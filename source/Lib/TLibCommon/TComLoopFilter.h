@@ -71,25 +71,25 @@ protected:
   // filtering functions
   Void xSetEdgefilterTU           ( TComTU &rTu );
   Void xSetEdgefilterPU           ( TComDataCU* pcCU, UInt uiAbsZorderIdx );
-  Void xGetBoundaryStrengthSingle ( TComDataCU* pcCU, DeblockEdgeDir edgeDir, UInt uiPartIdx );
-  UInt xCalcBsIdx                 ( TComDataCU* pcCU, UInt absCUIdxInLCU, DeblockEdgeDir edgeDir, Int iEdgeIdx, Int iBaseUnitIdx, const struct TComRectangle *rect=NULL )
+  Void xGetBoundaryStrengthSingle ( TComDataCU* pCtu, DeblockEdgeDir edgeDir, UInt uiPartIdx );
+  UInt xCalcBsIdx                 ( TComDataCU* pcCU, UInt absZIdxInCtu, DeblockEdgeDir edgeDir, Int iEdgeIdx, Int iBaseUnitIdx, const struct TComRectangle *rect=NULL )
   {
     TComPic* const pcPic = pcCU->getPic();
-    const UInt uiLCUWidthInBaseUnits = pcPic->getNumPartInWidth();
+    const UInt ctuWidthInBaseUnits = pcPic->getNumPartInCtuWidth();
     Int rasterOffsetTU=0;
     if (rect != NULL)
     {
       const UInt minCuWidth =pcPic->getMinCUWidth();
       const UInt minCuHeight=pcPic->getMinCUHeight();
-      rasterOffsetTU = rect->x0/minCuWidth + (rect->y0/minCuHeight)*uiLCUWidthInBaseUnits;
+      rasterOffsetTU = rect->x0/minCuWidth + (rect->y0/minCuHeight)*ctuWidthInBaseUnits;
     }
     if( edgeDir == EDGE_VER )
     {
-      return g_auiRasterToZscan[g_auiZscanToRaster[absCUIdxInLCU] + iBaseUnitIdx * uiLCUWidthInBaseUnits + iEdgeIdx + rasterOffsetTU ];
+      return g_auiRasterToZscan[g_auiZscanToRaster[absZIdxInCtu] + iBaseUnitIdx * ctuWidthInBaseUnits + iEdgeIdx + rasterOffsetTU ];
     }
     else
     {
-      return g_auiRasterToZscan[g_auiZscanToRaster[absCUIdxInLCU] + iEdgeIdx * uiLCUWidthInBaseUnits + iBaseUnitIdx + rasterOffsetTU ];
+      return g_auiRasterToZscan[g_auiZscanToRaster[absZIdxInCtu] + iEdgeIdx * ctuWidthInBaseUnits + iBaseUnitIdx + rasterOffsetTU ];
     }
   }
 

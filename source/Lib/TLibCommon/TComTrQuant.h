@@ -119,7 +119,7 @@ public:
                      const UInt             uiStride,
                            TCoeff        *  rpcCoeff,
 #if ADAPTIVE_QP_SELECTION
-                           TCoeff        *& rpcArlCoeff,
+                           TCoeff        * rpcArlCoeff,
 #endif
                            TCoeff         & uiAbsSum,
                      const QpParam        & cQP
@@ -128,7 +128,7 @@ public:
 
   Void invTransformNxN(      TComTU       & rTu,
                        const ComponentID    compID,
-                             Pel         *& rpcResidual,
+                             Pel         *pcResidual,
                        const UInt           uiStride,
                              TCoeff      *  pcCoeff,
                        const QpParam      & cQP
@@ -241,7 +241,7 @@ private:
                      TCoeff      * pSrc,
                      TCoeff      * pDes,
 #if ADAPTIVE_QP_SELECTION
-                     TCoeff      *&pArlDes,
+                     TCoeff      *pArlDes,
 #endif
                      TCoeff       &uiAbsSum,
                const ComponentID   compID,
@@ -253,7 +253,7 @@ private:
                                            TCoeff      * plSrcCoeff,
                                            TCoeff      * piDstCoeff,
 #if ADAPTIVE_QP_SELECTION
-                                           TCoeff      *&piArlDstCoeff,
+                                           TCoeff      *piArlDstCoeff,
 #endif
                                            TCoeff       &uiAbsSum,
                                      const ComponentID   compID,

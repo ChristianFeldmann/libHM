@@ -341,7 +341,7 @@ Void TEncEntropy::xEncodeTransform( Bool& bCodeDQP, Bool& codeChromaQpAdj, TComT
 
     if ( bHaveACodedBlock )
     {
-      // dQP: only for LCU once
+      // dQP: only for CTU once
       if ( pcCU->getSlice()->getPPS()->getUseDQP() )
       {
         if ( bCodeDQP )
@@ -444,7 +444,7 @@ Void TEncEntropy::encodePredInfo( TComDataCU* pcCU, UInt uiAbsPartIdx )
 
       if (enable4ChromaPUsInIntraNxNCU(pcCU->getPic()->getChromaFormat()) && pcCU->getPartitionSize( uiAbsPartIdx )==SIZE_NxN)
       {
-        UInt uiPartOffset = ( pcCU->getPic()->getNumPartInCU() >> ( pcCU->getDepth(uiAbsPartIdx) << 1 ) ) >> 2;
+        UInt uiPartOffset = ( pcCU->getPic()->getNumPartitionsInCtu() >> ( pcCU->getDepth(uiAbsPartIdx) << 1 ) ) >> 2;
         encodeIntraDirModeChroma( pcCU, uiAbsPartIdx + uiPartOffset   );
         encodeIntraDirModeChroma( pcCU, uiAbsPartIdx + uiPartOffset*2 );
         encodeIntraDirModeChroma( pcCU, uiAbsPartIdx + uiPartOffset*3 );

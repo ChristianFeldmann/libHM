@@ -205,27 +205,14 @@ Void TAppEncTop::xInitLibCfg()
   m_cTEncTop.setLog2ParallelMergeLevelMinus2                      ( m_log2ParallelMergeLevel - 2 );
 
   //====== Slice ========
-  m_cTEncTop.setSliceMode                                         ( m_sliceMode                );
+  m_cTEncTop.setSliceMode                                         ( (SliceConstraint) m_sliceMode );
   m_cTEncTop.setSliceArgument                                     ( m_sliceArgument            );
 
   //====== Dependent Slice ========
-  m_cTEncTop.setSliceSegmentMode                                  ( m_sliceSegmentMode         );
+  m_cTEncTop.setSliceSegmentMode                                  (  (SliceConstraint) m_sliceSegmentMode );
   m_cTEncTop.setSliceSegmentArgument                              ( m_sliceSegmentArgument     );
-  Int iNumPartInCU = 1<<(m_uiMaxCUDepth<<1);
-  if(m_sliceSegmentMode==FIXED_NUMBER_OF_LCU)
-  {
-    m_cTEncTop.setSliceSegmentArgument                            ( m_sliceSegmentArgument * iNumPartInCU );
-  }
-  if(m_sliceMode==FIXED_NUMBER_OF_LCU)
-  {
-    m_cTEncTop.setSliceArgument                                   ( m_sliceArgument * iNumPartInCU );
-  }
-  if(m_sliceMode==FIXED_NUMBER_OF_TILES)
-  {
-    m_cTEncTop.setSliceArgument                                   ( m_sliceArgument );
-  }
 
-  if(m_sliceMode == 0 )
+  if(m_sliceMode == NO_SLICES )
   {
     m_bLFCrossSliceBoundaryFlag = true;
   }
@@ -233,7 +220,7 @@ Void TAppEncTop::xInitLibCfg()
   m_cTEncTop.setUseSAO                                            ( m_bUseSAO );
   m_cTEncTop.setMaxNumOffsetsPerPic                               ( m_maxNumOffsetsPerPic);
 
-  m_cTEncTop.setSaoLcuBoundary                                    ( m_saoLcuBoundary);
+  m_cTEncTop.setSaoCtuBoundary                                    ( m_saoCtuBoundary);
   m_cTEncTop.setPCMInputBitDepthFlag                              ( m_bPCMInputBitDepthFlag);
   m_cTEncTop.setPCMFilterDisableFlag                              ( m_bPCMFilterDisableFlag);
 
@@ -296,7 +283,6 @@ Void TAppEncTop::xInitLibCfg()
   m_cTEncTop.setKneeSEIId                                         ( m_kneeSEIId );
   m_cTEncTop.setKneeSEICancelFlag                                 ( m_kneeSEICancelFlag );
   m_cTEncTop.setKneeSEIPersistenceFlag                            ( m_kneeSEIPersistenceFlag );
-  m_cTEncTop.setKneeSEIMappingFlag                                ( m_kneeSEIMappingFlag );
   m_cTEncTop.setKneeSEIInputDrange                                ( m_kneeSEIInputDrange );
   m_cTEncTop.setKneeSEIInputDispLuminance                         ( m_kneeSEIInputDispLuminance );
   m_cTEncTop.setKneeSEIOutputDrange                               ( m_kneeSEIOutputDrange );

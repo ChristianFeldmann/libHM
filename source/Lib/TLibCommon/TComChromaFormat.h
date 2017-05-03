@@ -126,9 +126,9 @@ static inline Bool enable4ChromaPUsInIntraNxNCU(const ChromaFormat chFmt)
 
 //returns the part index of the luma region that is co-located with the specified chroma region
 
-static inline UInt getChromasCorrespondingPULumaIdx(const UInt lumaLCUIdx, const ChromaFormat chFmt)
+static inline UInt getChromasCorrespondingPULumaIdx(const UInt lumaZOrderIdxInCtu, const ChromaFormat chFmt)
 {
-  return enable4ChromaPUsInIntraNxNCU(chFmt) ? lumaLCUIdx : lumaLCUIdx & (~((1<<(2*g_uiAddCUDepth))-1)); //(lumaLCUIdx/numParts)*numParts;
+  return enable4ChromaPUsInIntraNxNCU(chFmt) ? lumaZOrderIdxInCtu : lumaZOrderIdxInCtu & (~((1<<(2*g_uiAddCUDepth))-1)); //(lumaZOrderIdxInCtu/numParts)*numParts;
 }
 
 //------------------------------------------------

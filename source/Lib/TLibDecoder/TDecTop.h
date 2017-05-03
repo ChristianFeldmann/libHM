@@ -129,7 +129,7 @@ public:
 
   Void executeLoopFilters(Int& poc, TComList<TComPic*>*& rpcListPic);
 #if SETTING_NO_OUT_PIC_PRIOR  
-  Void  checkNoOutputPriorPics (TComList<TComPic*>*& rpcListPic);
+  Void  checkNoOutputPriorPics (TComList<TComPic*>* rpcListPic);
 
   Bool  getNoOutputPriorPicsFlag () { return m_isNoOutputPriorPics; }
   Void  setNoOutputPriorPicsFlag (Bool val) { m_isNoOutputPriorPics = val; }

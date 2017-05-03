@@ -882,7 +882,7 @@ Int TEncRCPic::getLCUEstQP( Double lambda, Int clipPicQP )
   return estQP;
 }
 
-Void TEncRCPic::updateAfterLCU( Int LCUIdx, Int bits, Int QP, Double lambda, Bool updateLCUParameter )
+Void TEncRCPic::updateAfterCTU( Int LCUIdx, Int bits, Int QP, Double lambda, Bool updateLCUParameter )
 {
   m_LCUs[LCUIdx].m_actualBits = bits;
   m_LCUs[LCUIdx].m_QP         = QP;

@@ -104,12 +104,12 @@ public:
   // ------------------------------------------------------------------------------------------------------------------
 
   //  Copy YUV buffer to picture buffer
-  Void         copyToPicYuv               ( TComPicYuv* pcPicYuvDst, const UInt iCuAddr, const UInt uiAbsZorderIdx, const UInt uiPartDepth = 0, const UInt uiPartIdx = 0 ) const ;
-  Void         copyToPicComponent         ( const ComponentID id, TComPicYuv* pcPicYuvDst, const UInt iCuAddr, const UInt uiAbsZorderIdx, const UInt uiPartDepth = 0, const UInt uiPartIdx = 0 ) const ;
+  Void         copyToPicYuv               ( TComPicYuv* pcPicYuvDst, const UInt ctuRsAddr, const UInt uiAbsZorderIdx, const UInt uiPartDepth = 0, const UInt uiPartIdx = 0 ) const ;
+  Void         copyToPicComponent         ( const ComponentID id, TComPicYuv* pcPicYuvDst, const UInt iCtuRsAddr, const UInt uiAbsZorderIdx, const UInt uiPartDepth = 0, const UInt uiPartIdx = 0 ) const ;
 
   //  Copy YUV buffer from picture buffer
-  Void         copyFromPicYuv             ( const TComPicYuv* pcPicYuvSrc, const  UInt iCuAddr, const UInt uiAbsZorderIdx );
-  Void         copyFromPicComponent       ( const ComponentID id, const TComPicYuv* pcPicYuvSrc, const UInt iCuAddr, const UInt uiAbsZorderIdx );
+  Void         copyFromPicYuv             ( const TComPicYuv* pcPicYuvSrc, const  UInt ctuRsAddr, const UInt uiAbsZorderIdx );
+  Void         copyFromPicComponent       ( const ComponentID id, const TComPicYuv* pcPicYuvSrc, const UInt iCtuRsAddr, const UInt uiAbsZorderIdx );
 
   //  Copy Small YUV buffer to the part of other Big YUV buffer
   Void         copyToPartYuv              ( TComYuv*    pcYuvDst,    const UInt uiDstPartIdx ) const ;

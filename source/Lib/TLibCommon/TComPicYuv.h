@@ -60,26 +60,23 @@ private:
   //  YUV buffer
   // ------------------------------------------------------------------------------------------------
 
-  Pel*  m_apiPicBuf[MAX_NUM_COMPONENT];           ///< Buffer (including margin)
+  Pel*  m_apiPicBuf[MAX_NUM_COMPONENT];             ///< Buffer (including margin)
 
-  Pel*  m_piPicOrg[MAX_NUM_COMPONENT];            ///< m_apiPicBufY + m_iMarginLuma*getStride() + m_iMarginLuma
+  Pel*  m_piPicOrg[MAX_NUM_COMPONENT];              ///< m_apiPicBufY + m_iMarginLuma*getStride() + m_iMarginLuma
 
   // ------------------------------------------------------------------------------------------------
   //  Parameter for general YUV buffer usage
   // ------------------------------------------------------------------------------------------------
 
-  Int   m_iPicWidth;            ///< Width of picture
-  Int   m_iPicHeight;           ///< Height of picture
-  ChromaFormat m_chromaFormatIDC; ////< Chroma Format
+  Int   m_iPicWidth;                                ///< Width of picture in pixels
+  Int   m_iPicHeight;                               ///< Height of picture in pixels
+  ChromaFormat m_chromaFormatIDC;                   ///< Chroma Format
 
-  Int   m_iLcuWidth;             ///< Width of Largest Coding Unit (LCU)
-  Int   m_iLcuHeight;            ///< Height of Largest Coding Unit (LCU)
+  Int*  m_ctuOffsetInBuffer[MAX_NUM_CHANNEL_TYPE];  ///< Gives an offset in the buffer for a given CTU (and channel)
+  Int*  m_subCuOffsetInBuffer[MAX_NUM_CHANNEL_TYPE];///< Gives an offset in the buffer for a given sub-CU (and channel), relative to start of CTU
 
-  Int*  m_cuOffset[MAX_NUM_CHANNEL_TYPE];
-  Int*  m_buOffset[MAX_NUM_CHANNEL_TYPE];
-
-  Int   m_iMarginX; // margin of Luma channel (chroma's may be smaller, depending on ratio)
-  Int   m_iMarginY; // margin of Luma channel (chroma's may be smaller, depending on ratio)
+  Int   m_iMarginX;                                 ///< margin of Luma channel (chroma's may be smaller, depending on ratio)
+  Int   m_iMarginY;                                 ///< margin of Luma channel (chroma's may be smaller, depending on ratio)
 
   Bool  m_bIsBorderExtended;
 
@@ -131,12 +128,12 @@ public:
   const Pel*    getAddr           (const ComponentID ch) const { return  m_piPicOrg[ch];   }
 
   //  Access starting position of original picture for specific coding unit (CU) or partition unit (PU)
-  Pel*          getAddr           (const ComponentID ch, const Int iLCuAddr )       { return m_piPicOrg[ch] + m_cuOffset[ch==0?0:1][ iLCuAddr ]; }
-  const Pel*    getAddr           (const ComponentID ch, const Int iLCuAddr ) const { return m_piPicOrg[ch] + m_cuOffset[ch==0?0:1][ iLCuAddr ]; }
-  Pel*          getAddr           (const ComponentID ch, const Int iLCuAddr, const Int uiAbsZorderIdx )
-                                     { return m_piPicOrg[ch] + m_cuOffset[ch==0?0:1][iLCuAddr] + m_buOffset[ch==0?0:1][g_auiZscanToRaster[uiAbsZorderIdx]]; }
-  const Pel*    getAddr           (const ComponentID ch, const Int iLCuAddr, const Int uiAbsZorderIdx ) const
-                                     { return m_piPicOrg[ch] + m_cuOffset[ch==0?0:1][iLCuAddr] + m_buOffset[ch==0?0:1][g_auiZscanToRaster[uiAbsZorderIdx]]; }
+  Pel*          getAddr           (const ComponentID ch, const Int ctuRSAddr )       { return m_piPicOrg[ch] + m_ctuOffsetInBuffer[ch==0?0:1][ ctuRSAddr ]; }
+  const Pel*    getAddr           (const ComponentID ch, const Int ctuRSAddr ) const { return m_piPicOrg[ch] + m_ctuOffsetInBuffer[ch==0?0:1][ ctuRSAddr ]; }
+  Pel*          getAddr           (const ComponentID ch, const Int ctuRSAddr, const Int uiAbsZorderIdx )
+                                     { return m_piPicOrg[ch] + m_ctuOffsetInBuffer[ch==0?0:1][ctuRSAddr] + m_subCuOffsetInBuffer[ch==0?0:1][g_auiZscanToRaster[uiAbsZorderIdx]]; }
+  const Pel*    getAddr           (const ComponentID ch, const Int ctuRSAddr, const Int uiAbsZorderIdx ) const
+                                     { return m_piPicOrg[ch] + m_ctuOffsetInBuffer[ch==0?0:1][ctuRSAddr] + m_subCuOffsetInBuffer[ch==0?0:1][g_auiZscanToRaster[uiAbsZorderIdx]]; }
 
   UInt          getComponentScaleX(const ComponentID id) const { return ::getComponentScaleX(id, m_chromaFormatIDC); }
   UInt          getComponentScaleY(const ComponentID id) const { return ::getComponentScaleY(id, m_chromaFormatIDC); }

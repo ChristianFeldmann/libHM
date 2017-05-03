@@ -697,7 +697,7 @@ Void TEncSbac::codeIntraDirLumaAng( TComDataCU* pcCU, UInt absPartIdx, Bool isMu
   Int predNum[4], predIdx[4] ={ -1,-1,-1,-1};
   PartSize mode = pcCU->getPartitionSize( absPartIdx );
   UInt partNum = isMultiple?(mode==SIZE_NxN?4:1):1;
-  UInt partOffset = ( pcCU->getPic()->getNumPartInCU() >> ( pcCU->getDepth(absPartIdx) << 1 ) ) >> 2;
+  UInt partOffset = ( pcCU->getPic()->getNumPartitionsInCtu() >> ( pcCU->getDepth(absPartIdx) << 1 ) ) >> 2;
   for (j=0;j<partNum;j++)
   {
     dir[j] = pcCU->getIntraDir( CHANNEL_TYPE_LUMA, absPartIdx+partOffset*j );
@@ -1887,8 +1887,8 @@ Void TEncSbac::estSignificantMapBit( estBitsSbacStruct* pcEstBitsSbac, Int width
       }
     }
 
-    //NOTE: RExt - This could be made optional, but would require this function to have knowledge of whether the
-    //             TU is transform-skipped or transquant-bypassed and whether the SPS flag is set
+    // This could be made optional, but would require this function to have knowledge of whether the
+    // TU is transform-skipped or transquant-bypassed and whether the SPS flag is set
     for( UInt bin = 0; bin < 2; bin++ )
     {
       const Int ctxIdx = significanceMapContextSetStart[chType][CONTEXT_TYPE_SINGLE];

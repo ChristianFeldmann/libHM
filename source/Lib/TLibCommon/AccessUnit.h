@@ -59,7 +59,7 @@
  * The AccessUnit owns all pointers stored within.  Destroying the
  * AccessUnit will delete all contained objects.
  */
-class AccessUnit : public std::list<NALUnitEBSP*>
+class AccessUnit : public std::list<NALUnitEBSP*> // NOTE: Should not inherit from STL.
 {
 public:
   ~AccessUnit()

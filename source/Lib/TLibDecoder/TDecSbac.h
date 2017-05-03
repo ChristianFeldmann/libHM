@@ -80,7 +80,7 @@ public:
   Void  parseSPS                  ( TComSPS* /*pcSPS*/ ) {}
   Void  parsePPS                  ( TComPPS* /*pcPPS*/ ) {}
 
-  Void  parseSliceHeader          ( TComSlice*& /*rpcSlice*/, ParameterSetManagerDecoder* /*parameterSetManager*/) {}
+  Void  parseSliceHeader          ( TComSlice* /*pcSlice*/, ParameterSetManagerDecoder* /*parameterSetManager*/) {}
   Void  parseTerminatingBit       ( UInt& ruiBit );
   Void  parseMVPIdx               ( Int& riMVPIdx          );
   Void  parseSaoMaxUvlc           ( UInt& val, UInt maxSymbol );

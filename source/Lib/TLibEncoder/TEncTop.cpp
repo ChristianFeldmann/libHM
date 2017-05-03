@@ -106,7 +106,7 @@ Void TEncTop::create ()
   {
     m_cEncSAO.create( getSourceWidth(), getSourceHeight(), m_chromaFormatIDC, g_uiMaxCUWidth, g_uiMaxCUHeight, g_uiMaxCUDepth, m_saoOffsetBitShift[CHANNEL_TYPE_LUMA], m_saoOffsetBitShift[CHANNEL_TYPE_CHROMA] );
 #if SAO_ENCODE_ALLOW_USE_PREDEBLOCK
-    m_cEncSAO.createEncData(getSaoLcuBoundary());
+    m_cEncSAO.createEncData(getSaoCtuBoundary());
 #else
     m_cEncSAO.createEncData();
 #endif
@@ -789,7 +789,7 @@ Void TEncTop::xInitPPS()
   m_cPPS.setUseTransformSkip( m_useTransformSkip );
   m_cPPS.setTransformSkipLog2MaxSize( m_transformSkipLog2MaxSize  );
 
-  if (m_sliceSegmentMode)
+  if (m_sliceSegmentMode != NO_SLICES)
   {
     m_cPPS.setDependentSliceSegmentsEnabledFlag( true );
   }

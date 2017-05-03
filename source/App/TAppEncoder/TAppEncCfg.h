@@ -172,7 +172,7 @@ protected:
   // coding tool (SAO)
   Bool      m_bUseSAO;
   Int       m_maxNumOffsetsPerPic;                            ///< SAO maximun number of offset per picture
-  Bool      m_saoLcuBoundary;                                 ///< SAO parameter estimation using non-deblocked pixels for LCU bottom and right boundary areas
+  Bool      m_saoCtuBoundary;                                 ///< SAO parameter estimation using non-deblocked pixels for CTU bottom and right boundary areas
   // coding tools (loop filter)
   Bool      m_bLoopFilterDisable;                             ///< flag for using deblocking filter
   Bool      m_loopFilterOffsetInPPS;                         ///< offset for deblocking filter in 0 = slice header, 1 = PPS
@@ -280,7 +280,6 @@ protected:
   Int       m_kneeSEIId;
   Bool      m_kneeSEICancelFlag;
   Bool      m_kneeSEIPersistenceFlag;
-  Bool      m_kneeSEIMappingFlag;
   Int       m_kneeSEIInputDrange;
   Int       m_kneeSEIInputDispLuminance;
   Int       m_kneeSEIOutputDrange;
@@ -300,8 +299,8 @@ protected:
   Bool      m_RCEnableRateControl;                ///< enable rate control or not
   Int       m_RCTargetBitrate;                    ///< target bitrate when rate control is enabled
   Int       m_RCKeepHierarchicalBit;              ///< 0: equal bit allocation; 1: fixed ratio bit allocation; 2: adaptive ratio bit allocation
-  Bool      m_RCLCULevelRC;                       ///< true: LCU level rate control; false: picture level rate control
-  Bool      m_RCUseLCUSeparateModel;              ///< use separate R-lambda model at LCU level
+  Bool      m_RCLCULevelRC;                       ///< true: LCU level rate control; false: picture level rate control NOTE: code-tidy - rename to m_RCCtuLevelRC
+  Bool      m_RCUseLCUSeparateModel;              ///< use separate R-lambda model at LCU level                        NOTE: code-tidy - rename to m_RCUseCtuSeparateModel
   Int       m_RCInitialQP;                        ///< inital QP for rate control
   Bool      m_RCForceIntraQP;                     ///< force all intra picture to use initial QP or not
   Int       m_useScalingListId;                               ///< using quantization matrix

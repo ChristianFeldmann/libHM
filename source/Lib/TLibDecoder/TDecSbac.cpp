@@ -670,7 +670,7 @@ Void TDecSbac::parseIntraDirLumaAng  ( TComDataCU* pcCU, UInt absPartIdx, UInt d
 {
   PartSize mode = pcCU->getPartitionSize( absPartIdx );
   UInt partNum = mode==SIZE_NxN?4:1;
-  UInt partOffset = ( pcCU->getPic()->getNumPartInCU() >> ( pcCU->getDepth(absPartIdx) << 1 ) ) >> 2;
+  UInt partOffset = ( pcCU->getPic()->getNumPartitionsInCtu() >> ( pcCU->getDepth(absPartIdx) << 1 ) ) >> 2;
   UInt mpmPred[4],symbol;
   Int j,intraPredMode;
   if (mode==SIZE_NxN)

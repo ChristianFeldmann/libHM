@@ -107,7 +107,8 @@ public:
   TComPicSym*   getPicSym()           { return  m_apcPicSym;    }
   TComSlice*    getSlice(Int i)       { return  m_apcPicSym->getSlice(i);  }
   Int           getPOC() const        { return  m_apcPicSym->getSlice(m_uiCurrSliceIdx)->getPOC();  }
-  TComDataCU*&  getCU( UInt uiCUAddr )  { return  m_apcPicSym->getCU( uiCUAddr ); }
+  TComDataCU*   getCtu( UInt ctuRsAddr )           { return  m_apcPicSym->getCtu( ctuRsAddr ); }
+  const TComDataCU* getCtu( UInt ctuRsAddr ) const { return  m_apcPicSym->getCtu( ctuRsAddr ); }
 
   TComPicYuv*   getPicYuvOrg()        { return  m_apcPicYuv[PIC_YUV_ORG]; }
   TComPicYuv*   getPicYuvRec()        { return  m_apcPicYuv[PIC_YUV_REC]; }
@@ -117,17 +118,14 @@ public:
   Void          setPicYuvPred( TComPicYuv* pcPicYuv )       { m_pcPicYuvPred = pcPicYuv; }
   Void          setPicYuvResi( TComPicYuv* pcPicYuv )       { m_pcPicYuvResi = pcPicYuv; }
 
-  UInt          getNumCUsInFrame() const     { return m_apcPicSym->getNumberOfCUsInFrame(); }
-  UInt          getNumPartInWidth() const    { return m_apcPicSym->getNumPartInWidth();     }
-  UInt          getNumPartInHeight() const   { return m_apcPicSym->getNumPartInHeight();    }
-  UInt          getNumPartInCU() const       { return m_apcPicSym->getNumPartition();       }
-  UInt          getFrameWidthInCU() const    { return m_apcPicSym->getFrameWidthInCU();     }
-  UInt          getFrameHeightInCU() const   { return m_apcPicSym->getFrameHeightInCU();    }
-  UInt          getMinCUWidth() const        { return m_apcPicSym->getMinCUWidth();         }
-  UInt          getMinCUHeight() const       { return m_apcPicSym->getMinCUHeight();        }
-
-  UInt          getParPelX(UChar uhPartIdx) const { return getParPelX(uhPartIdx); }
-  UInt          getParPelY(UChar uhPartIdx) const { return getParPelX(uhPartIdx); }
+  UInt          getNumberOfCtusInFrame() const     { return m_apcPicSym->getNumberOfCtusInFrame(); }
+  UInt          getNumPartInCtuWidth() const       { return m_apcPicSym->getNumPartInCtuWidth();   }
+  UInt          getNumPartInCtuHeight() const      { return m_apcPicSym->getNumPartInCtuHeight();  }
+  UInt          getNumPartitionsInCtu() const      { return m_apcPicSym->getNumPartitionsInCtu();  }
+  UInt          getFrameWidthInCtus() const        { return m_apcPicSym->getFrameWidthInCtus();    }
+  UInt          getFrameHeightInCtus() const       { return m_apcPicSym->getFrameHeightInCtus();   }
+  UInt          getMinCUWidth() const              { return m_apcPicSym->getMinCUWidth();          }
+  UInt          getMinCUHeight() const             { return m_apcPicSym->getMinCUHeight();         }
 
   Int           getStride(const ComponentID id) const          { return m_apcPicYuv[PIC_YUV_REC]->getStride(id); }
   Int           getComponentScaleX(const ComponentID id) const    { return m_apcPicYuv[PIC_YUV_REC]->getComponentScaleX(id); }
@@ -155,7 +153,7 @@ public:
 
   Bool          getSAOMergeAvailability(Int currAddr, Int mergeAddr);
 
-  UInt          getSubstreamForLCUAddr(const UInt uiLCUAddr, const Bool bAddressInRaster, TComSlice *pcSlice);
+  UInt          getSubstreamForCtuAddr(const UInt ctuAddr, const Bool bAddressInRaster, TComSlice *pcSlice);
 
   /* field coding parameters*/
 

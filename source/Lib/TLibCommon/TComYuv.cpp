@@ -95,19 +95,19 @@ Void TComYuv::clear()
 
 
 
-Void TComYuv::copyToPicYuv   ( TComPicYuv* pcPicYuvDst, const UInt iCuAddr, const UInt uiAbsZorderIdx, const UInt uiPartDepth, const UInt uiPartIdx ) const
+Void TComYuv::copyToPicYuv   ( TComPicYuv* pcPicYuvDst, const UInt ctuRsAddr, const UInt uiAbsZorderIdx, const UInt uiPartDepth, const UInt uiPartIdx ) const
 {
   for(Int ch=0; ch<getNumberValidComponents(); ch++)
-    copyToPicComponent  ( ComponentID(ch), pcPicYuvDst, iCuAddr, uiAbsZorderIdx, uiPartDepth, uiPartIdx );
+    copyToPicComponent  ( ComponentID(ch), pcPicYuvDst, ctuRsAddr, uiAbsZorderIdx, uiPartDepth, uiPartIdx );
 }
 
-Void TComYuv::copyToPicComponent  ( const ComponentID ch, TComPicYuv* pcPicYuvDst, const UInt iCuAddr, const UInt uiAbsZorderIdx, const UInt uiPartDepth, const UInt uiPartIdx ) const
+Void TComYuv::copyToPicComponent  ( const ComponentID ch, TComPicYuv* pcPicYuvDst, const UInt ctuRsAddr, const UInt uiAbsZorderIdx, const UInt uiPartDepth, const UInt uiPartIdx ) const
 {
   const Int iWidth  = getWidth(ch) >>uiPartDepth;
   const Int iHeight = getHeight(ch)>>uiPartDepth;
 
   const Pel* pSrc     = getAddr(ch, uiPartIdx, iWidth);
-        Pel* pDst     = pcPicYuvDst->getAddr ( ch, iCuAddr, uiAbsZorderIdx );
+        Pel* pDst     = pcPicYuvDst->getAddr ( ch, ctuRsAddr, uiAbsZorderIdx );
 
   const UInt  iSrcStride  = getStride(ch);
   const UInt  iDstStride  = pcPicYuvDst->getStride(ch);
@@ -123,16 +123,16 @@ Void TComYuv::copyToPicComponent  ( const ComponentID ch, TComPicYuv* pcPicYuvDs
 
 
 
-Void TComYuv::copyFromPicYuv   ( const TComPicYuv* pcPicYuvSrc, const UInt iCuAddr, const UInt uiAbsZorderIdx )
+Void TComYuv::copyFromPicYuv   ( const TComPicYuv* pcPicYuvSrc, const UInt ctuRsAddr, const UInt uiAbsZorderIdx )
 {
   for(Int ch=0; ch<getNumberValidComponents(); ch++)
-    copyFromPicComponent  ( ComponentID(ch), pcPicYuvSrc, iCuAddr, uiAbsZorderIdx );
+    copyFromPicComponent  ( ComponentID(ch), pcPicYuvSrc, ctuRsAddr, uiAbsZorderIdx );
 }
 
-Void TComYuv::copyFromPicComponent  ( const ComponentID ch, const TComPicYuv* pcPicYuvSrc, const UInt iCuAddr, const UInt uiAbsZorderIdx )
+Void TComYuv::copyFromPicComponent  ( const ComponentID ch, const TComPicYuv* pcPicYuvSrc, const UInt ctuRsAddr, const UInt uiAbsZorderIdx )
 {
         Pel* pDst     = getAddr(ch);
-  const Pel* pSrc     = pcPicYuvSrc->getAddr ( ch, iCuAddr, uiAbsZorderIdx );
+  const Pel* pSrc     = pcPicYuvSrc->getAddr ( ch, ctuRsAddr, uiAbsZorderIdx );
 
   const UInt iDstStride  = getStride(ch);
   const UInt iSrcStride  = pcPicYuvSrc->getStride(ch);

@@ -50,7 +50,7 @@
 // Macros
 // ====================================================================================================================
 
-#define     MAX_CU_DEPTH             6                          // log2(LCUSize)
+#define     MAX_CU_DEPTH             6                          // log2(CTUSize)
 #define     MAX_CU_SIZE             (1<<(MAX_CU_DEPTH))         // maximum allowable size of CU, surely 64? (not 1<<7 = 128)
 #define     MIN_PU_SIZE              4
 #define     MIN_TU_SIZE              4
@@ -84,7 +84,7 @@ extern       UInt   g_auiRasterToPelY[ MAX_NUM_SPU_W*MAX_NUM_SPU_W ];
 
 Void         initRasterToPelXY ( UInt uiMaxCUWidth, UInt uiMaxCUHeight, UInt uiMaxDepth );
 
-// global variable (LCU width/height, max. CU depth)
+// global variable (CTU width/height, max. CU depth)
 extern       UInt g_uiMaxCUWidth;
 extern       UInt g_uiMaxCUHeight;
 extern       UInt g_uiMaxCUDepth;

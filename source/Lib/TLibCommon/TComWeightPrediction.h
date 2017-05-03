@@ -84,7 +84,7 @@ public:
                                 const Int                   iWidth,
                                 const Int                   iHeight,
                                 const RefPicList            eRefPicList,
-                                      TComYuv             *&rpcYuvPred,
+                                      TComYuv              *pcYuvPred,
                                 const Int                   iRefIdx=-1 );
 
   Void  xWeightedPredictionBi(        TComDataCU     *const pcCU,
@@ -95,7 +95,7 @@ public:
                                 const UInt                  uiPartIdx,
                                 const Int                   iWidth,
                                 const Int                   iHeight,
-                                      TComYuv              *rpcYuvDst );
+                                      TComYuv              *pcYuvDst );
 };
 
 #endif

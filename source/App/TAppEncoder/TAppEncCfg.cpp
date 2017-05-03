@@ -797,13 +797,13 @@ Bool TAppEncCfg::parseCfg( Int argc, Char* argv[] )
   ("AlignCABACBeforeBypass",                          m_alignCABACBeforeBypass,                         false, "Align the CABAC engine to a defined fraction of a bit prior to coding bypass data. Must be 1 in high bit rate profile, 0 otherwise" )
   ("SAO",                                             m_bUseSAO,                                         true, "Enable Sample Adaptive Offset")
   ("MaxNumOffsetsPerPic",                             m_maxNumOffsetsPerPic,                             2048, "Max number of SAO offset per picture (Default: 2048)")
-  ("SAOLcuBoundary",                                  m_saoLcuBoundary,                                 false, "0: right/bottom LCU boundary areas skipped from SAO parameter estimation, 1: non-deblocked pixels are used for those areas")
-  ("SliceMode",                                       m_sliceMode,                                          0, "0: Disable all Recon slice limits, 1: Enforce max # of LCUs, 2: Enforce max # of bytes, 3:specify tiles per dependent slice")
+  ("SAOLcuBoundary",                                  m_saoCtuBoundary,                                 false, "0: right/bottom CTU boundary areas skipped from SAO parameter estimation, 1: non-deblocked pixels are used for those areas")
+  ("SliceMode",                                       m_sliceMode,                                          0, "0: Disable all Recon slice limits, 1: Enforce max # of CTUs, 2: Enforce max # of bytes, 3:specify tiles per dependent slice")
   ("SliceArgument",                                   m_sliceArgument,                                      0, "Depending on SliceMode being:"
                                                                                                                "\t1: max number of CTUs per slice"
                                                                                                                "\t2: max number of bytes per slice"
                                                                                                                "\t3: max number of tiles per slice")
-  ("SliceSegmentMode",                                m_sliceSegmentMode,                                   0, "0: Disable all slice segment limits, 1: Enforce max # of LCUs, 2: Enforce max # of bytes, 3:specify tiles per dependent slice")
+  ("SliceSegmentMode",                                m_sliceSegmentMode,                                   0, "0: Disable all slice segment limits, 1: Enforce max # of CTUs, 2: Enforce max # of bytes, 3:specify tiles per dependent slice")
   ("SliceSegmentArgument",                            m_sliceSegmentArgument,                               0, "Depending on SliceSegmentMode being:"
                                                                                                                "\t1: max number of CTUs per slice segment"
                                                                                                                "\t2: max number of bytes per slice segment"
@@ -829,12 +829,12 @@ Bool TAppEncCfg::parseCfg( Int argc, Char* argv[] )
   ("TileUniformSpacing",                              m_tileUniformSpacingFlag,                         false,      "Indicates that tile columns and rows are distributed uniformly")
   ("NumTileColumnsMinus1",                            m_numTileColumnsMinus1,                               0,          "Number of tile columns in a picture minus 1")
   ("NumTileRowsMinus1",                               m_numTileRowsMinus1,                                  0,          "Number of rows in a picture minus 1")
-  ("TileColumnWidthArray",                            cfg_ColumnWidth,                        cfg_ColumnWidth, "Array containing tile column width values in units of LCU")
-  ("TileRowHeightArray",                              cfg_RowHeight,                            cfg_RowHeight, "Array containing tile row height values in units of LCU")
+  ("TileColumnWidthArray",                            cfg_ColumnWidth,                        cfg_ColumnWidth, "Array containing tile column width values in units of CTU")
+  ("TileRowHeightArray",                              cfg_RowHeight,                            cfg_RowHeight, "Array containing tile row height values in units of CTU")
   ("LFCrossTileBoundaryFlag",                         m_bLFCrossTileBoundaryFlag,                        true, "1: cross-tile-boundary loop filtering. 0:non-cross-tile-boundary loop filtering")
-  ("WaveFrontSynchro",                                m_iWaveFrontSynchro,                                  0, "0: no synchro; 1 synchro with TR; 2 TRR etc")
+  ("WaveFrontSynchro",                                m_iWaveFrontSynchro,                                  0, "0: no synchro; 1 synchro with top-right-right")
   ("ScalingList",                                     m_useScalingListId,                                   0, "0: no scaling list, 1: default scaling lists, 2: scaling lists specified in ScalingListFile")
-  ("ScalingListFile",                                 cfg_ScalingListFile,                         string(""), "Scaling list file name")
+  ("ScalingListFile",                                 cfg_ScalingListFile,                         string(""), "Scaling list file name. Use an empty string to produce help.")
   ("SignHideFlag,-SBH",                               m_signHideFlag,                                       1)
   ("MaxNumMergeCand",                                 m_maxNumMergeCand,                                   5u, "Maximum number of merge candidates")
   /* Misc. */
@@ -853,8 +853,8 @@ Bool TAppEncCfg::parseCfg( Int argc, Char* argv[] )
   ( "RateControl",                                    m_RCEnableRateControl,                            false, "Rate control: enable rate control" )
   ( "TargetBitrate",                                  m_RCTargetBitrate,                                    0, "Rate control: target bit-rate" )
   ( "KeepHierarchicalBit",                            m_RCKeepHierarchicalBit,                              0, "Rate control: 0: equal bit allocation; 1: fixed ratio bit allocation; 2: adaptive ratio bit allocation" )
-  ( "LCULevelRateControl",                            m_RCLCULevelRC,                                    true, "Rate control: true: LCU level RC; false: picture level RC" )
-  ( "RCLCUSeparateModel",                             m_RCUseLCUSeparateModel,                           true, "Rate control: use LCU level separate R-lambda model" )
+  ( "LCULevelRateControl",                            m_RCLCULevelRC,                                    true, "Rate control: true: CTU level RC; false: picture level RC" )
+  ( "RCLCUSeparateModel",                             m_RCUseLCUSeparateModel,                           true, "Rate control: use CTU level separate R-lambda model" )
   ( "InitialQP",                                      m_RCInitialQP,                                        0, "Rate control: initial QP" )
   ( "RCForceIntraQP",                                 m_RCForceIntraQP,                                 false, "Rate control: force intra QP to be equal to initial QP" )
 
@@ -943,9 +943,6 @@ Bool TAppEncCfg::parseCfg( Int argc, Char* argv[] )
                                                                                                                "\t2: Standards-defined - ITU-T Rec. T.800 | ISO/IEC15444-1, 5/3 filter")
   ("SEIFramePacking",                                 m_framePackingSEIEnabled,                             0, "Control generation of frame packing SEI messages")
   ("SEIFramePackingType",                             m_framePackingSEIType,                                0, "Define frame packing arrangement\n"
-                                                                                                               "\t0: checkerboard - pixels alternatively represent either frames\n"
-                                                                                                               "\t1: column alternation - frames are interlaced by column\n"
-                                                                                                               "\t2: row alternation - frames are interlaced by row\n"
                                                                                                                "\t3: side by side - frames are displayed horizontally\n"
                                                                                                                "\t4: top bottom - frames are displayed vertically\n"
                                                                                                                "\t5: frame alternation - one frame is alternated with the other")
@@ -992,7 +989,6 @@ Bool TAppEncCfg::parseCfg( Int argc, Char* argv[] )
   ("SEIKneeFunctionId",                               m_kneeSEIId,                                          0, "Specifies Id of Knee function SEI message for a given session")
   ("SEIKneeFunctionCancelFlag",                       m_kneeSEICancelFlag,                              false, "Indicates that Knee function SEI message cancels the persistence or follows")
   ("SEIKneeFunctionPersistenceFlag",                  m_kneeSEIPersistenceFlag,                          true, "Specifies the persistence of the Knee function SEI message")
-  ("SEIKneeFunctionMappingFlag",                      m_kneeSEIMappingFlag,                             false, "Specifies the mapping mode of the Knee function SEI message")
   ("SEIKneeFunctionInputDrange",                      m_kneeSEIInputDrange,                              1000, "Specifies the peak luminance level for the input picture of Knee function SEI messages")
   ("SEIKneeFunctionInputDispLuminance",               m_kneeSEIInputDispLuminance,                        100, "Specifies the expected display brightness for the input picture of Knee function SEI messages")
   ("SEIKneeFunctionOutputDrange",                     m_kneeSEIOutputDrange,                             4000, "Specifies the peak luminance level for the output picture of Knee function SEI messages")
@@ -2058,7 +2054,7 @@ Void TAppEncCfg::xCheckParameter()
     {
       m_minSpatialSegmentationIdc = 4*PicSizeInSamplesY/((2*m_iSourceHeight+m_iSourceWidth)*m_uiMaxCUHeight)-4;
     }
-    else if(m_sliceMode == 1)
+    else if(m_sliceMode == FIXED_NUMBER_OF_CTU)
     {
       m_minSpatialSegmentationIdc = 4*PicSizeInSamplesY/(m_sliceArgument*m_uiMaxCUWidth*m_uiMaxCUHeight)-4;
     }
@@ -2095,6 +2091,7 @@ Void TAppEncCfg::xCheckParameter()
       if ( i > 0 )
       {
         xConfirmPara( m_kneeSEIInputKneePoint[i-1] >= m_kneeSEIInputKneePoint[i],  "The i-th SEIKneeFunctionInputKneePointValue must be greater than the (i-1)-th value");
+        xConfirmPara( m_kneeSEIOutputKneePoint[i-1] > m_kneeSEIOutputKneePoint[i],  "The i-th SEIKneeFunctionOutputKneePointValue must be greater than or equal to the (i-1)-th value");
       }
     }
   }
@@ -2309,12 +2306,12 @@ Void TAppEncCfg::xPrintParameter()
   printf("TransformSkipFast:%d ", m_useTransformSkipFast       );
   printf("TransformSkipLog2MaxSize:%d ", m_transformSkipLog2MaxSize);
   printf("Slice: M=%d ", m_sliceMode);
-  if (m_sliceMode!=0)
+  if (m_sliceMode!=NO_SLICES)
   {
     printf("A=%d ", m_sliceArgument);
   }
   printf("SliceSegment: M=%d ",m_sliceSegmentMode);
-  if (m_sliceSegmentMode!=0)
+  if (m_sliceSegmentMode!=NO_SLICES)
   {
     printf("A=%d ", m_sliceSegmentArgument);
   }

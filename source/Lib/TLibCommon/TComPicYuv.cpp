@@ -61,8 +61,8 @@ TComPicYuv::TComPicYuv()
 
   for(UInt i=0; i<MAX_NUM_CHANNEL_TYPE; i++)
   {
-    m_cuOffset[i]=0;
-    m_buOffset[i]=0;
+    m_ctuOffsetInBuffer[i]=0;
+    m_subCuOffsetInBuffer[i]=0;
   }
 
   m_bIsBorderExtended = false;
@@ -83,8 +83,6 @@ Void TComPicYuv::create( const Int  iPicWidth,    const  Int iPicHeight,    cons
 {
   m_iPicWidth         = iPicWidth;
   m_iPicHeight        = iPicHeight;
-  m_iLcuWidth         = uiMaxCUWidth;
-  m_iLcuHeight        = uiMaxCUHeight;
   m_chromaFormatIDC   = chromaFormatIDC;
   m_iMarginX          = g_uiMaxCUWidth  + 16; // for 16-byte alignment
   m_iMarginY          = g_uiMaxCUHeight + 16;  // margin for 8-tap filter and infinite padding
@@ -107,30 +105,30 @@ Void TComPicYuv::create( const Int  iPicWidth,    const  Int iPicHeight,    cons
   }
 
 
-  const Int numCuInWidth  = m_iPicWidth  / m_iLcuWidth  + (m_iPicWidth  % m_iLcuWidth  != 0);
-  const Int numCuInHeight = m_iPicHeight / m_iLcuHeight + (m_iPicHeight % m_iLcuHeight != 0);
+  const Int numCuInWidth  = m_iPicWidth  / uiMaxCUWidth  + (m_iPicWidth  % uiMaxCUWidth  != 0);
+  const Int numCuInHeight = m_iPicHeight / uiMaxCUHeight + (m_iPicHeight % uiMaxCUHeight != 0);
   for(Int chan=0; chan<2; chan++)
   {
     const ComponentID ch=ComponentID(chan);
-    const Int lcuHeight=m_iLcuHeight>>getComponentScaleY(ch);
-    const Int lcuWidth=m_iLcuWidth>>getComponentScaleX(ch);
+    const Int ctuHeight=uiMaxCUHeight>>getComponentScaleY(ch);
+    const Int ctuWidth=uiMaxCUWidth>>getComponentScaleX(ch);
     const Int stride = getStride(ch);
 
-    m_cuOffset[chan] = new Int[numCuInWidth * numCuInHeight];
+    m_ctuOffsetInBuffer[chan] = new Int[numCuInWidth * numCuInHeight];
 
     for (Int cuRow = 0; cuRow < numCuInHeight; cuRow++)
       for (Int cuCol = 0; cuCol < numCuInWidth; cuCol++)
-        m_cuOffset[chan][cuRow * numCuInWidth + cuCol] = stride * cuRow * lcuHeight + cuCol * lcuWidth;
+        m_ctuOffsetInBuffer[chan][cuRow * numCuInWidth + cuCol] = stride * cuRow * ctuHeight + cuCol * ctuWidth;
 
-    m_buOffset[chan] = new Int[(size_t)1 << (2 * uiMaxCUDepth)];
+    m_subCuOffsetInBuffer[chan] = new Int[(size_t)1 << (2 * uiMaxCUDepth)];
 
     const Int numSubBlockPartitions=(1<<uiMaxCUDepth);
-    const Int minSubBlockHeight    =(lcuHeight >> uiMaxCUDepth);
-    const Int minSubBlockWidth     =(lcuWidth  >> uiMaxCUDepth);
+    const Int minSubBlockHeight    =(ctuHeight >> uiMaxCUDepth);
+    const Int minSubBlockWidth     =(ctuWidth  >> uiMaxCUDepth);
 
     for (Int buRow = 0; buRow < numSubBlockPartitions; buRow++)
       for (Int buCol = 0; buCol < numSubBlockPartitions; buCol++)
-        m_buOffset[chan][(buRow << uiMaxCUDepth) + buCol] = stride  * buRow * minSubBlockHeight + buCol * minSubBlockWidth;
+        m_subCuOffsetInBuffer[chan][(buRow << uiMaxCUDepth) + buCol] = stride  * buRow * minSubBlockHeight + buCol * minSubBlockWidth;
   }
   return;
 }
@@ -148,8 +146,8 @@ Void TComPicYuv::destroy()
 
   for(UInt chan=0; chan<MAX_NUM_CHANNEL_TYPE; chan++)
   {
-    if (m_cuOffset[chan]) delete[] m_cuOffset[chan]; m_cuOffset[chan] = NULL;
-    if (m_buOffset[chan]) delete[] m_buOffset[chan]; m_buOffset[chan] = NULL;
+    if (m_ctuOffsetInBuffer[chan]) delete[] m_ctuOffsetInBuffer[chan]; m_ctuOffsetInBuffer[chan] = NULL;
+    if (m_subCuOffsetInBuffer[chan]) delete[] m_subCuOffsetInBuffer[chan]; m_subCuOffsetInBuffer[chan] = NULL;
   }
 }
 

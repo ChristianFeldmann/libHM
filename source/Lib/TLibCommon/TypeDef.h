@@ -235,6 +235,7 @@
 
 #define MAX_NUM_LONG_TERM_REF_PICS                       33
 
+#define FIX_1323                                          1
 
 // ====================================================================================================================
 // RExt control settings
@@ -528,7 +529,7 @@ enum MVP_DIR
 
 enum StoredResidualType
 {
-  RESDIUAL_RECONSTRUCTED          = 0,
+  RESIDUAL_RECONSTRUCTED          = 0,
   RESIDUAL_ENCODER_SIDE           = 1,
   NUMBER_OF_STORED_RESIDUAL_TYPES = 2
 };
@@ -596,7 +597,7 @@ enum MDCSMode
 enum SliceConstraint
 {
   NO_SLICES              = 0,          ///< don't use slices / slice segments
-  FIXED_NUMBER_OF_LCU    = 1,          ///< Limit maximum number of largest coding tree blocks in a slice / slice segments
+  FIXED_NUMBER_OF_CTU    = 1,          ///< Limit maximum number of largest coding tree units in a slice / slice segments
   FIXED_NUMBER_OF_BYTES  = 2,          ///< Limit maximum number of bytes in a slice / slice segment
   FIXED_NUMBER_OF_TILES  = 3,          ///< slices / slice segments span an integer number of tiles
 };

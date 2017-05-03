@@ -150,7 +150,7 @@ Void TComWeightPrediction::addWeightUni( const TComYuv        *const pcYuvSrc0,
                                          const UInt                  uiWidth,
                                          const UInt                  uiHeight,
                                          const WPScalingParam *const wp0,
-                                               TComYuv        *const rpcYuvDst )
+                                               TComYuv        *const pcYuvDst )
 {
   const UInt numValidComponent = pcYuvSrc0->getNumberValidComponents();
 
@@ -159,7 +159,7 @@ Void TComWeightPrediction::addWeightUni( const TComYuv        *const pcYuvSrc0,
     const ComponentID compID=ComponentID(componentIndex);
 
     const Pel* pSrc0       = pcYuvSrc0->getAddr( compID,  iPartUnitIdx );
-          Pel* pDst        = rpcYuvDst->getAddr( compID,  iPartUnitIdx );
+          Pel* pDst        = pcYuvDst->getAddr( compID,  iPartUnitIdx );
 
     // Luma : --------------------------------------------
     const Int  w0          = wp0[compID].w;
@@ -169,7 +169,7 @@ Void TComWeightPrediction::addWeightUni( const TComYuv        *const pcYuvSrc0,
     const Int  shift       = wp0[compID].shift + shiftNum;
     const Int  round       = (shift > 0) ? (1<<(shift-1)) : 0;
     const UInt iSrc0Stride = pcYuvSrc0->getStride(compID);
-    const UInt iDstStride  = rpcYuvDst->getStride(compID);
+    const UInt iDstStride  = pcYuvDst->getStride(compID);
     const UInt csx         = pcYuvSrc0->getComponentScaleX(compID);
     const UInt csy         = pcYuvSrc0->getComponentScaleY(compID);
     const Int  iHeight     = uiHeight>>csy;
@@ -341,7 +341,7 @@ Void TComWeightPrediction::xWeightedPredictionBi(       TComDataCU *const pcCU,
  * \param iWidth
  * \param iHeight
  * \param eRefPicList
- * \param TComYuv*& rpcYuvPred
+ * \param TComYuv* pcYuvPred
  * \param iPartIdx
  * \param iRefIdx
  * \returns Void
@@ -352,7 +352,7 @@ Void TComWeightPrediction::xWeightedPredictionUni(       TComDataCU *const pcCU,
                                                    const Int               iWidth,
                                                    const Int               iHeight,
                                                    const RefPicList        eRefPicList,
-                                                         TComYuv         *&rpcYuvPred,
+                                                         TComYuv          *pcYuvPred,
                                                    const Int               iRefIdx_input)
 {
   WPScalingParam  *pwp, *pwpTmp;
@@ -372,5 +372,5 @@ Void TComWeightPrediction::xWeightedPredictionUni(       TComDataCU *const pcCU,
   {
     getWpScaling(pcCU, -1, iRefIdx, pwpTmp, pwp);
   }
-  addWeightUni( pcYuvSrc, uiPartAddr, iWidth, iHeight, pwp, rpcYuvPred );
+  addWeightUni( pcYuvSrc, uiPartAddr, iWidth, iHeight, pwp, pcYuvPred );
 }

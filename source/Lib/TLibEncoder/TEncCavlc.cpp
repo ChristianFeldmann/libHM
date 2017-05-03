@@ -724,27 +724,18 @@ Void TEncCavlc::codeSliceHeader         ( TComSlice* pcSlice )
   //              separate_colour_plane_flag is 1.
 
   //calculate number of bits required for slice address
-  Int maxSliceSegmentAddress = pcSlice->getPic()->getNumCUsInFrame();
+  Int maxSliceSegmentAddress = pcSlice->getPic()->getNumberOfCtusInFrame();
   Int bitsSliceSegmentAddress = 0;
   while(maxSliceSegmentAddress>(1<<bitsSliceSegmentAddress))
   {
     bitsSliceSegmentAddress++;
   }
-  Int ctuAddress;
-  if (pcSlice->isNextSlice())
-  {
-    // Calculate slice address
-    ctuAddress = (pcSlice->getSliceCurStartCUAddr()/pcSlice->getPic()->getNumPartInCU());
-  }
-  else
-  {
-    // Calculate slice address
-    ctuAddress = (pcSlice->getSliceSegmentCurStartCUAddr()/pcSlice->getPic()->getNumPartInCU());
-  }
-  //write slice address
-  Int sliceSegmentAddress = pcSlice->getPic()->getPicSym()->getCUOrderMap(ctuAddress);
+  const Int ctuTsAddress = (pcSlice->isNextSlice()) ? pcSlice->getSliceCurStartCtuTsAddr() : pcSlice->getSliceSegmentCurStartCtuTsAddr();
 
-  WRITE_FLAG( sliceSegmentAddress==0, "first_slice_segment_in_pic_flag" );
+  //write slice address
+  const Int sliceSegmentRsAddress = pcSlice->getPic()->getPicSym()->getCtuTsToRsAddrMap(ctuTsAddress);
+
+  WRITE_FLAG( sliceSegmentRsAddress==0, "first_slice_segment_in_pic_flag" );
   if ( pcSlice->getRapPicFlag() )
   {
 #if SETTING_NO_OUT_PIC_PRIOR
@@ -755,13 +746,13 @@ Void TEncCavlc::codeSliceHeader         ( TComSlice* pcSlice )
   }
   WRITE_UVLC( pcSlice->getPPS()->getPPSId(), "slice_pic_parameter_set_id" );
   pcSlice->setDependentSliceSegmentFlag(!pcSlice->isNextSlice());
-  if ( pcSlice->getPPS()->getDependentSliceSegmentsEnabledFlag() && (sliceSegmentAddress!=0) )
+  if ( pcSlice->getPPS()->getDependentSliceSegmentsEnabledFlag() && (sliceSegmentRsAddress!=0) )
   {
     WRITE_FLAG( pcSlice->getDependentSliceSegmentFlag() ? 1 : 0, "dependent_slice_segment_flag" );
   }
-  if(sliceSegmentAddress>0)
+  if(sliceSegmentRsAddress>0)
   {
-    WRITE_CODE( sliceSegmentAddress, bitsSliceSegmentAddress, "slice_segment_address" );
+    WRITE_CODE( sliceSegmentRsAddress, bitsSliceSegmentAddress, "slice_segment_address" );
   }
   if ( !pcSlice->getDependentSliceSegmentFlag() )
   {
@@ -1158,9 +1149,8 @@ Void  TEncCavlc::codeTilesWPPEntryPoint( TComSlice* pSlice )
   if ( pSlice->getPPS()->getEntropyCodingSyncEnabledFlag() )
   {
     UInt* pSubstreamSizes                 = pSlice->getSubstreamSizes();
-    Int  maxNumParts                      = pSlice->getPic()->getNumPartInCU();
-    Int  numZeroSubstreamsAtStartOfSlice  = pSlice->getPic()->getSubstreamForLCUAddr(pSlice->getSliceSegmentCurStartCUAddr()/maxNumParts, false, pSlice);
-    Int  subStreamOfLastSegmentOfSlice    = pSlice->getPic()->getSubstreamForLCUAddr((pSlice->getSliceSegmentCurEndCUAddr()/maxNumParts)-1, false, pSlice);
+    const Int  numZeroSubstreamsAtStartOfSlice  = pSlice->getPic()->getSubstreamForCtuAddr(pSlice->getSliceSegmentCurStartCtuTsAddr(), false, pSlice);
+    const Int  subStreamOfLastSegmentOfSlice    = pSlice->getPic()->getSubstreamForCtuAddr(pSlice->getSliceSegmentCurEndCtuTsAddr()-1, false, pSlice);
     numEntryPointOffsets                  = subStreamOfLastSegmentOfSlice-numZeroSubstreamsAtStartOfSlice;
     pSlice->setNumEntryPointOffsets(numEntryPointOffsets);
     entryPointOffset           = new UInt[numEntryPointOffsets];

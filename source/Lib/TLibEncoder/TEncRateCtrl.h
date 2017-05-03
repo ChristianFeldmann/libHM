@@ -236,7 +236,7 @@ public:
   Double getLCUEstLambda( Double bpp );
   Int    getLCUEstQP( Double lambda, Int clipPicQP );
 
-  Void updateAfterLCU( Int LCUIdx, Int bits, Int QP, Double lambda, Bool updateLCUParameter = true );
+  Void updateAfterCTU( Int LCUIdx, Int bits, Int QP, Double lambda, Bool updateLCUParameter = true );
   Void updateAfterPicture( Int actualHeaderBits, Int actualTotalBits, Double averageQP, Double averageLambda, SliceType eSliceType);
 
   Void addToPictureLsit( list<TEncRCPic*>& listPreviousPictures );
