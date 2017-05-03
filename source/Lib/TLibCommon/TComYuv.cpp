@@ -58,10 +58,12 @@ TComYuv::TComYuv()
 
 TComYuv::~TComYuv()
 {
+  destroy();
 }
 
 Void TComYuv::create( UInt iWidth, UInt iHeight, ChromaFormat chromaFormatIDC )
 {
+  destroy();
   // set width and height
   m_iWidth   = iWidth;
   m_iHeight  = iHeight;

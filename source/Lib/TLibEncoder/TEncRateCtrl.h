@@ -246,6 +246,9 @@ public:
 private:
   Int xEstPicTargetBits( TEncRCSeq* encRCSeq, TEncRCGOP* encRCGOP );
   Int xEstPicHeaderBits( list<TEncRCPic*>& listPreviousPictures, Int frameLevel );
+#if V0078_ADAPTIVE_LOWER_BOUND
+  Int xEstPicLowerBound( TEncRCSeq* encRCSeq, TEncRCGOP* encRCGOP );
+#endif
 
 public:
   TEncRCSeq*      getRCSequence()                         { return m_encRCSeq; }
@@ -261,6 +264,9 @@ public:
   Int  getPixelsLeft()                                    { return m_pixelsLeft; }
   Int  getBitsCoded()                                     { return m_targetBits - m_estHeaderBits - m_bitsLeft; }
   Int  getLCUCoded()                                      { return m_numberOfLCU - m_LCULeft; }
+#if V0078_ADAPTIVE_LOWER_BOUND
+  Int  getLowerBound()                                    { return m_lowerBound; }
+#endif
   TRCLCU* getLCU()                                        { return m_LCUs; }
   TRCLCU& getLCU( Int LCUIdx )                            { return m_LCUs[LCUIdx]; }
   Int  getPicActualHeaderBits()                           { return m_picActualHeaderBits; }
@@ -289,6 +295,9 @@ private:
   Int m_targetBits;
   Int m_estHeaderBits;
   Int m_estPicQP;
+#if V0078_ADAPTIVE_LOWER_BOUND
+  Int m_lowerBound;
+#endif
   Double m_estPicLambda;
 
   Int m_LCULeft;

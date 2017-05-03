@@ -85,6 +85,9 @@ public:
     CHROMA_RESAMPLING_FILTER_HINT        = 140,
     KNEE_FUNCTION_INFO                   = 141,
     COLOUR_REMAPPING_INFO                = 142,
+#if U0033_ALTERNATIVE_TRANSFER_CHARACTERISTICS_SEI
+    ALTERNATIVE_TRANSFER_CHARACTERISTICS = 182,
+#endif
   };
 
   SEI() {}
@@ -588,6 +591,21 @@ public:
   const TileSetData &tileSetData (const Int index) const { return m_tile_set_data[index]; }
 
 };
+
+#if U0033_ALTERNATIVE_TRANSFER_CHARACTERISTICS_SEI
+class SEIAlternativeTransferCharacteristics : public SEI
+{
+public:
+  PayloadType payloadType() const { return ALTERNATIVE_TRANSFER_CHARACTERISTICS; }
+
+  SEIAlternativeTransferCharacteristics() : m_preferredTransferCharacteristics(18)
+  { }
+
+  virtual ~SEIAlternativeTransferCharacteristics() {}
+
+  UInt m_preferredTransferCharacteristics;
+};
+#endif
 
 #endif
 

@@ -545,6 +545,46 @@ Int TEncRCPic::xEstPicHeaderBits( list<TEncRCPic*>& listPreviousPictures, Int fr
   return estHeaderBits;
 }
 
+#if V0078_ADAPTIVE_LOWER_BOUND
+Int TEncRCPic::xEstPicLowerBound(TEncRCSeq* encRCSeq, TEncRCGOP* encRCGOP)
+{
+  Int lowerBound = 0;
+  Int GOPbitsLeft = encRCGOP->getBitsLeft();
+
+  const Int nextPicPosition = (encRCGOP->getNumPic() - encRCGOP->getPicLeft() + 1) % encRCGOP->getNumPic();
+  const Int nextPicRatio = encRCSeq->getBitRatio(nextPicPosition);
+
+  Int totalPicRatio = 0;
+  for (Int i = nextPicPosition; i < encRCGOP->getNumPic(); i++)
+  {
+    totalPicRatio += encRCSeq->getBitRatio(i);
+  }
+
+  if (nextPicPosition == 0)
+  {
+    GOPbitsLeft = encRCGOP->getTargetBits();
+  }
+  else
+  {
+    GOPbitsLeft -= m_targetBits;
+  }
+
+  lowerBound = Int(((Double)GOPbitsLeft) * nextPicRatio / totalPicRatio);
+
+  if (lowerBound < 100)
+  {
+    lowerBound = 100;   // at least allocate 100 bits for one picture
+  }
+
+  if (m_encRCSeq->getFramesLeft() > 16)
+  {
+    lowerBound = Int(g_RCWeightPicRargetBitInBuffer * lowerBound + g_RCWeightPicTargetBitInGOP * m_encRCGOP->getTargetBitInGOP(nextPicPosition));
+  }
+
+  return lowerBound;
+}
+#endif
+
 Void TEncRCPic::addToPictureLsit( list<TEncRCPic*>& listPreviousPictures )
 {
   if ( listPreviousPictures.size() > g_RCMaxPicListSize )
@@ -585,6 +625,9 @@ Void TEncRCPic::create( TEncRCSeq* encRCSeq, TEncRCGOP* encRCGOP, Int frameLevel
   Int LCUHeight      = encRCSeq->getLCUHeight();
   Int picWidthInLCU  = ( picWidth  % LCUWidth  ) == 0 ? picWidth  / LCUWidth  : picWidth  / LCUWidth  + 1;
   Int picHeightInLCU = ( picHeight % LCUHeight ) == 0 ? picHeight / LCUHeight : picHeight / LCUHeight + 1;
+#if V0078_ADAPTIVE_LOWER_BOUND
+  m_lowerBound       = xEstPicLowerBound( encRCSeq, encRCGOP );
+#endif
 
   m_LCULeft         = m_numberOfLCU;
   m_bitsLeft       -= m_estHeaderBits;

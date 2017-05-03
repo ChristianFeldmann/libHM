@@ -124,6 +124,8 @@ public:
   Void               destroy ();
 
   TComPicSym  ();
+  ~TComPicSym();
+
   TComSlice*         getSlice(UInt i)                                      { return m_apSlices[i];             }
   const TComSlice*   getSlice(UInt i) const                                { return m_apSlices[i];             }
   UInt               getFrameWidthInCtus() const                           { return m_frameWidthInCtus;            }

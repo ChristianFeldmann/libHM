@@ -149,6 +149,9 @@ const TChar *SEI::getSEIMessageString(SEI::PayloadType payloadType)
     case SEI::TEMP_MOTION_CONSTRAINED_TILE_SETS:    return "Temporal motion constrained tile sets";
     case SEI::CHROMA_RESAMPLING_FILTER_HINT:        return "Chroma sampling filter hint";
     case SEI::COLOUR_REMAPPING_INFO:                return "Colour remapping info";
+#if U0033_ALTERNATIVE_TRANSFER_CHARACTERISTICS_SEI
+    case SEI::ALTERNATIVE_TRANSFER_CHARACTERISTICS: return "Alternative transfer characteristics";
+#endif
     default:                                        return "Unknown";
   }
 }

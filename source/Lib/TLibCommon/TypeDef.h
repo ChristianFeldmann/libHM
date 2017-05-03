@@ -81,6 +81,7 @@
 #define DECODER_CHECK_SUBSTREAM_AND_SLICE_TRAILING_BYTES  1 ///< TODO: integrate this macro into a broader conformance checking system.
 #define T0196_SELECTIVE_RDOQ                              1 ///< selective RDOQ
 #define U0040_MODIFIED_WEIGHTEDPREDICTION_WITH_BIPRED_AND_CLIPPING 1
+#define U0033_ALTERNATIVE_TRANSFER_CHARACTERISTICS_SEI    1 ///< Alternative transfer characteristics SEI message (JCTVC-U0033, with syntax naming from V1005)
 
 // ====================================================================================================================
 // Tool Switches
@@ -116,6 +117,9 @@
 #endif
 
 #define U0132_TARGET_BITS_SATURATION                      1 ///< Rate control with target bits saturation method
+#ifdef  U0132_TARGET_BITS_SATURATION
+#define V0078_ADAPTIVE_LOWER_BOUND                        1 ///< Target bits saturation with adaptive lower bound
+#endif
 
 // ====================================================================================================================
 // Derived macros

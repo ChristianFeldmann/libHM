@@ -322,6 +322,10 @@ protected:
   Int*      m_kneeSEIOutputKneePoint;
   std::string m_colourRemapSEIFileRoot;          ///< SEI Colour Remapping File (initialized from external file)
   TComSEIMasteringDisplay m_masteringDisplay;
+#if U0033_ALTERNATIVE_TRANSFER_CHARACTERISTICS_SEI
+  Bool      m_alternativeTransferCharacteristicsSEIEnabled;
+  UChar     m_preferredTransferCharacteristics;
+#endif
   //====== Weighted Prediction ========
   Bool      m_useWeightedPred;       //< Use of Weighting Prediction (P_SLICE)
   Bool      m_useWeightedBiPred;    //< Use of Bi-directional Weighting Prediction (B_SLICE)
@@ -814,6 +818,12 @@ public:
   Void  setColourRemapInfoSEIFileRoot( const std::string &s )        { m_colourRemapSEIFileRoot = s; }
   const std::string &getColourRemapInfoSEIFileRoot() const           { return m_colourRemapSEIFileRoot; }
   Void  setMasteringDisplaySEI(const TComSEIMasteringDisplay &src)   { m_masteringDisplay = src; }
+#if U0033_ALTERNATIVE_TRANSFER_CHARACTERISTICS_SEI
+  Void  setSEIAlternativeTransferCharacteristicsSEIEnable( Bool b)   { m_alternativeTransferCharacteristicsSEIEnabled = b;    }
+  Bool  getSEIAlternativeTransferCharacteristicsSEIEnable( ) const   { return m_alternativeTransferCharacteristicsSEIEnabled; }
+  Void  setSEIPreferredTransferCharacteristics(UChar v)              { m_preferredTransferCharacteristics = v;    }
+  UChar getSEIPreferredTransferCharacteristics() const               { return m_preferredTransferCharacteristics; }
+#endif
   const TComSEIMasteringDisplay &getMasteringDisplaySEI() const      { return m_masteringDisplay; }
   Void         setUseWP               ( Bool b )                     { m_useWeightedPred   = b;    }
   Void         setWPBiPred            ( Bool b )                     { m_useWeightedBiPred = b;    }

@@ -312,6 +312,10 @@ protected:
   Int       m_kneeSEINumKneePointsMinus1;
   Int*      m_kneeSEIInputKneePoint;
   Int*      m_kneeSEIOutputKneePoint;
+#if U0033_ALTERNATIVE_TRANSFER_CHARACTERISTICS_SEI
+  Int       m_preferredTransferCharacteristics;
+#endif
+
   // weighted prediction
   Bool      m_useWeightedPred;                    ///< Use of weighted prediction in P slices
   Bool      m_useWeightedBiPred;                  ///< Use of bi-directional weighted prediction in B slices

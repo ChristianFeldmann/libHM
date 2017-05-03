@@ -64,10 +64,13 @@ TComPic::TComPic()
 
 TComPic::~TComPic()
 {
+  destroy();
 }
 
 Void TComPic::create( const TComSPS &sps, const TComPPS &pps, const Bool bIsVirtual)
 {
+  destroy();
+
   const ChromaFormat chromaFormatIDC = sps.getChromaFormatIdc();
   const Int          iWidth          = sps.getPicWidthInLumaSamples();
   const Int          iHeight         = sps.getPicHeightInLumaSamples();

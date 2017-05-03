@@ -446,6 +446,14 @@ Void TEncGOP::xCreateIRAPLeadingSEIMessages (SEIMessages& seiMessages, const TCo
     m_seiEncoder.initSEIChromaResamplingFilterHint(seiChromaResamplingFilterHint, m_pcCfg->getChromaResamplingHorFilterIdc(), m_pcCfg->getChromaResamplingVerFilterIdc());
     seiMessages.push_back(seiChromaResamplingFilterHint);
   }
+#if U0033_ALTERNATIVE_TRANSFER_CHARACTERISTICS_SEI
+  if(m_pcCfg->getSEIAlternativeTransferCharacteristicsSEIEnable())
+  {
+    SEIAlternativeTransferCharacteristics *seiAlternativeTransferCharacteristics = new SEIAlternativeTransferCharacteristics;
+    m_seiEncoder.initSEIAlternativeTransferCharacteristics(seiAlternativeTransferCharacteristics);
+    seiMessages.push_back(seiAlternativeTransferCharacteristics);
+  }
+#endif
 }
 
 Void TEncGOP::xCreatePerPictureSEIMessages (Int picInGOP, SEIMessages& seiMessages, SEIMessages& nestedSeiMessages, TComSlice *slice)
@@ -1427,10 +1435,17 @@ Void TEncGOP::compressGOP( Int iPOCLast, Int iNumPicRcvd, TComList<TComPic*>& rc
 
         estimatedCpbFullness -= m_pcRateCtrl->getBufferingRate();
         // prevent underflow
+#if V0078_ADAPTIVE_LOWER_BOUND
+        if (estimatedCpbFullness - estimatedBits < m_pcRateCtrl->getRCPic()->getLowerBound())
+        {
+          estimatedBits = max(200, estimatedCpbFullness - m_pcRateCtrl->getRCPic()->getLowerBound());
+        }
+#else
         if (estimatedCpbFullness - estimatedBits < (Int)(m_pcRateCtrl->getCpbSize()*0.1f))
         {
           estimatedBits = max(200, estimatedCpbFullness - (Int)(m_pcRateCtrl->getCpbSize()*0.1f));
         }
+#endif
 
         m_pcRateCtrl->getRCPic()->setTargetBits(estimatedBits);
       }
@@ -1469,10 +1484,17 @@ Void TEncGOP::compressGOP( Int iPOCLast, Int iNumPicRcvd, TComList<TComPic*>& rc
 
             estimatedCpbFullness -= m_pcRateCtrl->getBufferingRate();
             // prevent underflow
+#if V0078_ADAPTIVE_LOWER_BOUND
+            if (estimatedCpbFullness - bits < m_pcRateCtrl->getRCPic()->getLowerBound())
+            {
+              bits = estimatedCpbFullness - m_pcRateCtrl->getRCPic()->getLowerBound();
+            }
+#else
             if (estimatedCpbFullness - bits < (Int)(m_pcRateCtrl->getCpbSize()*0.1f))
             {
               bits = estimatedCpbFullness - (Int)(m_pcRateCtrl->getCpbSize()*0.1f);
             }
+#endif
           }
 #endif
 
@@ -2512,8 +2534,8 @@ Void TEncGOP::applyDeblockingFilterMetric( TComPic* pcPic, UInt uiNumSlices )
   const UInt noRows = (picHeight>>log2maxTB);
   assert(noCol > 1);
   assert(noRows > 1);
-  UInt64 *colSAD = (UInt64*)malloc(noCol*sizeof(UInt64));
-  UInt64 *rowSAD = (UInt64*)malloc(noRows*sizeof(UInt64));
+  std::vector<UInt64> colSAD(noCol,  UInt64(0));
+  std::vector<UInt64> rowSAD(noRows, UInt64(0));
   UInt colIdx = 0;
   UInt rowIdx = 0;
   Pel p0, p1, p2, q0, q1, q2;
@@ -2525,9 +2547,6 @@ Void TEncGOP::applyDeblockingFilterMetric( TComPic* pcPic, UInt uiNumSlices )
   const Int thr2 = (beta>>2);
   const Int thr1 = 2*bitdepthScale;
   UInt a = 0;
-
-  memset(colSAD, 0, noCol*sizeof(UInt64));
-  memset(rowSAD, 0, noRows*sizeof(UInt64));
 
   if (maxTBsize > minBlockArtSize)
   {
@@ -2617,9 +2636,6 @@ Void TEncGOP::applyDeblockingFilterMetric( TComPic* pcPic, UInt uiNumSlices )
       pcPic->getSlice(i)->setDeblockingFilterTcOffsetDiv2(   pcPic->getSlice(i)->getPPS()->getDeblockingFilterTcOffsetDiv2()   );
     }
   }
-
-  free(colSAD);
-  free(rowSAD);
 }
 
 //! \}

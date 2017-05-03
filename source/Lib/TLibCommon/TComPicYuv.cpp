@@ -73,6 +73,7 @@ TComPicYuv::TComPicYuv()
 
 TComPicYuv::~TComPicYuv()
 {
+  destroy();
 }
 
 
@@ -85,6 +86,8 @@ Void TComPicYuv::createWithoutCUInfo ( const Int picWidth,                 ///< 
                                        const UInt maxCUHeight)             ///< used for margin only
 
 {
+  destroy();
+
   m_picWidth          = picWidth;
   m_picHeight         = picHeight;
   m_chromaFormatIDC   = chromaFormatIDC;

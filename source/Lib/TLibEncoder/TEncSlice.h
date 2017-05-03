@@ -67,8 +67,8 @@ private:
 
   // pictures
   TComList<TComPic*>*     m_pcListPic;                          ///< list of pictures
-  TComPicYuv*             m_apcPicYuvPred;                      ///< prediction picture buffer
-  TComPicYuv*             m_apcPicYuvResi;                      ///< residual picture buffer
+  TComPicYuv              m_picYuvPred;                         ///< prediction picture buffer
+  TComPicYuv              m_picYuvResi;                         ///< residual picture buffer
 
   // processing units
   TEncGOP*                m_pcGOPEncoder;                       ///< GOP encoder
@@ -90,9 +90,9 @@ private:
   UInt64                  m_uiPicTotalBits;                     ///< total bits for the picture
   UInt64                  m_uiPicDist;                          ///< total distortion for the picture
   Double                  m_dPicRdCost;                         ///< picture-level RD cost
-  Double*                 m_pdRdPicLambda;                      ///< array of lambda candidates
-  Double*                 m_pdRdPicQp;                          ///< array of picture QP candidates (double-type for lambda)
-  Int*                    m_piRdPicQp;                          ///< array of picture QP candidates (Int-type)
+  std::vector<Double>     m_vdRdPicLambda;                      ///< array of lambda candidates
+  std::vector<Double>     m_vdRdPicQp;                          ///< array of picture QP candidates (double-type for lambda)
+  std::vector<Int>        m_viRdPicQp;                          ///< array of picture QP candidates (Int-type)
   TEncRateCtrl*           m_pcRateCtrl;                         ///< Rate control manager
   UInt                    m_uiSliceIdx;
   TEncSbac                m_lastSliceSegmentEndContextState;    ///< context storage for state at the end of the previous slice-segment (used for dependent slices only).
