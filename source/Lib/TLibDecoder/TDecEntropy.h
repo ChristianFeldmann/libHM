@@ -69,7 +69,7 @@ public:
   virtual Void  parseSPS                  ( TComSPS* pcSPS )     = 0;
   virtual Void  parsePPS                  ( TComPPS* pcPPS )     = 0;
 
-  virtual Void parseSliceHeader          ( TComSlice* pcSlice, ParameterSetManager *parameterSetManager)       = 0;
+  virtual Void parseSliceHeader          ( TComSlice* pcSlice, ParameterSetManager *parameterSetManager, const Int prevTid0POC)       = 0;
 
   virtual Void parseTerminatingBit       ( UInt& ruilsLast )                                     = 0;
   virtual Void parseRemainingBytes( Bool noTrailingBytesExpected ) = 0;
@@ -137,7 +137,7 @@ public:
   Void    decodeVPS                   ( TComVPS* pcVPS ) { m_pcEntropyDecoderIf->parseVPS(pcVPS); }
   Void    decodeSPS                   ( TComSPS* pcSPS ) { m_pcEntropyDecoderIf->parseSPS(pcSPS); }
   Void    decodePPS                   ( TComPPS* pcPPS ) { m_pcEntropyDecoderIf->parsePPS(pcPPS); }
-  Void    decodeSliceHeader           ( TComSlice* pcSlice, ParameterSetManager *parameterSetManager)  { m_pcEntropyDecoderIf->parseSliceHeader(pcSlice, parameterSetManager);         }
+  Void    decodeSliceHeader           ( TComSlice* pcSlice, ParameterSetManager *parameterSetManager, const Int prevTid0POC)  { m_pcEntropyDecoderIf->parseSliceHeader(pcSlice, parameterSetManager, prevTid0POC);         }
 
   Void    decodeTerminatingBit        ( UInt& ruiIsLast )       { m_pcEntropyDecoderIf->parseTerminatingBit(ruiIsLast);     }
   Void    decodeRemainingBytes( Bool noTrailingBytesExpected ) { m_pcEntropyDecoderIf->parseRemainingBytes(noTrailingBytesExpected); }

@@ -79,7 +79,7 @@ public:
   Void  parsePTL            ( TComPTL *rpcPTL, Bool profilePresentFlag, Int maxNumSubLayersMinus1 );
   Void  parseProfileTier    (ProfileTierLevel *ptl, const Bool bIsSubLayer);
   Void  parseHrdParameters  (TComHRD *hrd, Bool cprms_present_flag, UInt tempLevelHigh);
-  Void  parseSliceHeader    ( TComSlice* pcSlice, ParameterSetManager *parameterSetManager);
+  Void  parseSliceHeader    ( TComSlice* pcSlice, ParameterSetManager *parameterSetManager, const Int prevTid0POC);
   Void  parseTerminatingBit ( UInt& ruiBit );
   Void  parseRemainingBytes ( Bool noTrailingBytesExpected );
 

@@ -90,7 +90,7 @@ public:
 
 protected:
 
-  Void xDecodeCU                ( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, Bool &isLastCtuOfSliceSegment);
+  Void xDecodeCU                ( TComDataCU* const pcCU, const UInt uiAbsPartIdx, const UInt uiDepth, Bool &isLastCtuOfSliceSegment);
   Void xFinishDecodeCU          ( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, Bool &isLastCtuOfSliceSegment);
   Bool xDecodeSliceEnd          ( TComDataCU* pcCU, UInt uiAbsPartIdx );
   Void xDecompressCU            ( TComDataCU* pCtu, UInt uiAbsPartIdx, UInt uiDepth );

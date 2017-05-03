@@ -48,10 +48,9 @@ static const Bool bDebugPredEnabled = DebugOptionList::DebugPred.getInt()!=0;
 //! \ingroup TLibEncoder
 //! \{
 
-Void TEncEntropy::setEntropyCoder ( TEncEntropyIf* e, TComSlice* pcSlice )
+Void TEncEntropy::setEntropyCoder ( TEncEntropyIf* e )
 {
   m_pcEntropyCoderIf = e;
-  m_pcEntropyCoderIf->setSlice ( pcSlice );
 }
 
 Void TEncEntropy::encodeSliceHeader ( TComSlice* pcSlice )
@@ -208,7 +207,7 @@ Void TEncEntropy::xEncodeTransform( Bool& bCodeDQP, Bool& codeChromaQpAdj, TComT
   const UInt uiTrIdx = rTu.GetTransformDepthRel();
   const UInt uiDepth = rTu.GetTransformDepthTotal();
 #if ENVIRONMENT_VARIABLE_DEBUG_AND_TEST
-  const Bool bDebugRQT=g_bFinalEncode && DebugOptionList::DebugRQT.getInt()!=0;
+  const Bool bDebugRQT=pcCU->getSlice()->getFinalized() && DebugOptionList::DebugRQT.getInt()!=0;
   if (bDebugRQT)
   {
     printf("x..codeTransform: offsetLuma=%d offsetChroma=%d absPartIdx=%d, uiDepth=%d\n width=%d, height=%d, uiTrIdx=%d, uiInnerQuadIdx=%d\n",
@@ -412,7 +411,7 @@ Void TEncEntropy::encodeIntraDirModeChroma( TComDataCU* pcCU, UInt uiAbsPartIdx 
   m_pcEntropyCoderIf->codeIntraDirChroma( pcCU, uiAbsPartIdx );
 
 #if ENVIRONMENT_VARIABLE_DEBUG_AND_TEST
-  if (bDebugPredEnabled && g_bFinalEncode)
+  if (bDebugPredEnabled && pcCU->getSlice()->getFinalized())
   {
     UInt cdir=pcCU->getIntraDir(CHANNEL_TYPE_CHROMA, uiAbsPartIdx);
     if (cdir==36)
@@ -458,13 +457,13 @@ Void TEncEntropy::encodeCrossComponentPrediction( TComTU &rTu, ComponentID compI
 Void TEncEntropy::encodePUWise( TComDataCU* pcCU, UInt uiAbsPartIdx )
 {
 #if ENVIRONMENT_VARIABLE_DEBUG_AND_TEST
-  const Bool bDebugPred = bDebugPredEnabled && g_bFinalEncode;
+  const Bool bDebugPred = bDebugPredEnabled && pcCU->getSlice()->getFinalized();
 #endif
 
   PartSize ePartSize = pcCU->getPartitionSize( uiAbsPartIdx );
   UInt uiNumPU = ( ePartSize == SIZE_2Nx2N ? 1 : ( ePartSize == SIZE_NxN ? 4 : 2 ) );
   UInt uiDepth = pcCU->getDepth( uiAbsPartIdx );
-  UInt uiPUOffset = ( g_auiPUOffset[UInt( ePartSize )] << ( ( pcCU->getSlice()->getSPS()->getMaxCUDepth() - uiDepth ) << 1 ) ) >> 4;
+  UInt uiPUOffset = ( g_auiPUOffset[UInt( ePartSize )] << ( ( pcCU->getSlice()->getSPS()->getMaxTotalCUDepth() - uiDepth ) << 1 ) ) >> 4;
 
   for ( UInt uiPartIdx = 0, uiSubPartIdx = uiAbsPartIdx; uiPartIdx < uiNumPU; uiPartIdx++, uiSubPartIdx += uiPUOffset )
   {
@@ -616,7 +615,7 @@ Void TEncEntropy::encodeChromaQpAdjustment( TComDataCU* cu, UInt absPartIdx, Boo
 Void TEncEntropy::encodeCoeff( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, Bool& bCodeDQP, Bool& codeChromaQpAdj )
 {
 #if ENVIRONMENT_VARIABLE_DEBUG_AND_TEST
-  const Bool bDebugRQT=g_bFinalEncode && DebugOptionList::DebugRQT.getInt()!=0;
+  const Bool bDebugRQT=pcCU->getSlice()->getFinalized() && DebugOptionList::DebugRQT.getInt()!=0;
 #endif
 
   if( pcCU->isIntra(uiAbsPartIdx) )

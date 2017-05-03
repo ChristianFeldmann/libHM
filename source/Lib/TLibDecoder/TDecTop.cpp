@@ -45,7 +45,8 @@
 //! \{
 
 TDecTop::TDecTop()
-  : m_pDecodedSEIOutputStream(NULL)
+  : m_pDecodedSEIOutputStream(NULL),
+    m_warningMessageSkipPicture(false)
 {
   m_pcPic = 0;
   m_iMaxRefPicNum = 0;
@@ -61,6 +62,7 @@ TDecTop::TDecTop()
   m_pocCRA = 0;
   m_pocRandomAccess = MAX_INT;
   m_prevPOC                = MAX_INT;
+  m_prevTid0POC            = 0;
   m_bFirstSliceInPicture    = true;
   m_bFirstSliceInSequence   = true;
   m_prevSliceSkipped = false;
@@ -136,7 +138,7 @@ Void TDecTop::xGetNewPicBuffer ( const TComSPS &sps, const TComPPS &pps, TComPic
   {
     rpcPic = new TComPic();
 
-    rpcPic->create ( sps, pps, g_uiMaxCUWidth, g_uiMaxCUHeight, g_uiMaxCUDepth, true);
+    rpcPic->create ( sps, pps, true);
 
     m_cListPic.pushBack( rpcPic );
 
@@ -173,7 +175,7 @@ Void TDecTop::xGetNewPicBuffer ( const TComSPS &sps, const TComPPS &pps, TComPic
     m_cListPic.pushBack( rpcPic );
   }
   rpcPic->destroy();
-  rpcPic->create ( sps, pps, g_uiMaxCUWidth, g_uiMaxCUHeight, g_uiMaxCUDepth, true);
+  rpcPic->create ( sps, pps, true);
 }
 
 Void TDecTop::executeLoopFilters(Int& poc, TComList<TComPic*>*& rpcListPic)
@@ -253,6 +255,7 @@ Void TDecTop::xCreateLostPicture(Int iLostPoc)
   }
   cFillPic->getSlice(0)->setReferenced(true);
   cFillPic->getSlice(0)->setPOC(iLostPoc);
+  xUpdatePreviousTid0POC(cFillPic->getSlice(0));
   cFillPic->setReconMark(true);
   cFillPic->setOutputMark(true);
   if(m_pocRandomAccess == MAX_INT)
@@ -281,16 +284,18 @@ Void TDecTop::xActivateParameterSets()
       assert (0);
     }
 
-    // TODO: remove the use of the following globals:
-    for (UInt channel = 0; channel < MAX_NUM_CHANNEL_TYPE; channel++)
+#if RExt__HIGH_BIT_DEPTH_SUPPORT==0
+    if (sps->getUseExtendedPrecision() || sps->getBitDepth(CHANNEL_TYPE_LUMA)>12 || sps->getBitDepth(CHANNEL_TYPE_CHROMA)>12 )
     {
-      g_bitDepth[channel] = sps->getBitDepth(ChannelType(channel));
-      g_maxTrDynamicRange[channel] = (sps->getUseExtendedPrecision()) ? std::max<Int>(15, (g_bitDepth[channel] + 6)) : 15;
+      printf("High bit depth support must be enabled at compile-time in order to decode this bitstream\n");
+      assert (0);
+      exit(1);
     }
-    g_uiMaxCUWidth  = sps->getMaxCUWidth();
-    g_uiMaxCUHeight = sps->getMaxCUHeight();
-    g_uiMaxCUDepth  = sps->getMaxCUDepth();
-    g_uiAddCUDepth  = max (0, sps->getLog2MinCodingBlockSize() - (Int)sps->getQuadtreeTULog2MinSize() + (Int)getMaxCUDepthOffset(sps->getChromaFormatIdc(), sps->getQuadtreeTULog2MinSize()));
+#endif
+
+    // NOTE: globals were set up here originally. You can now use:
+    // g_uiMaxCUDepth = sps->getMaxTotalCUDepth();
+    // g_uiAddCUDepth = sps->getMaxTotalCUDepth() - sps->getLog2DiffMaxMinCodingBlockSize()
 
     //  Get a new picture buffer. This will also set up m_pcPic, and therefore give us a SPS and PPS pointer that we can use.
     xGetNewPicBuffer (*(sps), *(pps), m_pcPic, m_apcSlicePilot->getTLayer());
@@ -308,8 +313,8 @@ Void TDecTop::xActivateParameterSets()
     sps=pSlice->getSPS();
 
     // Initialise the various objects for the new set of settings
-    m_cSAO.create( sps->getPicWidthInLumaSamples(), sps->getPicHeightInLumaSamples(), sps->getChromaFormatIdc(), sps->getMaxCUWidth(), sps->getMaxCUHeight(), sps->getMaxCUDepth(), pps->getSaoOffsetBitShift(CHANNEL_TYPE_LUMA), pps->getSaoOffsetBitShift(CHANNEL_TYPE_CHROMA) );
-    m_cLoopFilter.create( sps->getMaxCUDepth() );
+    m_cSAO.create( sps->getPicWidthInLumaSamples(), sps->getPicHeightInLumaSamples(), sps->getChromaFormatIdc(), sps->getMaxCUWidth(), sps->getMaxCUHeight(), sps->getMaxTotalCUDepth(), pps->getSaoOffsetBitShift(CHANNEL_TYPE_LUMA), pps->getSaoOffsetBitShift(CHANNEL_TYPE_CHROMA) );
+    m_cLoopFilter.create( sps->getMaxTotalCUDepth() );
     m_cPrediction.initTempBuff(sps->getChromaFormatIdc());
 
 
@@ -337,7 +342,7 @@ Void TDecTop::xActivateParameterSets()
     m_SEIs.clear();
 
     // Recursive structure
-    m_cCuDecoder.create ( sps->getMaxCUDepth(), sps->getMaxCUWidth(), sps->getMaxCUHeight(), sps->getChromaFormatIdc() );
+    m_cCuDecoder.create ( sps->getMaxTotalCUDepth(), sps->getMaxCUWidth(), sps->getMaxCUHeight(), sps->getChromaFormatIdc() );
     m_cCuDecoder.init   ( &m_cEntropyDecoder, &m_cTrQuant, &m_cPrediction );
     m_cTrQuant.init     ( sps->getMaxTrSize() );
 
@@ -409,13 +414,15 @@ Bool TDecTop::xDecodeSlice(InputNALUnit &nalu, Int &iSkipFrame, Int iPOCLastDisp
   const UInt64 originalSymbolCount = g_nSymbolCounter;
 #endif
 
-  m_cEntropyDecoder.decodeSliceHeader (m_apcSlicePilot, &m_parameterSetManager);
+  m_cEntropyDecoder.decodeSliceHeader (m_apcSlicePilot, &m_parameterSetManager, m_prevTid0POC);
 
   // set POC for dependent slices in skipped pictures
   if(m_apcSlicePilot->getDependentSliceSegmentFlag() && m_prevSliceSkipped)
   {
     m_apcSlicePilot->setPOC(m_skippedPOC);
   }
+
+  xUpdatePreviousTid0POC(m_apcSlicePilot);
 
   m_apcSlicePilot->setAssociatedIRAPPOC(m_pocCRA);
   m_apcSlicePilot->setAssociatedIRAPType(m_associatedIRAPType);
@@ -474,9 +481,11 @@ Bool TDecTop::xDecodeSlice(InputNALUnit &nalu, Int &iSkipFrame, Int iPOCLastDisp
     assert (sps != 0);
     Int iMaxPOClsb = 1 << sps->getBitsForPOC();
     m_apcSlicePilot->setPOC( m_apcSlicePilot->getPOC() & (iMaxPOClsb - 1) );
+    xUpdatePreviousTid0POC(m_apcSlicePilot);
   }
 
   // Skip pictures due to random access
+
   if (isRandomAccessSkipPicture(iSkipFrame, iPOCLastDisplay))
   {
     m_prevSliceSkipped = true;
@@ -620,7 +629,12 @@ Bool TDecTop::xDecodeSlice(InputNALUnit &nalu, Int &iSkipFrame, Int iPOCLastDisp
   }
   else
   {
-    m_cTrQuant.setFlatScalingList(pcSlice->getSPS()->getChromaFormatIdc());
+    const Int maxLog2TrDynamicRange[MAX_NUM_CHANNEL_TYPE] =
+    {
+        pcSlice->getSPS()->getMaxLog2TrDynamicRange(CHANNEL_TYPE_LUMA),
+        pcSlice->getSPS()->getMaxLog2TrDynamicRange(CHANNEL_TYPE_CHROMA)
+    };
+    m_cTrQuant.setFlatScalingList(pcSlice->getSPS()->getChromaFormatIdc(), maxLog2TrDynamicRange, pcSlice->getSPS()->getBitDepths());
     m_cTrQuant.setUseScalingList(false);
   }
 
@@ -866,11 +880,10 @@ Bool TDecTop::isRandomAccessSkipPicture(Int& iSkipFrame,  Int& iPOCLastDisplay)
     }
     else
     {
-      static Bool warningMessage = false;
-      if(!warningMessage)
+      if(!m_warningMessageSkipPicture)
       {
         printf("\nWarning: this is not a valid random access point and the data is discarded until the first CRA picture");
-        warningMessage = true;
+        m_warningMessageSkipPicture = true;
       }
       return true;
     }

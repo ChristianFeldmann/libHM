@@ -57,7 +57,6 @@
 TEncSbac::TEncSbac()
 // new structure here
 : m_pcBitIf                            ( NULL )
-, m_pcSlice                            ( NULL )
 , m_pcBinIf                            ( NULL )
 , m_numContextModels                   ( 0 )
 , m_cCUSplitFlagSCModel                ( 1,             1,                      NUM_SPLIT_FLAG_CTX                   , m_contextModels + m_numContextModels, m_numContextModels)
@@ -103,13 +102,13 @@ TEncSbac::~TEncSbac()
 // Public member functions
 // ====================================================================================================================
 
-Void TEncSbac::resetEntropy           ()
+Void TEncSbac::resetEntropy           (const TComSlice *pSlice)
 {
-  Int  iQp              = m_pcSlice->getSliceQp();
-  SliceType eSliceType  = m_pcSlice->getSliceType();
+  Int  iQp              = pSlice->getSliceQp();
+  SliceType eSliceType  = pSlice->getSliceType();
 
-  SliceType encCABACTableIdx = m_pcSlice->getEncCABACTableIdx();
-  if (!m_pcSlice->isIntra() && (encCABACTableIdx==B_SLICE || encCABACTableIdx==P_SLICE) && m_pcSlice->getPPS()->getCabacInitPresentFlag())
+  SliceType encCABACTableIdx = pSlice->getEncCABACTableIdx();
+  if (!pSlice->isIntra() && (encCABACTableIdx==B_SLICE || encCABACTableIdx==P_SLICE) && pSlice->getPPS()->getCabacInitPresentFlag())
   {
     eSliceType = encCABACTableIdx;
   }
@@ -160,11 +159,11 @@ Void TEncSbac::resetEntropy           ()
  * If current slice type is P/B then it determines the distance of initialisation type 1 and 2 from the current CABAC states and
  * stores the index of the closest table.  This index is used for the next P/B slice when cabac_init_present_flag is true.
  */
-SliceType TEncSbac::determineCabacInitIdx()
+SliceType TEncSbac::determineCabacInitIdx(const TComSlice *pSlice)
 {
-  Int  qp              = m_pcSlice->getSliceQp();
+  Int  qp              = pSlice->getSliceQp();
 
-  if (!m_pcSlice->isIntra())
+  if (!pSlice->isIntra())
   {
     SliceType aSliceTypeChoices[] = {B_SLICE, P_SLICE};
 
@@ -333,9 +332,9 @@ Void TEncSbac::xWriteEpExGolomb( UInt uiSymbol, UInt uiCount )
  * \param symbol                  value of coeff_abs_level_minus3
  * \param rParam                  reference to Rice parameter
  * \param useLimitedPrefixLength
- * \param channelType             plane type (luma/chroma)
+ * \param maxLog2TrDynamicRange 
  */
-Void TEncSbac::xWriteCoefRemainExGolomb ( UInt symbol, UInt &rParam, const Bool useLimitedPrefixLength, const ChannelType channelType )
+Void TEncSbac::xWriteCoefRemainExGolomb ( UInt symbol, UInt &rParam, const Bool useLimitedPrefixLength, const Int maxLog2TrDynamicRange )
 {
   Int codeNumber  = (Int)symbol;
   UInt length;
@@ -348,7 +347,7 @@ Void TEncSbac::xWriteCoefRemainExGolomb ( UInt symbol, UInt &rParam, const Bool 
   }
   else if (useLimitedPrefixLength)
   {
-    const UInt maximumPrefixLength = (32 - (COEF_REMAIN_BIN_REDUCTION + g_maxTrDynamicRange[channelType]));
+    const UInt maximumPrefixLength = (32 - (COEF_REMAIN_BIN_REDUCTION + maxLog2TrDynamicRange));
 
     UInt prefixLength = 0;
     UInt suffixLength = MAX_UINT;
@@ -357,7 +356,7 @@ Void TEncSbac::xWriteCoefRemainExGolomb ( UInt symbol, UInt &rParam, const Bool 
     if (codeValue >= ((1 << maximumPrefixLength) - 1))
     {
       prefixLength = maximumPrefixLength;
-      suffixLength = g_maxTrDynamicRange[channelType] - rParam;
+      suffixLength = maxLog2TrDynamicRange - rParam;
     }
     else
     {
@@ -436,10 +435,11 @@ Void TEncSbac::codeMVPIdx ( TComDataCU* pcCU, UInt uiAbsPartIdx, RefPicList eRef
 Void TEncSbac::codePartSize( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth )
 {
   PartSize eSize         = pcCU->getPartitionSize( uiAbsPartIdx );
+  const UInt log2DiffMaxMinCodingBlockSize = pcCU->getSlice()->getSPS()->getLog2DiffMaxMinCodingBlockSize();
 
   if ( pcCU->isIntra( uiAbsPartIdx ) )
   {
-    if( uiDepth == g_uiMaxCUDepth - g_uiAddCUDepth )
+    if( uiDepth == log2DiffMaxMinCodingBlockSize )
     {
       m_pcBinIf->encodeBin( eSize == SIZE_2Nx2N? 1 : 0, m_cCUPartSizeSCModel.get( 0, 0, 0 ) );
     }
@@ -459,7 +459,7 @@ Void TEncSbac::codePartSize( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth )
     {
       m_pcBinIf->encodeBin( 0, m_cCUPartSizeSCModel.get( 0, 0, 0) );
       m_pcBinIf->encodeBin( 1, m_cCUPartSizeSCModel.get( 0, 0, 1) );
-      if ( pcCU->getSlice()->getSPS()->getUseAMP() && uiDepth < g_uiMaxCUDepth-g_uiAddCUDepth )
+      if ( pcCU->getSlice()->getSPS()->getUseAMP() && uiDepth < log2DiffMaxMinCodingBlockSize )
       {
         if (eSize == SIZE_2NxN)
         {
@@ -480,12 +480,12 @@ Void TEncSbac::codePartSize( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth )
       m_pcBinIf->encodeBin( 0, m_cCUPartSizeSCModel.get( 0, 0, 0) );
       m_pcBinIf->encodeBin( 0, m_cCUPartSizeSCModel.get( 0, 0, 1) );
 
-      if( uiDepth == g_uiMaxCUDepth - g_uiAddCUDepth && !( pcCU->getWidth(uiAbsPartIdx) == 8 && pcCU->getHeight(uiAbsPartIdx) == 8 ) )
+      if( uiDepth == log2DiffMaxMinCodingBlockSize && !( pcCU->getWidth(uiAbsPartIdx) == 8 && pcCU->getHeight(uiAbsPartIdx) == 8 ) )
       {
         m_pcBinIf->encodeBin( 1, m_cCUPartSizeSCModel.get( 0, 0, 2) );
       }
 
-      if ( pcCU->getSlice()->getSPS()->getUseAMP() && uiDepth < g_uiMaxCUDepth-g_uiAddCUDepth )
+      if ( pcCU->getSlice()->getSPS()->getUseAMP() && uiDepth < log2DiffMaxMinCodingBlockSize )
       {
         if (eSize == SIZE_Nx2N)
         {
@@ -501,7 +501,7 @@ Void TEncSbac::codePartSize( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth )
     }
     case SIZE_NxN:
     {
-      if( uiDepth == g_uiMaxCUDepth - g_uiAddCUDepth && !( pcCU->getWidth(uiAbsPartIdx) == 8 && pcCU->getHeight(uiAbsPartIdx) == 8 ) )
+      if( uiDepth == log2DiffMaxMinCodingBlockSize && !( pcCU->getWidth(uiAbsPartIdx) == 8 && pcCU->getHeight(uiAbsPartIdx) == 8 ) )
       {
         m_pcBinIf->encodeBin( 0, m_cCUPartSizeSCModel.get( 0, 0, 0) );
         m_pcBinIf->encodeBin( 0, m_cCUPartSizeSCModel.get( 0, 0, 1) );
@@ -612,7 +612,7 @@ Void TEncSbac::codeMergeIndex( TComDataCU* pcCU, UInt uiAbsPartIdx )
 
 Void TEncSbac::codeSplitFlag   ( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth )
 {
-  if( uiDepth == g_uiMaxCUDepth - g_uiAddCUDepth )
+  if( uiDepth == pcCU->getSlice()->getSPS()->getLog2DiffMaxMinCodingBlockSize() )
   {
     return;
   }
@@ -1185,6 +1185,7 @@ Void TEncSbac::codeCoeffNxN( TComTU &rTu, TCoeff* pcCoef, const ComponentID comp
   const TComRectangle &tuRect=rTu.getRect(compID);
   const UInt uiWidth=tuRect.width;
   const UInt uiHeight=tuRect.height;
+  const TComSPS &sps=*(pcCU->getSlice()->getSPS());
 
   DTRACE_CABAC_VL( g_nSymbolCounter++ )
   DTRACE_CABAC_T( "\tparseCoeffNxN()\teType=" )
@@ -1216,7 +1217,7 @@ Void TEncSbac::codeCoeffNxN( TComTU &rTu, TCoeff* pcCoef, const ComponentID comp
 
   //--------------------------------------------------------------------------------------------------
 
-  if( uiWidth > m_pcSlice->getSPS()->getMaxTrSize() )
+  if( uiWidth > sps.getMaxTrSize() )
   {
     std::cerr << "ERROR: codeCoeffNxN was passed a TU with dimensions larger than the maximum allowed size" << std::endl;
     assert(false);
@@ -1242,9 +1243,10 @@ Void TEncSbac::codeCoeffNxN( TComTU &rTu, TCoeff* pcCoef, const ComponentID comp
   const UInt         uiLog2BlockHeight = g_aucConvertToBit[ uiHeight ] + 2;
 
   const ChannelType  channelType       = toChannelType(compID);
-  const Bool         extendedPrecision = pcCU->getSlice()->getSPS()->getUseExtendedPrecision();
+  const Bool         extendedPrecision = sps.getUseExtendedPrecision();
 
-  const Bool         alignCABACBeforeBypass = pcCU->getSlice()->getSPS()->getAlignCABACBeforeBypass();
+  const Bool         alignCABACBeforeBypass = sps.getAlignCABACBeforeBypass();
+  const Int          maxLog2TrDynamicRange  = sps.getMaxLog2TrDynamicRange(channelType);
 
   Bool beValid;
 
@@ -1256,7 +1258,8 @@ Void TEncSbac::codeCoeffNxN( TComTU &rTu, TCoeff* pcCoef, const ComponentID comp
     {
       uiIntraMode = pcCU->getIntraDir( toChannelType(compID), uiAbsPartIdx );
 
-      uiIntraMode = (uiIntraMode==DM_CHROMA_IDX && !bIsLuma) ? pcCU->getIntraDir(CHANNEL_TYPE_LUMA, getChromasCorrespondingPULumaIdx(uiAbsPartIdx, rTu.GetChromaFormat())) : uiIntraMode;
+      const UInt partsPerMinCU = 1<<(2*(sps.getMaxTotalCUDepth() - sps.getLog2DiffMaxMinCodingBlockSize()));
+      uiIntraMode = (uiIntraMode==DM_CHROMA_IDX && !bIsLuma) ? pcCU->getIntraDir(CHANNEL_TYPE_LUMA, getChromasCorrespondingPULumaIdx(uiAbsPartIdx, rTu.GetChromaFormat(), partsPerMinCU)) : uiIntraMode;
       uiIntraMode = ((rTu.GetChromaFormat() == CHROMA_422) && !bIsLuma) ? g_chroma422IntraAngleMappingTable[uiIntraMode] : uiIntraMode;
     }
 
@@ -1297,7 +1300,7 @@ Void TEncSbac::codeCoeffNxN( TComTU &rTu, TCoeff* pcCoef, const ComponentID comp
 
   //--------------------------------------------------------------------------------------------------
 
-  const Bool  bUseGolombRiceParameterAdaptation = pcCU->getSlice()->getSPS()->getUseGolombRiceParameterAdaptation();
+  const Bool  bUseGolombRiceParameterAdaptation = sps.getUseGolombRiceParameterAdaptation();
         UInt &currentGolombRiceStatistic        = m_golombRiceAdaptationStatistics[rTu.getGolombRiceStatisticsIndex(compID)];
 
   //select scans
@@ -1495,7 +1498,7 @@ Void TEncSbac::codeCoeffNxN( TComTU &rTu, TCoeff* pcCoef, const ComponentID comp
           {
             const UInt escapeCodeValue = absCoeff[idx] - baseLevel;
 
-            xWriteCoefRemainExGolomb( escapeCodeValue, uiGoRiceParam, extendedPrecision, channelType );
+            xWriteCoefRemainExGolomb( escapeCodeValue, uiGoRiceParam, extendedPrecision, maxLog2TrDynamicRange );
 
             if (absCoeff[idx] > (3 << uiGoRiceParam))
             {
@@ -1528,7 +1531,7 @@ Void TEncSbac::codeCoeffNxN( TComTU &rTu, TCoeff* pcCoef, const ComponentID comp
     }
   }
 #if ENVIRONMENT_VARIABLE_DEBUG_AND_TEST
-  printSBACCoeffData(posLastX, posLastY, uiWidth, uiHeight, compID, uiAbsPartIdx, codingParameters.scanType, pcCoef, g_bFinalEncode);
+  printSBACCoeffData(posLastX, posLastY, uiWidth, uiHeight, compID, uiAbsPartIdx, codingParameters.scanType, pcCoef, pcCU->getSlice()->getFinalized());
 #endif
 
   return;
@@ -1599,7 +1602,7 @@ Void TEncSbac::codeSaoTypeIdx       ( UInt uiCode)
   }
 }
 
-Void TEncSbac::codeSAOOffsetParam(ComponentID compIdx, SAOOffset& ctbParam, Bool sliceEnabled)
+Void TEncSbac::codeSAOOffsetParam(ComponentID compIdx, SAOOffset& ctbParam, Bool sliceEnabled, const Int channelBitDepth)
 {
   UInt uiSymbol;
   if(!sliceEnabled)
@@ -1645,9 +1648,10 @@ Void TEncSbac::codeSAOOffsetParam(ComponentID compIdx, SAOOffset& ctbParam, Bool
       k++;
     }
 
+    const Int  maxOffsetQVal = TComSampleAdaptiveOffset::getMaxOffsetQVal(channelBitDepth);
     for(Int i=0; i< 4; i++)
     {
-      codeSaoMaxUvlc((offset[i]<0)?(-offset[i]):(offset[i]),  g_saoMaxOffsetQVal[compIdx] ); //sao_offset_abs
+      codeSaoMaxUvlc((offset[i]<0)?(-offset[i]):(offset[i]),  maxOffsetQVal ); //sao_offset_abs
     }
 
 
@@ -1676,7 +1680,7 @@ Void TEncSbac::codeSAOOffsetParam(ComponentID compIdx, SAOOffset& ctbParam, Bool
 }
 
 
-Void TEncSbac::codeSAOBlkParam(SAOBlkParam& saoBlkParam
+Void TEncSbac::codeSAOBlkParam(SAOBlkParam& saoBlkParam, const BitDepths &bitDepths
                               , Bool* sliceEnabled
                               , Bool leftMergeAvail
                               , Bool aboveMergeAvail
@@ -1708,7 +1712,7 @@ Void TEncSbac::codeSAOBlkParam(SAOBlkParam& saoBlkParam
   {
     for(Int compIdx=0; compIdx < MAX_NUM_COMPONENT; compIdx++)
     {
-      codeSAOOffsetParam(ComponentID(compIdx), saoBlkParam[compIdx], sliceEnabled[compIdx]);
+      codeSAOOffsetParam(ComponentID(compIdx), saoBlkParam[compIdx], sliceEnabled[compIdx], bitDepths.recon[toChannelType(ComponentID(compIdx))]);
     }
   }
 }

@@ -96,6 +96,7 @@ private:
   TComPic*                m_pcPic;
   UInt                    m_uiSliceIdx;
   Int                     m_prevPOC;
+  Int                     m_prevTid0POC;
   Bool                    m_bFirstSliceInPicture;
   Bool                    m_bFirstSliceInSequence;
   Bool                    m_prevSliceSkipped;
@@ -108,6 +109,8 @@ private:
   UInt                    m_forceDecodeBitDepth;
 #endif
   std::ostream           *m_pDecodedSEIOutputStream;
+
+  Bool                    m_warningMessageSkipPicture;
 
 public:
   TDecTop();
@@ -135,6 +138,7 @@ public:
   Void  setForceDecodeBitDepth(UInt bitDepth) { m_forceDecodeBitDepth = bitDepth; }
 #endif
   Void  setDecodedSEIMessageOutputStream(std::ostream *pOpStream) { m_pDecodedSEIOutputStream = pOpStream; }
+  UInt  getNumberOfChecksumErrorsDetected() const { return m_cGopDecoder.getNumberOfChecksumErrorsDetected(); }
 
 protected:
   Void  xGetNewPicBuffer  (const TComSPS &sps, const TComPPS &pps, TComPic*& rpcPic, const UInt temporalLayer);
@@ -146,6 +150,8 @@ protected:
   Void      xDecodeSPS(const std::vector<UChar> *pNaluData);
   Void      xDecodePPS(const std::vector<UChar> *pNaluData);
   Void      xDecodeSEI( TComInputBitstream* bs, const NalUnitType nalUnitType );
+  Void      xUpdatePreviousTid0POC( TComSlice *pSlice ) { if ((pSlice->getTLayer()==0) && (pSlice->isReferenceNalu() && (pSlice->getNalUnitType()!=NAL_UNIT_CODED_SLICE_RASL_R)&& (pSlice->getNalUnitType()!=NAL_UNIT_CODED_SLICE_RADL_R))) { m_prevTid0POC=pSlice->getPOC(); } }
+
 
 };// END CLASS DEFINITION TDecTop
 

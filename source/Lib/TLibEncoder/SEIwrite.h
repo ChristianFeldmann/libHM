@@ -49,7 +49,7 @@ public:
   SEIWriter() {};
   virtual ~SEIWriter() {};
 
-  Void writeSEImessage(TComBitIf& bs, const SEI& sei, const TComSPS *sps);
+  Void writeSEImessages(TComBitIf& bs, const SEIMessages &seiList, const TComSPS *sps);
 
 protected:
   Void xWriteSEIpayloadData(TComBitIf& bs, const SEI& sei, const TComSPS *sps);

@@ -79,6 +79,7 @@ private:
   TComSampleAdaptiveOffset*     m_pcSAO;
   Double                m_dDecTime;
   Int                   m_decodedPictureHashSEIEnabled;  ///< Checksum(3)/CRC(2)/MD5(1)/disable(0) acting on decoded picture hash SEI message
+  UInt                  m_numberOfChecksumErrorsDetected;
 
 public:
   TDecGop();
@@ -98,6 +99,7 @@ public:
   Void  filterPicture  (TComPic* pcPic );
 
   Void setDecodedPictureHashSEIEnabled(Int enabled) { m_decodedPictureHashSEIEnabled = enabled; }
+  UInt getNumberOfChecksumErrorsDetected() const { return m_numberOfChecksumErrorsDetected; }
 
 };
 

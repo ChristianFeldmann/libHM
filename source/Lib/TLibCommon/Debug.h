@@ -119,10 +119,7 @@ Void printMacroSettings();
 
 //Debugging
 
-extern Bool g_bFinalEncode;
 extern UInt g_debugCounter;
-extern Bool g_printDebug;
-extern Void* g_debugAddr;
 
 #ifdef DEBUG_ENCODER_SEARCH_BINS
 extern const UInt debugEncoderSearchBinTargetLine;

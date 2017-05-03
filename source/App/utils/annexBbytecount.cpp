@@ -42,7 +42,7 @@
 
 using namespace std;
 
-static struct {
+static const struct {
   AnnexBStats expected;
   unsigned data_len;
   const char data[10];

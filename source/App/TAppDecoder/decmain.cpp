@@ -43,14 +43,13 @@
 //! \ingroup TAppDecoder
 //! \{
 
-Bool g_md5_mismatch = false; ///< top level flag that indicates if there has been a decoding mismatch
-
 // ====================================================================================================================
 // Main function
 // ====================================================================================================================
 
 int main(int argc, char* argv[])
 {
+  Int returnCode = EXIT_SUCCESS;
   TAppDecTop  cTAppDecTop;
 
   // print information
@@ -68,7 +67,8 @@ int main(int argc, char* argv[])
   if(!cTAppDecTop.parseCfg( argc, argv ))
   {
     cTAppDecTop.destroy();
-    return 1;
+    returnCode = EXIT_FAILURE;
+    return returnCode;
   }
 
   // starting time
@@ -78,9 +78,10 @@ int main(int argc, char* argv[])
   // call decoding function
   cTAppDecTop.decode();
 
-  if (g_md5_mismatch)
+  if (cTAppDecTop.getNumberOfChecksumErrorsDetected() != 0)
   {
     printf("\n\n***ERROR*** A decoding mismatch occured: signalled md5sum does not match\n");
+    returnCode = EXIT_FAILURE;
   }
 
   // ending time
@@ -90,7 +91,7 @@ int main(int argc, char* argv[])
   // destroy application decoder class
   cTAppDecTop.destroy();
 
-  return g_md5_mismatch ? EXIT_FAILURE : EXIT_SUCCESS;
+  return returnCode;
 }
 
 //! \}

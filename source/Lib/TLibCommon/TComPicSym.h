@@ -86,8 +86,6 @@ private:
   UInt          m_frameWidthInCtus;
   UInt          m_frameHeightInCtus;
 
-  UInt          m_uiMaxCUWidth;
-  UInt          m_uiMaxCUHeight;
   UInt          m_uiMinCUWidth;
   UInt          m_uiMinCUHeight;
 
@@ -108,6 +106,9 @@ private:
   UInt*         m_ctuRsToTsAddrMap;    ///< for a given RS (Raster-Scan) address, returns the TS (Tile-Scan; coding order) address. cf CtbAddrRsToTs in specification.
 
   SAOBlkParam  *m_saoBlkParams;
+#if ADAPTIVE_QP_SELECTION
+  TCoeff*       m_pParentARLBuffer;
+#endif
   TComSPS       m_sps;
   TComPPS       m_pps;
 
@@ -119,7 +120,7 @@ private:
   Void               setCtuRsToTsAddrMap( Int ctuRsAddr, Int ctuTsOrder )  { *(m_ctuRsToTsAddrMap + ctuRsAddr) = ctuTsOrder; }
 
 public:
-  Void               create  ( const TComSPS &sps, const TComPPS &pps, UInt uiMaxWidth, UInt uiMaxHeight, UInt uiMaxDepth );
+  Void               create  ( const TComSPS &sps, const TComPPS &pps, UInt uiMaxDepth );
   Void               destroy ();
 
   TComPicSym  ();

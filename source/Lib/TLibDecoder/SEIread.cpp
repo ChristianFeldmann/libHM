@@ -432,11 +432,11 @@ Void SEIReader::xParseSEIDecodedPictureHash(SEIDecodedPictureHash& sei, UInt pay
     (*pDecodedMessageOutputStream) << "  " << std::setw(55) << traceString << ": " << std::hex << std::setfill('0');
   }
 
-  sei.m_digest.hash.clear();
+  sei.m_pictureHash.hash.clear();
   for(;bytesRead < payloadSize; bytesRead++)
   {
     sei_read_code( NULL, 8, val, traceString);
-    sei.m_digest.hash.push_back((UChar)val);
+    sei.m_pictureHash.hash.push_back((UChar)val);
     if (pDecodedMessageOutputStream)
     {
       (*pDecodedMessageOutputStream) << std::setw(2) << val;
@@ -581,16 +581,8 @@ Void SEIReader::xParseSEIPictureTiming(SEIPictureTiming& sei, UInt payloadSize, 
         sei_read_code( pDecodedMessageOutputStream, ( hrd->getDuCpbRemovalDelayLengthMinus1() + 1 ), code, "du_common_cpb_removal_delay_increment_minus1" );
         sei.m_duCommonCpbRemovalDelayMinus1 = code;
       }
-      if( sei.m_numNalusInDuMinus1 != NULL )
-      {
-        delete sei.m_numNalusInDuMinus1;
-      }
-      sei.m_numNalusInDuMinus1 = new UInt[ ( sei.m_numDecodingUnitsMinus1 + 1 ) ];
-      if( sei.m_duCpbRemovalDelayMinus1  != NULL )
-      {
-        delete sei.m_duCpbRemovalDelayMinus1;
-      }
-      sei.m_duCpbRemovalDelayMinus1  = new UInt[ ( sei.m_numDecodingUnitsMinus1 + 1 ) ];
+      sei.m_numNalusInDuMinus1.resize(sei.m_numDecodingUnitsMinus1 + 1 );
+      sei.m_duCpbRemovalDelayMinus1.resize( sei.m_numDecodingUnitsMinus1 + 1 );
 
       for( i = 0; i <= sei.m_numDecodingUnitsMinus1; i ++ )
       {
@@ -847,8 +839,6 @@ Void SEIReader::xParseSEIScalableNesting(SEIScalableNesting& sei, const NalUnitT
     UInt code;
     sei_read_flag( pDecodedMessageOutputStream, code, "nesting_zero_bit" );
   }
-
-  sei.m_callerOwnsSEIs = false;
 
   // read nested SEI messages
   do

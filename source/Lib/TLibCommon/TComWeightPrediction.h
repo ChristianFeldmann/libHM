@@ -62,6 +62,7 @@ public:
 
   Void addWeightBi(             const TComYuv              *pcYuvSrc0,
                                 const TComYuv              *pcYuvSrc1,
+                                const BitDepths            &bitDepths,
                                 const UInt                  iPartUnitIdx,
                                 const UInt                  uiWidth,
                                 const UInt                  uiHeight,
@@ -71,6 +72,7 @@ public:
                                 const Bool                  bRoundLuma=true );
 
   Void  addWeightUni(           const TComYuv        *const pcYuvSrc0,
+                                const BitDepths            &bitDepths,
                                 const UInt                  iPartUnitIdx,
                                 const UInt                  uiWidth,
                                 const UInt                  uiHeight,

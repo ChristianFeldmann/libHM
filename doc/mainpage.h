@@ -15,7 +15,7 @@
  *  http://hevc.hhi.fraunhofer.de
  *
  *  For <b>bug reporting and known issues</b> see:
- *  http://hevc.kw.bbc.co.uk/trac/
+ *  https://hevc.hhi.fraunhofer.de/trac/hevc
  *
  * \section License
  *

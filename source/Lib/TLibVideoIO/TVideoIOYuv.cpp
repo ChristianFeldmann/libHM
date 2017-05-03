@@ -217,7 +217,7 @@ Void TVideoIOYuv::skipFrames(UInt numFrames, UInt width, UInt height, ChromaForm
 
   /* fall back to consuming the input */
   Char buf[512];
-  const UInt offset_mod_bufsize = offset % sizeof(buf);
+  const streamoff offset_mod_bufsize = offset % sizeof(buf);
   for (streamoff i = 0; i < offset - offset_mod_bufsize; i += sizeof(buf))
   {
     m_cHandle.read(buf, sizeof(buf));
@@ -769,7 +769,7 @@ Bool TVideoIOYuv::write( TComPicYuv* pPicYuvUser, const InputColourSpaceConversi
   TComPicYuv cPicYuvCSCd;
   if (ipCSC!=IPCOLOURSPACE_UNCHANGED)
   {
-    cPicYuvCSCd.create(pPicYuvUser->getWidth(COMPONENT_Y), pPicYuvUser->getHeight(COMPONENT_Y), pPicYuvUser->getChromaFormat(), g_uiMaxCUWidth, g_uiMaxCUHeight, g_uiMaxCUDepth);
+    cPicYuvCSCd.create(pPicYuvUser->getWidth(COMPONENT_Y), pPicYuvUser->getHeight(COMPONENT_Y), pPicYuvUser->getChromaFormat(), pPicYuvUser->getWidth(COMPONENT_Y), pPicYuvUser->getHeight(COMPONENT_Y), 0, false);
     Int internalBitDepth[MAX_NUM_CHANNEL_TYPE];
     for(UInt chType=0; chType<MAX_NUM_CHANNEL_TYPE; chType++)
     {
@@ -813,7 +813,7 @@ Bool TVideoIOYuv::write( TComPicYuv* pPicYuvUser, const InputColourSpaceConversi
   if (nonZeroBitDepthShift)
   {
     dstPicYuv = new TComPicYuv;
-    dstPicYuv->create( pPicYuv->getWidth(COMPONENT_Y), pPicYuv->getHeight(COMPONENT_Y), pPicYuv->getChromaFormat(), 1, 1, 0 );
+    dstPicYuv->create( pPicYuv->getWidth(COMPONENT_Y), pPicYuv->getHeight(COMPONENT_Y), pPicYuv->getChromaFormat(), pPicYuv->getWidth(COMPONENT_Y), pPicYuv->getHeight(COMPONENT_Y), 0, false );
     pPicYuv->copyToPic(dstPicYuv);
 
     for(UInt comp=0; comp<dstPicYuv->getNumberValidComponents(); comp++)
@@ -868,8 +868,8 @@ Bool TVideoIOYuv::write( TComPicYuv* pPicYuvUserTop, TComPicYuv* pPicYuvUserBott
   TComPicYuv cPicYuvBottomCSCd;
   if (ipCSC!=IPCOLOURSPACE_UNCHANGED)
   {
-    cPicYuvTopCSCd   .create(pPicYuvUserTop   ->getWidth(COMPONENT_Y), pPicYuvUserTop   ->getHeight(COMPONENT_Y), pPicYuvUserTop   ->getChromaFormat(), g_uiMaxCUWidth, g_uiMaxCUHeight, g_uiMaxCUDepth);
-    cPicYuvBottomCSCd.create(pPicYuvUserBottom->getWidth(COMPONENT_Y), pPicYuvUserBottom->getHeight(COMPONENT_Y), pPicYuvUserBottom->getChromaFormat(), g_uiMaxCUWidth, g_uiMaxCUHeight, g_uiMaxCUDepth);
+    cPicYuvTopCSCd   .create(pPicYuvUserTop   ->getWidth(COMPONENT_Y), pPicYuvUserTop   ->getHeight(COMPONENT_Y), pPicYuvUserTop   ->getChromaFormat(), pPicYuvUserTop   ->getWidth(COMPONENT_Y), pPicYuvUserTop   ->getHeight(COMPONENT_Y), 0, false);
+    cPicYuvBottomCSCd.create(pPicYuvUserBottom->getWidth(COMPONENT_Y), pPicYuvUserBottom->getHeight(COMPONENT_Y), pPicYuvUserBottom->getChromaFormat(), pPicYuvUserBottom->getWidth(COMPONENT_Y), pPicYuvUserBottom->getHeight(COMPONENT_Y), 0, false);
     Int internalBitDepth[MAX_NUM_CHANNEL_TYPE];
     for(UInt chType=0; chType<MAX_NUM_CHANNEL_TYPE; chType++)
     {
@@ -913,7 +913,7 @@ Bool TVideoIOYuv::write( TComPicYuv* pPicYuvUserTop, TComPicYuv* pPicYuvUserBott
     if (nonZeroBitDepthShift)
     {
       dstPicYuv = new TComPicYuv;
-      dstPicYuv->create( pPicYuv->getWidth(COMPONENT_Y), pPicYuv->getHeight(COMPONENT_Y), pPicYuv->getChromaFormat(), 1, 1, 0 );
+      dstPicYuv->create( pPicYuv->getWidth(COMPONENT_Y), pPicYuv->getHeight(COMPONENT_Y), pPicYuv->getChromaFormat(), pPicYuv->getWidth(COMPONENT_Y), pPicYuv->getHeight(COMPONENT_Y), 0, false );
       pPicYuv->copyToPic(dstPicYuv);
 
       for(UInt comp=0; comp<dstPicYuv->getNumberValidComponents(); comp++)

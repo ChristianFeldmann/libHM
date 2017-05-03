@@ -218,8 +218,9 @@ Bool WeightPredAnalysis::xUpdatingWPParameters(TComSlice *const slice, const Int
       for ( Int comp = 0; comp < numComp; comp++ )
       {
         const ComponentID compID        = ComponentID(comp);
-        const Int         range         = bUseHighPrecisionWeighting ? (1<<g_bitDepth[toChannelType(compID)])/2 : 128;
-        const Int         realLog2Denom = log2Denom + (bUseHighPrecisionWeighting ? RExt__PREDICTION_WEIGHTING_ANALYSIS_DC_PRECISION : (g_bitDepth[toChannelType(compID)] - 8));
+        const Int         bitDepth      = slice->getSPS()->getBitDepth(toChannelType(compID));
+        const Int         range         = bUseHighPrecisionWeighting ? (1<<bitDepth)/2 : 128;
+        const Int         realLog2Denom = log2Denom + (bUseHighPrecisionWeighting ? RExt__PREDICTION_WEIGHTING_ANALYSIS_DC_PRECISION : (bitDepth - 8));
         const Int         realOffset    = ((Int)1<<(realLog2Denom-1));
 
         // current frame
@@ -294,7 +295,7 @@ Bool WeightPredAnalysis::xSelectWP(TComSlice *const slice, const Int log2Denom)
         const Int          iRefStride = slice->getRefPic(eRefPicList, iRefIdxTemp)->getPicYuvRec()->getStride(compID);
         const Int          iWidth     = pPic->getWidth(compID);
         const Int          iHeight    = pPic->getHeight(compID);
-        const Int          bitDepth   = g_bitDepth[toChannelType(compID)];
+        const Int          bitDepth   = slice->getSPS()->getBitDepth(toChannelType(compID));
 
         // calculate SAD costs with/without wp for luma
         iSADWP   += xCalcSADvalueWP(bitDepth, pOrg, pRef, iWidth, iHeight, iOrgStride, iRefStride, log2Denom, m_wp[iRefList][iRefIdxTemp][compID].iWeight, m_wp[iRefList][iRefIdxTemp][compID].iOffset, useHighPrecisionPredictionWeighting);

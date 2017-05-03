@@ -100,7 +100,7 @@ private:
   SliceType               m_encCABACTableIdx;
 
   Void     setUpLambda(TComSlice* slice, const Double dLambda, Int iQP);
-  Void     calculateBoundingCtuTsAddrForSlice(UInt &startCtuTSAddrSlice, UInt &boundingCtuTSAddrSlice, Bool &haveReachedTileBoundary, TComPic* pcPic, const Bool encodingSlice, const Int sliceMode, const Int sliceArgument, const UInt uiSliceCurEndCtuTSAddr);
+  Void     calculateBoundingCtuTsAddrForSlice(UInt &startCtuTSAddrSlice, UInt &boundingCtuTSAddrSlice, Bool &haveReachedTileBoundary, TComPic* pcPic, const Int sliceMode, const Int sliceArgument, const UInt uiSliceCurEndCtuTSAddr);
 
 public:
   TEncSlice();
@@ -112,7 +112,7 @@ public:
 
   /// preparation of slice encoding (reference marking, QP and lambda)
   Void    initEncSlice        ( TComPic*  pcPic, Int pocLast, Int pocCurr, Int iNumPicRcvd,
-                                Int iGOPid,   TComSlice*& rpcSlice, const TComSPS* pSPS, const TComPPS *pPPS, Bool isField );
+                                Int iGOPid,   TComSlice*& rpcSlice, Bool isField );
   Void    resetQP             ( TComPic* pic, Int sliceQP, Double lambda );
   // compress and encode slice
   Void    precompressSlice    ( TComPic* pcPic                                     );      ///< precompress slice for multi-loop opt.
@@ -124,7 +124,7 @@ public:
   Void    setSearchRange      ( TComSlice* pcSlice  );                                  ///< set ME range adaptively
 
   TEncCu*        getCUEncoder() { return m_pcCuEncoder; }                        ///< CU encoder
-  Void    xDetermineStartAndBoundingCtuTsAddr  ( UInt& startCtuTsAddr, UInt& boundingCtuTsAddr, TComPic* pcPic, const Bool encodingSlice );
+  Void    xDetermineStartAndBoundingCtuTsAddr  ( UInt& startCtuTsAddr, UInt& boundingCtuTsAddr, TComPic* pcPic );
   UInt    getSliceIdx()         { return m_uiSliceIdx;                    }
   Void    setSliceIdx(UInt i)   { m_uiSliceIdx = i;                       }
 

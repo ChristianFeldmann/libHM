@@ -204,15 +204,16 @@ Void TAppDecTop::decode()
     {
       if ( m_pchReconFile && !openedReconFile )
       {
+        const BitDepths &bitDepths=pcListPic->front()->getPicSym()->getSPS().getBitDepths(); // use bit depths of first reconstructed picture.
         for (UInt channelType = 0; channelType < MAX_NUM_CHANNEL_TYPE; channelType++)
         {
           if (m_outputBitDepth[channelType] == 0)
           {
-            m_outputBitDepth[channelType] = g_bitDepth[channelType];
+            m_outputBitDepth[channelType] = bitDepths.recon[channelType];
           }
         }
 
-        m_cTVideoIOYuvReconFile.open( m_pchReconFile, true, m_outputBitDepth, m_outputBitDepth, g_bitDepth ); // write mode
+        m_cTVideoIOYuvReconFile.open( m_pchReconFile, true, m_outputBitDepth, m_outputBitDepth, bitDepths.recon ); // write mode
         openedReconFile = true;
       }
       // write reconstruction to file

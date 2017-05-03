@@ -81,6 +81,7 @@
 // ====================================================================================================================
 // Tool Switches
 // ====================================================================================================================
+#define T0196_SELECTIVE_RDOQ                              1 ///< selective RDOQ
 
 #define HARMONIZE_GOP_FIRST_FIELD_COUPLE                  1
 #define EFFICIENT_FIELD_IRAP                              1
@@ -736,6 +737,16 @@ private:
 };
 
 
+struct BitDepths
+{
+#if O0043_BEST_EFFORT_DECODING
+  Int recon[MAX_NUM_CHANNEL_TYPE]; ///< the bit depth used for reconstructing the video
+  Int stream[MAX_NUM_CHANNEL_TYPE];///< the bit depth used indicated in the SPS
+#else
+  Int recon[MAX_NUM_CHANNEL_TYPE]; ///< the bit depth as indicated in the SPS
+#endif
+};
+
 /// parameters for deblocking filter
 typedef struct _LFCUParam
 {
@@ -758,11 +769,11 @@ struct TUEntropyCodingParameters
 };
 
 
-struct TComDigest
+struct TComPictureHash
 {
   std::vector<UChar> hash;
 
-  Bool operator==(const TComDigest &other) const
+  Bool operator==(const TComPictureHash &other) const
   {
     if (other.hash.size() != hash.size())
     {
@@ -778,7 +789,7 @@ struct TComDigest
     return true;
   }
 
-  Bool operator!=(const TComDigest &other) const
+  Bool operator!=(const TComPictureHash &other) const
   {
     return !(*this == other);
   }

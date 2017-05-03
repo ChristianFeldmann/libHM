@@ -74,6 +74,7 @@ public:
   Void  create            (); ///< create internal members
   Void  destroy           (); ///< destroy internal members
   Void  decode            (); ///< main decoding function
+  UInt  getNumberOfChecksumErrorsDetected() const { return m_cTDecTop.getNumberOfChecksumErrorsDetected(); }
 
 protected:
   Void  xCreateDecLib     (); ///< create internal classes

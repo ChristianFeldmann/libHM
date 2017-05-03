@@ -85,7 +85,7 @@ public:
   TComPic();
   virtual ~TComPic();
 
-  Void          create( const TComSPS &sps, const TComPPS &pps, const UInt uiMaxWidth, const UInt uiMaxHeight, const UInt uiMaxDepth, const Bool bIsVirtual /*= false*/ );
+  Void          create( const TComSPS &sps, const TComPPS &pps, const Bool bIsVirtual /*= false*/ );
 
   virtual Void  destroy();
 

@@ -65,6 +65,7 @@ Bool TAppDecCfg::parseCfg( Int argc, Char* argv[] )
   string cfg_ReconFile;
   string cfg_TargetDecLayerIdSetFile;
   string outputColourSpaceConvert;
+  Int warnUnknowParameter = 0;
 
   po::Options opts;
   opts.addOptions()
@@ -74,6 +75,7 @@ Bool TAppDecCfg::parseCfg( Int argc, Char* argv[] )
   ("BitstreamFile,b",           cfg_BitstreamFile,                     string(""), "bitstream input file name")
   ("ReconFile,o",               cfg_ReconFile,                         string(""), "reconstructed YUV output file name\n"
                                                                                    "YUV writing is skipped if omitted")
+  ("WarnUnknowParameter,w",     warnUnknowParameter,                                  0, "warn for unknown configuration parameters instead of failing")
   ("SkipFrames,s",              m_iSkipFrame,                          0,          "number of frames to skip before random access")
   ("OutputBitDepth,d",          m_outputBitDepth[CHANNEL_TYPE_LUMA],   0,          "bit depth of YUV output luma component (default: use 0 for native depth)")
   ("OutputBitDepthC,d",         m_outputBitDepth[CHANNEL_TYPE_CHROMA], 0,          "bit depth of YUV output chroma component (default: use 0 for native depth)")
@@ -82,7 +84,6 @@ Bool TAppDecCfg::parseCfg( Int argc, Char* argv[] )
   ("SEIDecodedPictureHash",     m_decodedPictureHashSEIEnabled,        1,          "Control handling of decoded picture hash SEI messages\n"
                                                                                    "\t1: check hash in SEI messages if available in the bitstream\n"
                                                                                    "\t0: ignore SEI message")
-  ("SEIpictureDigest",          m_decodedPictureHashSEIEnabled,        1,          "deprecated alias for SEIDecodedPictureHash")
   ("SEINoDisplay",              m_decodedNoDisplaySEIEnabled,          true,       "Control handling of decoded no display SEI messages")
   ("TarDecLayerIdSetFile,l",    cfg_TargetDecLayerIdSetFile,           string(""), "targetDecLayerIdSet file name. The file should include white space separated LayerId values to be decoded. Omitting the option or a value of -1 in the file decodes all layers.")
   ("RespectDefDispWindow,w",    m_respectDefDispWindow,                0,          "Only output content inside the default display window\n")
@@ -93,7 +94,8 @@ Bool TAppDecCfg::parseCfg( Int argc, Char* argv[] )
   ;
 
   po::setDefaults(opts);
-  const list<const Char*>& argv_unhandled = po::scanArgv(opts, argc, (const Char**) argv);
+  po::ErrorReporter err;
+  const list<const Char*>& argv_unhandled = po::scanArgv(opts, argc, (const Char**) argv, err);
 
   for (list<const Char*>::const_iterator it = argv_unhandled.begin(); it != argv_unhandled.end(); it++)
   {
@@ -104,6 +106,15 @@ Bool TAppDecCfg::parseCfg( Int argc, Char* argv[] )
   {
     po::doHelp(cout, opts);
     return false;
+  }
+
+  if (err.is_errored)
+  {
+    if (!warnUnknowParameter)
+    {
+      /* errors have already been reported to stderr */
+      return false;
+    }
   }
 
   m_outputColourSpaceConvert = stringToInputColourSpaceConvert(outputColourSpaceConvert, false);

@@ -66,19 +66,22 @@ TComPic::~TComPic()
 {
 }
 
-Void TComPic::create( const TComSPS &sps, const TComPPS &pps, const UInt uiMaxWidth, const UInt uiMaxHeight, const UInt uiMaxDepth, const Bool bIsVirtual)
+Void TComPic::create( const TComSPS &sps, const TComPPS &pps, const Bool bIsVirtual)
 {
-  const ChromaFormat chromaFormatIDC=sps.getChromaFormatIdc();
-  const Int iWidth  = sps.getPicWidthInLumaSamples();
-  const Int iHeight = sps.getPicHeightInLumaSamples();
+  const ChromaFormat chromaFormatIDC = sps.getChromaFormatIdc();
+  const Int          iWidth          = sps.getPicWidthInLumaSamples();
+  const Int          iHeight         = sps.getPicHeightInLumaSamples();
+  const UInt         uiMaxCuWidth    = sps.getMaxCUWidth();
+  const UInt         uiMaxCuHeight   = sps.getMaxCUHeight();
+  const UInt         uiMaxDepth      = sps.getMaxTotalCUDepth();
 
-  m_picSym.create( sps, pps, uiMaxWidth, uiMaxHeight, uiMaxDepth );
+  m_picSym.create( sps, pps, uiMaxDepth );
   if (!bIsVirtual)
   {
-    m_apcPicYuv[PIC_YUV_ORG    ]   = new TComPicYuv;  m_apcPicYuv[PIC_YUV_ORG     ]->create( iWidth, iHeight, chromaFormatIDC, uiMaxWidth, uiMaxHeight, uiMaxDepth );
-    m_apcPicYuv[PIC_YUV_TRUE_ORG]  = new TComPicYuv;  m_apcPicYuv[PIC_YUV_TRUE_ORG]->create( iWidth, iHeight, chromaFormatIDC, uiMaxWidth, uiMaxHeight, uiMaxDepth );
+    m_apcPicYuv[PIC_YUV_ORG    ]   = new TComPicYuv;  m_apcPicYuv[PIC_YUV_ORG     ]->create( iWidth, iHeight, chromaFormatIDC, uiMaxCuWidth, uiMaxCuHeight, uiMaxDepth, true );
+    m_apcPicYuv[PIC_YUV_TRUE_ORG]  = new TComPicYuv;  m_apcPicYuv[PIC_YUV_TRUE_ORG]->create( iWidth, iHeight, chromaFormatIDC, uiMaxCuWidth, uiMaxCuHeight, uiMaxDepth, true );
   }
-  m_apcPicYuv[PIC_YUV_REC]  = new TComPicYuv;  m_apcPicYuv[PIC_YUV_REC]->create( iWidth, iHeight, chromaFormatIDC, uiMaxWidth, uiMaxHeight, uiMaxDepth );
+  m_apcPicYuv[PIC_YUV_REC]  = new TComPicYuv;  m_apcPicYuv[PIC_YUV_REC]->create( iWidth, iHeight, chromaFormatIDC, uiMaxCuWidth, uiMaxCuHeight, uiMaxDepth, true );
 
   // there are no SEI messages associated with this picture initially
   if (m_SEIs.size() > 0)

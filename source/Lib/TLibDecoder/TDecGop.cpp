@@ -45,16 +45,15 @@
 
 #include <time.h>
 
-extern Bool g_md5_mismatch; ///< top level flag to signal when there is a decode problem
-
 //! \ingroup TLibDecoder
 //! \{
-static Void calcAndPrintHashStatus(TComPicYuv& pic, const SEIDecodedPictureHash* pictureHashSEI);
+static Void calcAndPrintHashStatus(TComPicYuv& pic, const SEIDecodedPictureHash* pictureHashSEI, const BitDepths &bitDepths, UInt &numChecksumErrors);
 // ====================================================================================================================
 // Constructor / destructor / initialization / destroy
 // ====================================================================================================================
 
 TDecGop::TDecGop()
+ : m_numberOfChecksumErrorsDetected(0)
 {
   m_dDecTime = 0;
 }
@@ -89,7 +88,8 @@ Void TDecGop::init( TDecEntropy*            pcEntropyDecoder,
   m_pcCavlcDecoder        = pcCavlcDecoder;
   m_pcSliceDecoder        = pcSliceDecoder;
   m_pcLoopFilter          = pcLoopFilter;
-  m_pcSAO  = pcSAO;
+  m_pcSAO                 = pcSAO;
+  m_numberOfChecksumErrorsDetected = 0;
 }
 
 
@@ -186,7 +186,7 @@ Void TDecGop::filterPicture(TComPic* pcPic)
     {
       printf ("Warning: Got multiple decoded picture hash SEI messages. Using first.");
     }
-    calcAndPrintHashStatus(*(pcPic->getPicYuvRec()), hash);
+    calcAndPrintHashStatus(*(pcPic->getPicYuvRec()), hash, pcSlice->getSPS()->getBitDepths(), m_numberOfChecksumErrorsDetected);
   }
 
   printf("\n");
@@ -206,10 +206,10 @@ Void TDecGop::filterPicture(TComPic* pcPic)
  *            ***ERROR*** - calculated hash does not match the SEI message
  *            unk         - no SEI message was available for comparison
  */
-static Void calcAndPrintHashStatus(TComPicYuv& pic, const SEIDecodedPictureHash* pictureHashSEI)
+static Void calcAndPrintHashStatus(TComPicYuv& pic, const SEIDecodedPictureHash* pictureHashSEI, const BitDepths &bitDepths, UInt &numChecksumErrors)
 {
   /* calculate MD5sum for entire reconstructed picture */
-  TComDigest recon_digest;
+  TComPictureHash recon_digest;
   Int numChar=0;
   const Char* hashType = "\0";
 
@@ -220,19 +220,19 @@ static Void calcAndPrintHashStatus(TComPicYuv& pic, const SEIDecodedPictureHash*
       case SEIDecodedPictureHash::MD5:
         {
           hashType = "MD5";
-          numChar = calcMD5(pic, recon_digest);
+          numChar = calcMD5(pic, recon_digest, bitDepths);
           break;
         }
       case SEIDecodedPictureHash::CRC:
         {
           hashType = "CRC";
-          numChar = calcCRC(pic, recon_digest);
+          numChar = calcCRC(pic, recon_digest, bitDepths);
           break;
         }
       case SEIDecodedPictureHash::CHECKSUM:
         {
           hashType = "Checksum";
-          numChar = calcChecksum(pic, recon_digest);
+          numChar = calcChecksum(pic, recon_digest, bitDepths);
           break;
         }
       default:
@@ -250,19 +250,19 @@ static Void calcAndPrintHashStatus(TComPicYuv& pic, const SEIDecodedPictureHash*
   if (pictureHashSEI)
   {
     ok = "(OK)";
-    if (recon_digest != pictureHashSEI->m_digest)
+    if (recon_digest != pictureHashSEI->m_pictureHash)
     {
       ok = "(***ERROR***)";
       mismatch = true;
     }
   }
 
-  printf("[%s:%s,%s] ", hashType, digestToString(recon_digest, numChar).c_str(), ok);
+  printf("[%s:%s,%s] ", hashType, hashToString(recon_digest, numChar).c_str(), ok);
 
   if (mismatch)
   {
-    g_md5_mismatch = true;
-    printf("[rx%s:%s] ", hashType, digestToString(pictureHashSEI->m_digest, numChar).c_str());
+    numChecksumErrors++;
+    printf("[rx%s:%s] ", hashType, hashToString(pictureHashSEI->m_pictureHash, numChar).c_str());
   }
 }
 //! \}

@@ -186,7 +186,7 @@
 \maketitle
 \begin{abstract}
 This document is a user manual describing usage of reference software
-for the HEVC project. It applies to version 16.3
+for the HEVC project. It applies to version 16.4
 of the software.
 \end{abstract}
 
@@ -1126,6 +1126,15 @@ Enables or disables rate-distortion-optimized quantization for transformed TUs.
 %\ShortOption{\None} &
 \Default{true} &
 Enables or disables rate-distortion-optimized quantization for transform-skipped TUs.
+\\
+
+\Option{SelectiveRDOQ} &
+%\ShortOption{\None} &
+\Default{false} &
+Enables or disables selective rate-distortion-optimized quantization.
+A simple quantization is use to pre-analyze, whether to bypass the RDOQ process or not. 
+If all the coefficients are quantized to 0, the RDOQ process is bypassed. 
+Otherwise, the RDOQ process is performed as usual.
 \\
 
 \Option{DeltaQpRD (-dqr)} &
@@ -2189,10 +2198,6 @@ SEI messages.
 
 
 \begin{OptionTableNoShorthand}{Decoded picture hash SEI message encoder parameters}{tab:sei-decoded-picture-hash}
-\Option{SEIpictureDigest} &
-\Default{0} &
-Deprecated alias for SEIDecodedPictureHash and should no longer be used.
-\\
 \Option{SEIDecodedPictureHash} &
 \Default{0} &
 Enables or disables the calculation and insertion of the Decoded picture hash

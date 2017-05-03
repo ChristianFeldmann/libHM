@@ -624,25 +624,25 @@ Void TDecCavlc::parseSPS(TComSPS* pcSPS)
 
   READ_UVLC(     uiCode, "bit_depth_luma_minus8" );
 #if O0043_BEST_EFFORT_DECODING
+  pcSPS->setStreamBitDepth(CHANNEL_TYPE_LUMA, 8 + uiCode);
   const UInt forceDecodeBitDepth = pcSPS->getForceDecodeBitDepth();
-  g_bitDepthInStream[CHANNEL_TYPE_LUMA] = 8 + uiCode;
   if (forceDecodeBitDepth != 0)
   {
     uiCode = forceDecodeBitDepth - 8;
   }
 #endif
   assert(uiCode <= 8);
-
   pcSPS->setBitDepth(CHANNEL_TYPE_LUMA, 8 + uiCode);
+
 #if O0043_BEST_EFFORT_DECODING
-  pcSPS->setQpBDOffset(CHANNEL_TYPE_LUMA, (Int) (6*(g_bitDepthInStream[CHANNEL_TYPE_LUMA]-8)) );
+  pcSPS->setQpBDOffset(CHANNEL_TYPE_LUMA, (Int) (6*(pcSPS->getStreamBitDepth(CHANNEL_TYPE_LUMA)-8)) );
 #else
   pcSPS->setQpBDOffset(CHANNEL_TYPE_LUMA, (Int) (6*uiCode) );
 #endif
 
   READ_UVLC( uiCode,    "bit_depth_chroma_minus8" );
 #if O0043_BEST_EFFORT_DECODING
-  g_bitDepthInStream[CHANNEL_TYPE_CHROMA] = 8 + uiCode;
+  pcSPS->setStreamBitDepth(CHANNEL_TYPE_CHROMA, 8 + uiCode);
   if (forceDecodeBitDepth != 0)
   {
     uiCode = forceDecodeBitDepth - 8;
@@ -651,7 +651,7 @@ Void TDecCavlc::parseSPS(TComSPS* pcSPS)
   assert(uiCode <= 8);
   pcSPS->setBitDepth(CHANNEL_TYPE_CHROMA, 8 + uiCode);
 #if O0043_BEST_EFFORT_DECODING
-  pcSPS->setQpBDOffset(CHANNEL_TYPE_CHROMA,  (Int) (6*(g_bitDepthInStream[CHANNEL_TYPE_CHROMA]-8)) );
+  pcSPS->setQpBDOffset(CHANNEL_TYPE_CHROMA,  (Int) (6*(pcSPS->getStreamBitDepth(CHANNEL_TYPE_CHROMA)-8)) );
 #else
   pcSPS->setQpBDOffset(CHANNEL_TYPE_CHROMA,  (Int) (6*uiCode) );
 #endif
@@ -706,7 +706,7 @@ Void TDecCavlc::parseSPS(TComSPS* pcSPS)
   READ_UVLC( uiCode, "max_transform_hierarchy_depth_intra" );    pcSPS->setQuadtreeTUMaxDepthIntra( uiCode+1 );
 
   Int addCuDepth = max (0, log2MinCUSize - (Int)pcSPS->getQuadtreeTULog2MinSize() );
-  pcSPS->setMaxCUDepth( maxCUDepthDelta + addCuDepth  + getMaxCUDepthOffset(pcSPS->getChromaFormatIdc(), pcSPS->getQuadtreeTULog2MinSize()) );
+  pcSPS->setMaxTotalCUDepth( maxCUDepthDelta + addCuDepth  + getMaxCUDepthOffset(pcSPS->getChromaFormatIdc(), pcSPS->getQuadtreeTULog2MinSize()) );
 
   READ_FLAG( uiCode, "scaling_list_enabled_flag" );                 pcSPS->setScalingListFlag ( uiCode );
   if(pcSPS->getScalingListFlag())
@@ -915,7 +915,7 @@ Void TDecCavlc::parseVPS(TComVPS* pcVPS)
   return;
 }
 
-Void TDecCavlc::parseSliceHeader (TComSlice* pcSlice, ParameterSetManager *parameterSetManager)
+Void TDecCavlc::parseSliceHeader (TComSlice* pcSlice, ParameterSetManager *parameterSetManager, const Int prevTid0POC)
 {
   UInt  uiCode;
   Int   iCode;
@@ -1010,7 +1010,7 @@ Void TDecCavlc::parseSliceHeader (TComSlice* pcSlice, ParameterSetManager *param
     {
       READ_CODE(sps->getBitsForPOC(), uiCode, "slice_pic_order_cnt_lsb");
       Int iPOClsb = uiCode;
-      Int iPrevPOC = pcSlice->getPrevTid0POC();
+      Int iPrevPOC = prevTid0POC;
       Int iMaxPOClsb = 1<< sps->getBitsForPOC();
       Int iPrevPOClsb = iPrevPOC & (iMaxPOClsb - 1);
       Int iPrevPOCmsb = iPrevPOC-iPrevPOClsb;
@@ -1727,7 +1727,6 @@ Void TDecCavlc::parseCrossComponentPrediction( class TComTU& /*rTu*/, ComponentI
 
 Void TDecCavlc::parseDeltaQP( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth )
 {
-  Int qp;
   Int  iDQp;
 
 #if RExt__DECODER_DEBUG_BIT_STATISTICS
@@ -1737,10 +1736,13 @@ Void TDecCavlc::parseDeltaQP( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth 
 #endif
 
   Int qpBdOffsetY = pcCU->getSlice()->getSPS()->getQpBDOffset(CHANNEL_TYPE_LUMA);
-  qp = (((Int) pcCU->getRefQP( uiAbsPartIdx ) + iDQp + 52 + 2*qpBdOffsetY )%(52+ qpBdOffsetY)) -  qpBdOffsetY;
+  const Int qp = (((Int) pcCU->getRefQP( uiAbsPartIdx ) + iDQp + 52 + 2*qpBdOffsetY )%(52+ qpBdOffsetY)) -  qpBdOffsetY;
 
-  UInt uiAbsQpCUPartIdx = (uiAbsPartIdx>>((g_uiMaxCUDepth - pcCU->getSlice()->getPPS()->getMaxCuDQPDepth())<<1))<<((g_uiMaxCUDepth - pcCU->getSlice()->getPPS()->getMaxCuDQPDepth())<<1) ;
-  UInt uiQpCUDepth =   min(uiDepth,pcCU->getSlice()->getPPS()->getMaxCuDQPDepth()) ;
+  const UInt maxCUDepth        = pcCU->getSlice()->getSPS()->getMaxTotalCUDepth();
+  const UInt maxCuDQPDepth     = pcCU->getSlice()->getPPS()->getMaxCuDQPDepth();
+  const UInt doubleDepthDifference = ((maxCUDepth - maxCuDQPDepth)<<1);
+  const UInt uiAbsQpCUPartIdx = (uiAbsPartIdx>>doubleDepthDifference)<<doubleDepthDifference ;
+  const UInt uiQpCUDepth =   min(uiDepth,pcCU->getSlice()->getPPS()->getMaxCuDQPDepth()) ;
 
   pcCU->setQPSubParts( qp, uiAbsQpCUPartIdx, uiQpCUDepth );
 }
@@ -1856,7 +1858,7 @@ Void TDecCavlc::xParsePredWeightTable( TComSlice* pcSlice, const TComSPS *sps )
         assert( iDeltaWeight <=  127 );
         wp[COMPONENT_Y].iWeight = (iDeltaWeight + (1<<wp[COMPONENT_Y].uiLog2WeightDenom));
         READ_SVLC( wp[COMPONENT_Y].iOffset, iNumRef==0?"luma_offset_l0[i]":"luma_offset_l1[i]" );
-        Int range=sps->getUseHighPrecisionPredictionWeighting() ? (1<<g_bitDepth[CHANNEL_TYPE_LUMA])/2 : 128;
+        Int range=sps->getUseHighPrecisionPredictionWeighting() ? (1<<sps->getBitDepth(CHANNEL_TYPE_LUMA))/2 : 128;
         assert( wp[0].iOffset >= -range );
         assert( wp[0].iOffset <   range );
       }
@@ -1869,7 +1871,7 @@ Void TDecCavlc::xParsePredWeightTable( TComSlice* pcSlice, const TComSPS *sps )
       {
         if ( wp[COMPONENT_Cb].bPresentFlag )
         {
-          Int range=sps->getUseHighPrecisionPredictionWeighting() ? (1<<g_bitDepth[CHANNEL_TYPE_CHROMA])/2 : 128;
+          Int range=sps->getUseHighPrecisionPredictionWeighting() ? (1<<sps->getBitDepth(CHANNEL_TYPE_CHROMA))/2 : 128;
           for ( Int j=1 ; j<numValidComp ; j++ )
           {
             Int iDeltaWeight;
