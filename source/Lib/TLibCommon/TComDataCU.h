@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2015, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -39,7 +39,8 @@
 #ifndef __TCOMDATACU__
 #define __TCOMDATACU__
 
-#include <assert.h>
+#include <algorithm>
+#include <vector>
 
 // Include files
 #include "CommonDef.h"
@@ -47,9 +48,6 @@
 #include "TComSlice.h"
 #include "TComRdCost.h"
 #include "TComPattern.h"
-
-#include <algorithm>
-#include <vector>
 
 //! \ingroup TLibCommon
 //! \{
@@ -98,7 +96,7 @@ private:
   Char*          m_crossComponentPredictionAlpha[MAX_NUM_COMPONENT]; ///< array of cross-component prediction alpha values
   Bool*          m_CUTransquantBypass;   ///< array of cu_transquant_bypass flags
   Char*          m_phQP;               ///< array of QP values
-  UChar*         m_ChromaQpAdj;        ///< array of chroma QP adjustments (indexed)
+  UChar*         m_ChromaQpAdj;        ///< array of chroma QP adjustments (indexed). when value = 0, cu_chroma_qp_offset_flag=0; when value>0, indicates cu_chroma_qp_offset_flag=1 and cu_chroma_qp_offset_idx=value-1
   UInt           m_codedChromaQpAdj;
   UChar*         m_puhTrIdx;           ///< array of transform indices
   UChar*         m_puhTransformSkip[MAX_NUM_COMPONENT];///< array of transform skipping flags
@@ -197,7 +195,6 @@ public:
   Void          copyPartFrom          ( TComDataCU* pcCU, UInt uiPartUnitIdx, UInt uiDepth );
 
   Void          copyToPic             ( UChar uiDepth );
-  Void          copyToPic             ( UChar uiDepth, UInt uiPartIdx, UInt uiPartDepth );
 
   // -------------------------------------------------------------------------------------------------------------------
   // member functions for CU description
@@ -265,9 +262,9 @@ public:
   Void          setCodedQP            ( Char qp )               { m_codedQP = qp;             }
   Char          getCodedQP            ()                        { return m_codedQP;           }
 
-  UChar*        getChromaQpAdj        ()                        { return m_ChromaQpAdj;       }
-  UChar         getChromaQpAdj        (Int idx)           const { return m_ChromaQpAdj[idx];  }
-  Void          setChromaQpAdj        (Int idx, UChar val)      { m_ChromaQpAdj[idx] = val;   }
+  UChar*        getChromaQpAdj        ()                        { return m_ChromaQpAdj;       } ///< array of chroma QP adjustments (indexed). when value = 0, cu_chroma_qp_offset_flag=0; when value>0, indicates cu_chroma_qp_offset_flag=1 and cu_chroma_qp_offset_idx=value-1
+  UChar         getChromaQpAdj        (Int idx)           const { return m_ChromaQpAdj[idx];  } ///< When value = 0, cu_chroma_qp_offset_flag=0; when value>0, indicates cu_chroma_qp_offset_flag=1 and cu_chroma_qp_offset_idx=value-1
+  Void          setChromaQpAdj        (Int idx, UChar val)      { m_ChromaQpAdj[idx] = val;   } ///< When val = 0,   cu_chroma_qp_offset_flag=0; when val>0,   indicates cu_chroma_qp_offset_flag=1 and cu_chroma_qp_offset_idx=val-1
   Void          setChromaQpAdjSubParts( UChar val, Int absPartIdx, Int depth );
   Void          setCodedChromaQpAdj   ( Char qp )               { m_codedChromaQpAdj = qp;    }
   Char          getCodedChromaQpAdj   ()                        { return m_codedChromaQpAdj;  }
@@ -359,7 +356,7 @@ public:
   // member functions for accessing partition information
   // -------------------------------------------------------------------------------------------------------------------
 
-  Void          getPartIndexAndSize   ( UInt uiPartIdx, UInt& ruiPartAddr, Int& riWidth, Int& riHeight );
+  Void          getPartIndexAndSize   ( UInt uiPartIdx, UInt& ruiPartAddr, Int& riWidth, Int& riHeight ); // This is for use by a leaf/sub CU object only, with no additional AbsPartIdx
   UChar         getNumPartitions      ( const UInt uiAbsPartIdx = 0 );
   Bool          isFirstAbsZorderIdxInDepth (UInt uiAbsPartIdx, UInt uiDepth);
 
@@ -445,7 +442,7 @@ public:
 
   Bool          isIntra            ( UInt uiPartIdx )  const { return m_pePredMode[ uiPartIdx ] == MODE_INTRA;                                              }
   Bool          isInter            ( UInt uiPartIdx )  const { return m_pePredMode[ uiPartIdx ] == MODE_INTER;                                              }
-  Bool          isSkipped          ( UInt uiPartIdx );                                                     ///< SKIP (no residual)
+  Bool          isSkipped          ( UInt uiPartIdx );                                                     ///< returns true, if the partiton is skipped
   Bool          isBipredRestriction( UInt puIdx );
 
   // -------------------------------------------------------------------------------------------------------------------
@@ -455,7 +452,7 @@ public:
   UInt          getIntraSizeIdx                 ( UInt uiAbsPartIdx                                       );
 
   Void          getAllowedChromaDir             ( UInt uiAbsPartIdx, UInt* uiModeList );
-  Int           getIntraDirPredictor            ( UInt uiAbsPartIdx, Int uiIntraDirPred[NUM_MOST_PROBABLE_MODES], const ComponentID compID, Int* piMode = NULL );
+  Void          getIntraDirPredictor            ( UInt uiAbsPartIdx, Int uiIntraDirPred[NUM_MOST_PROBABLE_MODES], const ComponentID compID, Int* piMode = NULL );
 
   // -------------------------------------------------------------------------------------------------------------------
   // member functions for SBAC context

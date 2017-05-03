@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2015, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -37,6 +37,7 @@
 
 #include "TDecSbac.h"
 #include "TLibCommon/TComTU.h"
+#include "TLibCommon/TComTrQuant.h"
 
 #if RExt__DECODER_DEBUG_BIT_STATISTICS
 #include "TLibCommon/TComCodingStatistics.h"
@@ -229,8 +230,7 @@ Void TDecSbac::xReadUnaryMaxSymbol( UInt& ruiSymbol, ContextModel* pcSCModel, In
   {
     m_pcTDecBinIf->decodeBin( uiCont, pcSCModel[ iOffset ] RExt__DECODER_DEBUG_BIT_STATISTICS_PASS_OPT_ARG(whichStat) );
     uiSymbol++;
-  }
-  while( uiCont && ( uiSymbol < uiMaxSymbol - 1 ) );
+  } while( uiCont && ( uiSymbol < uiMaxSymbol - 1 ) );
 
   if( uiCont && ( uiSymbol == uiMaxSymbol - 1 ) )
   {
@@ -285,17 +285,17 @@ Void TDecSbac::xReadUnarySymbol( UInt& ruiSymbol, ContextModel* pcSCModel, Int i
   {
     m_pcTDecBinIf->decodeBin( uiCont, pcSCModel[ iOffset ] RExt__DECODER_DEBUG_BIT_STATISTICS_PASS_OPT_ARG(whichStat));
     uiSymbol++;
-  }
-  while( uiCont );
+  } while( uiCont );
 
   ruiSymbol = uiSymbol;
 }
 
 
 /** Parsing of coeff_abs_level_remaing
- * \param ruiSymbol reference to coeff_abs_level_remaing
- * \param ruiParam reference to parameter
- * \returns Void
+ * \param rSymbol                 reference to coeff_abs_level_remaing
+ * \param rParam                  reference to parameter
+ * \param useLimitedPrefixLength
+ * \param channelType
  */
 #if RExt__DECODER_DEBUG_BIT_STATISTICS
 Void TDecSbac::xReadCoefRemainExGolomb ( UInt &rSymbol, UInt &rParam, const Bool useLimitedPrefixLength, const ChannelType channelType, const class TComCodingStatisticsClassType &whichStat )
@@ -314,8 +314,7 @@ Void TDecSbac::xReadCoefRemainExGolomb ( UInt &rSymbol, UInt &rParam, const Bool
     {
       prefix++;
       m_pcTDecBinIf->decodeBinEP( codeWord RExt__DECODER_DEBUG_BIT_STATISTICS_PASS_OPT_ARG(whichStat) );
-    }
-    while((codeWord != 0) && (prefix < longestPossiblePrefix));
+    } while((codeWord != 0) && (prefix < longestPossiblePrefix));
   }
   else
   {
@@ -323,8 +322,7 @@ Void TDecSbac::xReadCoefRemainExGolomb ( UInt &rSymbol, UInt &rParam, const Bool
     {
       prefix++;
       m_pcTDecBinIf->decodeBinEP( codeWord RExt__DECODER_DEBUG_BIT_STATISTICS_PASS_OPT_ARG(whichStat) );
-    }
-    while( codeWord);
+    } while( codeWord);
   }
 
   codeWord  = 1 - codeWord;
@@ -583,7 +581,7 @@ Void TDecSbac::parsePartSize( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth 
       uiMode++;
     }
     eMode = (PartSize) uiMode;
-    if ( pcCU->getSlice()->getSPS()->getAMPAcc( uiDepth ) )
+    if ( pcCU->getSlice()->getSPS()->getUseAMP() && uiDepth < g_uiMaxCUDepth-g_uiAddCUDepth )
     {
       if (eMode == SIZE_2NxN)
       {
@@ -654,7 +652,7 @@ Void TDecSbac::parseIntraDirLumaAng  ( TComDataCU* pcCU, UInt absPartIdx, UInt d
   for (j=0;j<partNum;j++)
   {
     Int preds[NUM_MOST_PROBABLE_MODES] = {-1, -1, -1};
-    Int predNum = pcCU->getIntraDirPredictor(absPartIdx+partOffset*j, preds, COMPONENT_Y);
+    pcCU->getIntraDirPredictor(absPartIdx+partOffset*j, preds, COMPONENT_Y);
     if (mpmPred[j])
     {
       m_pcTDecBinIf->decodeBinEP( symbol RExt__DECODER_DEBUG_BIT_STATISTICS_PASS_OPT_ARG(ctype) );
@@ -671,7 +669,6 @@ Void TDecSbac::parseIntraDirLumaAng  ( TComDataCU* pcCU, UInt absPartIdx, UInt d
       intraPredMode = symbol;
 
       //postponed sorting of MPMs (only in remaining branch)
-      assert(predNum>=3); // It is currently always 3!
       if (preds[0] > preds[1])
       {
         std::swap(preds[0], preds[1]);
@@ -684,7 +681,7 @@ Void TDecSbac::parseIntraDirLumaAng  ( TComDataCU* pcCU, UInt absPartIdx, UInt d
       {
         std::swap(preds[1], preds[2]);
       }
-      for ( Int i = 0; i < predNum; i++ )
+      for ( UInt i = 0; i < NUM_MOST_PROBABLE_MODES; i++ )
       {
         intraPredMode += ( intraPredMode >= preds[i] );
       }
@@ -848,7 +845,10 @@ Void TDecSbac::parseCrossComponentPrediction( TComTU &rTu, ComponentID compID )
 {
   TComDataCU *pcCU = rTu.getCU();
 
-  if( isLuma(compID) || !pcCU->getSlice()->getPPS()->getUseCrossComponentPrediction() ) return;
+  if( isLuma(compID) || !pcCU->getSlice()->getPPS()->getUseCrossComponentPrediction() )
+  {
+    return;
+  }
 
   const UInt uiAbsPartIdx = rTu.GetAbsPartIdxTU();
 
@@ -978,7 +978,8 @@ Void TDecSbac::parseChromaQpAdjustment( TComDataCU* cu, UInt absPartIdx, UInt de
   /* cu_chroma_qp_adjustment_flag */
   m_pcTDecBinIf->decodeBin( symbol, m_ChromaQpAdjFlagSCModel.get( 0, 0, 0 ) RExt__DECODER_DEBUG_BIT_STATISTICS_PASS_OPT_ARG(ctype) );
 
-  if (symbol && tableSize > 1) {
+  if (symbol && tableSize > 1)
+  {
     /* cu_chroma_qp_adjustment_idc */
     xReadUnaryMaxSymbol( symbol,  &m_ChromaQpAdjIdcSCModel.get( 0, 0, 0 ), 0, tableSize - 1 RExt__DECODER_DEBUG_BIT_STATISTICS_PASS_OPT_ARG(ctype) );
     symbol++;
@@ -1134,7 +1135,7 @@ Void TDecSbac::parseTransformSkipFlags (TComTU &rTu, ComponentID component)
  * \param uiPosLastY reference to Y component of last coefficient
  * \param width  Block width
  * \param height Block height
- * \param eTType plane type / luminance or chrominance
+ * \param component chroma compinent ID
  * \param uiScanIdx scan type (zig-zag, hor, ver)
  *
  * This method decodes the X and Y component within a block of the last significant coefficient.
@@ -1290,11 +1291,13 @@ Void TDecSbac::parseCoeffNxN(  TComTU &rTu, ComponentID compID )
   {
     beValid = false;
     if((!pcCU->isIntra(uiAbsPartIdx)) && pcCU->isRDPCMEnabled(uiAbsPartIdx))
+    {
       parseExplicitRdpcmMode(rTu, compID);
+    }
   }
   else
   {
-    beValid = pcCU->getSlice()->getPPS()->getSignHideFlag() > 0;
+    beValid = pcCU->getSlice()->getPPS()->getSignHideFlag();
   }
 
   UInt absSum = 0;
@@ -1459,7 +1462,10 @@ Void TDecSbac::parseCoeffNxN(  TComTU &rTu, ComponentID compID )
 
       Int absCoeff[1 << MLS_CG_SIZE];
 
-      for ( Int i = 0; i < numNonZero; i++) absCoeff[i] = 1;
+      for ( Int i = 0; i < numNonZero; i++)
+      {
+        absCoeff[i] = 1;
+      }
       Int numC1Flag = min(numNonZero, C1FLAG_NUMBER);
       Int firstC2FlagIdx = -1;
 
@@ -1578,7 +1584,10 @@ Void TDecSbac::parseCoeffNxN(  TComTU &rTu, ComponentID compID )
         if ( idx == numNonZero-1 && signHidden && beValid )
         {
           // Infer sign of 1st element.
-          if (absSum&0x1) pcCoef[ blkPos ] = -pcCoef[ blkPos ];
+          if (absSum&0x1)
+          {
+            pcCoef[ blkPos ] = -pcCoef[ blkPos ];
+          }
         }
         else
         {

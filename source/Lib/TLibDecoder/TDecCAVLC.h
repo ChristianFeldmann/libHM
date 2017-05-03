@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2015, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -77,9 +77,9 @@ public:
   Void  parseVUI            ( TComVUI* pcVUI, TComSPS* pcSPS );
   Void  parseSEI            ( SEIMessages& );
   Void  parsePTL            ( TComPTL *rpcPTL, Bool profilePresentFlag, Int maxNumSubLayersMinus1 );
-  Void  parseProfileTier    (ProfileTierLevel *ptl);
+  Void  parseProfileTier    (ProfileTierLevel *ptl, const Bool bIsSubLayer);
   Void  parseHrdParameters  (TComHRD *hrd, Bool cprms_present_flag, UInt tempLevelHigh);
-  Void  parseSliceHeader    ( TComSlice* pcSlice, ParameterSetManagerDecoder *parameterSetManager);
+  Void  parseSliceHeader    ( TComSlice* pcSlice, ParameterSetManager *parameterSetManager);
   Void  parseTerminatingBit ( UInt& ruiBit );
   Void  parseRemainingBytes ( Bool noTrailingBytesExpected );
 
@@ -111,7 +111,7 @@ public:
 
   Void parseIPCMInfo        ( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth);
 
-  Void xParsePredWeightTable ( TComSlice* pcSlice );
+  Void xParsePredWeightTable ( TComSlice* pcSlice, const TComSPS *sps );
   Void  parseScalingList     ( TComScalingList* scalingList );
   Void xDecodeScalingList    ( TComScalingList *scalingList, UInt sizeId, UInt listId);
 

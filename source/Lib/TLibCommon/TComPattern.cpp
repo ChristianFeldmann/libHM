@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2015, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -69,14 +69,11 @@ Int   isBelowLeftAvailable  ( TComDataCU* pcCU, UInt uiPartIdxLT, UInt uiPartIdx
 // Public member functions (TComPatternParam)
 // ====================================================================================================================
 
-/** \param  piTexture     pixel data
+/** 
+ \param  piTexture     pixel data
  \param  iRoiWidth     pattern width
  \param  iRoiHeight    pattern height
  \param  iStride       buffer stride
- \param  iOffsetLeft   neighbour offset (left)
- \param  iOffsetRight  neighbour offset (right)
- \param  iOffsetAbove  neighbour offset (above)
- \param  iOffsetBottom neighbour offset (bottom)
  */
 Void TComPatternParam::setPatternParamPel ( Pel* piTexture,
                                            Int iRoiWidth,
@@ -175,8 +172,10 @@ Void TComPrediction::initAdiPatternChType( TComTU &rTu, Bool& bAbove, Bool& bLef
         for (UInt x=0; x<uiROIWidth; x++)
         {
           if (x==0 || y==0)
+          {
             ss << piAdiTemp[y*uiROIWidth + x] << ", ";
 //          if (x%16==15) ss << "\nPart size: ~ ";
+          }
         }
         ss << "\n";
       }
@@ -209,7 +208,9 @@ Void TComPrediction::initAdiPatternChType( TComTU &rTu, Bool& bAbove, Bool& bLef
         const Bool bilinearLeft  = abs((bottomLeft + topLeft ) - (2 * piAdiTemp[stride * uiTuHeight])) < threshold; //difference between the
         const Bool bilinearAbove = abs((topLeft    + topRight) - (2 * piAdiTemp[         uiTuWidth ])) < threshold; //ends and the middle
         if ((uiTuWidth < 32) || (!bilinearLeft) || (!bilinearAbove))
+        {
           useStrongIntraSmoothing = false;
+        }
       }
 
       *piDestPtr = *piSrcPtr; // bottom left is not filtered
@@ -291,8 +292,10 @@ Void TComPrediction::initAdiPatternChType( TComTU &rTu, Bool& bAbove, Bool& bLef
         for (UInt x=0; x<uiROIWidth; x++)
         {
           if (x==0 || y==0)
+          {
             ss << m_piYuvExt[compID][PRED_BUF_FILTERED][y*uiROIWidth + x] << ", ";
 //          if (x%16==15) ss << "\nPart size: ~ ";
+          }
         }
         ss << "\n";
       }
@@ -516,15 +519,6 @@ Void fillReferenceSamples( const Int bitDepth, TComDataCU* pcCU, const Pel* piRo
     }
   }
 }
-
-/** Get pointer to reference samples for intra prediction
- * \param uiDirMode   prediction mode index
- * \param log2BlkSize size of block (2 = 4x4, 3 = 8x8, 4 = 16x16, 5 = 32x32, 6 = 64x64)
- * \param piAdiBuf    pointer to unfiltered reference samples
- * \return            pointer to (possibly filtered) reference samples
- *
- * The prediction mode index is used to determine whether a smoothed reference sample buffer is returned.
- */
 
 Bool TComPrediction::filteringIntraReferenceSamples(const ComponentID compID, UInt uiDirMode, UInt uiTuChWidth, UInt uiTuChHeight, const ChromaFormat chFmt, const Bool intraReferenceSmoothingDisabled)
 {

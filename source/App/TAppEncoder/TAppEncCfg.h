@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2015, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -220,7 +220,6 @@ protected:
   std::vector<Int> m_tileRowHeight;
   Int       m_iWaveFrontSynchro; //< 0: no WPP. >= 1: WPP is enabled, the "Top right" from which inheritance occurs is this LCU offset in the line above the current.
   Int       m_iWaveFrontFlush; //< enable(1)/disable(0) the CABAC flush at the end of each line of LCUs.
-  Int       m_iWaveFrontSubstreams; //< If iWaveFrontSynchro, this is the number of substreams per frame (dependent tiles) or per tile (independent tiles).
 
   Bool      m_bUseConstrainedIntraPred;                       ///< flag for using constrained intra prediction
 
@@ -247,7 +246,7 @@ protected:
   Int       m_cameraIsoSpeedValue;
   Int       m_exposureIndexIdc;
   Int       m_exposureIndexValue;
-  Int       m_exposureCompensationValueSignFlag;
+  Bool      m_exposureCompensationValueSignFlag;
   Int       m_exposureCompensationValueNumerator;
   Int       m_exposureCompensationValueDenomIdc;
   Int       m_refScreenLuminanceWhite;
@@ -297,7 +296,7 @@ protected:
   UInt      m_maxNumMergeCand;                                ///< Max number of merge candidates
 
   Int       m_TMVPModeId;
-  Int       m_signHideFlag;
+  Bool      m_signHideFlag;
   Bool      m_RCEnableRateControl;                ///< enable rate control or not
   Int       m_RCTargetBitrate;                    ///< target bitrate when rate control is enabled
   Int       m_RCKeepHierarchicalBit;              ///< 0: equal bit allocation; 1: fixed ratio bit allocation; 2: adaptive ratio bit allocation

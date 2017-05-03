@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2015, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -116,19 +116,19 @@ TEncPic::~TEncPic()
 }
 
 /** Initialize member variables
- * \param iWidth Picture width
- * \param iHeight Picture height
+ * \param sps reference to used SPS
+ * \param pps reference to used PPS
  * \param uiMaxWidth Maximum CU width
  * \param uiMaxHeight Maximum CU height
  * \param uiMaxDepth Maximum CU depth
  * \param uiMaxAQDepth Maximum depth of unit block for assigning QP adaptive to local image characteristics
  * \param bIsVirtual
- * \return Void
  */
-Void TEncPic::create( Int iWidth, Int iHeight, ChromaFormat chromaFormat, UInt uiMaxWidth, UInt uiMaxHeight, UInt uiMaxDepth, UInt uiMaxAQDepth,
-                      Window &conformanceWindow, Window &defaultDisplayWindow, Int *numReorderPics, Bool bIsVirtual )
+Void TEncPic::create( const TComSPS &sps, const TComPPS &pps, UInt uiMaxWidth, UInt uiMaxHeight, UInt uiMaxDepth, UInt uiMaxAQDepth, Bool bIsVirtual )
 {
-  TComPic::create( iWidth, iHeight, chromaFormat, uiMaxWidth, uiMaxHeight, uiMaxDepth, conformanceWindow, defaultDisplayWindow, numReorderPics, bIsVirtual );
+  TComPic::create( sps, pps, uiMaxWidth, uiMaxHeight, uiMaxDepth, bIsVirtual );
+  const Int iWidth  = sps.getPicWidthInLumaSamples();
+  const Int iHeight = sps.getPicHeightInLumaSamples();
   m_uiMaxAQDepth = uiMaxAQDepth;
   if ( uiMaxAQDepth > 0 )
   {
@@ -140,9 +140,7 @@ Void TEncPic::create( Int iWidth, Int iHeight, ChromaFormat chromaFormat, UInt u
   }
 }
 
-/** Clean up
- * \return Void
- */
+//! Clean up
 Void TEncPic::destroy()
 {
   if (m_acAQLayer)

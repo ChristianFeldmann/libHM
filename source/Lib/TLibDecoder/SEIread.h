@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2015, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -55,30 +55,30 @@ class SEIReader: public SyntaxElementParser
 public:
   SEIReader() {};
   virtual ~SEIReader() {};
-  Void parseSEImessage(TComInputBitstream* bs, SEIMessages& seis, const NalUnitType nalUnitType, TComSPS *sps, std::ostream *pDecodedMessageOutputStream);
+  Void parseSEImessage(TComInputBitstream* bs, SEIMessages& seis, const NalUnitType nalUnitType, const TComSPS *sps, std::ostream *pDecodedMessageOutputStream);
 protected:
-  Void xReadSEImessage                        (SEIMessages& seis, const NalUnitType nalUnitType, TComSPS *sps, std::ostream *pDecodedMessageOutputStream);
-  Void xParseSEIuserDataUnregistered          (SEIuserDataUnregistered &sei,          UInt payloadSize,               std::ostream *pDecodedMessageOutputStream);
-  Void xParseSEIActiveParameterSets           (SEIActiveParameterSets  &sei,          UInt payloadSize,               std::ostream *pDecodedMessageOutputStream);
-  Void xParseSEIDecodingUnitInfo              (SEIDecodingUnitInfo& sei,              UInt payloadSize, TComSPS *sps, std::ostream *pDecodedMessageOutputStream);
-  Void xParseSEIDecodedPictureHash            (SEIDecodedPictureHash& sei,            UInt payloadSize,               std::ostream *pDecodedMessageOutputStream);
-  Void xParseSEIBufferingPeriod               (SEIBufferingPeriod& sei,               UInt payloadSize, TComSPS *sps, std::ostream *pDecodedMessageOutputStream);
-  Void xParseSEIPictureTiming                 (SEIPictureTiming& sei,                 UInt payloadSize, TComSPS *sps, std::ostream *pDecodedMessageOutputStream);
-  Void xParseSEIRecoveryPoint                 (SEIRecoveryPoint& sei,                 UInt payloadSize,               std::ostream *pDecodedMessageOutputStream);
-  Void xParseSEIFramePacking                  (SEIFramePacking& sei,                  UInt payloadSize,               std::ostream *pDecodedMessageOutputStream);
-  Void xParseSEISegmentedRectFramePacking     (SEISegmentedRectFramePacking& sei,     UInt payloadSize,               std::ostream *pDecodedMessageOutputStream);
-  Void xParseSEIDisplayOrientation            (SEIDisplayOrientation &sei,            UInt payloadSize,               std::ostream *pDecodedMessageOutputStream);
-  Void xParseSEITemporalLevel0Index           (SEITemporalLevel0Index &sei,           UInt payloadSize,               std::ostream *pDecodedMessageOutputStream);
-  Void xParseSEIRegionRefreshInfo             (SEIGradualDecodingRefreshInfo &sei,    UInt payloadSize,               std::ostream *pDecodedMessageOutputStream);
-  Void xParseSEINoDisplay                     (SEINoDisplay &sei,                     UInt payloadSize,               std::ostream *pDecodedMessageOutputStream);
-  Void xParseSEIToneMappingInfo               (SEIToneMappingInfo& sei,               UInt payloadSize,               std::ostream *pDecodedMessageOutputStream);
-  Void xParseSEISOPDescription                (SEISOPDescription &sei,                UInt payloadSize,               std::ostream *pDecodedMessageOutputStream);
-  Void xParseSEIScalableNesting               (SEIScalableNesting& sei, const NalUnitType nalUnitType, UInt payloadSize, TComSPS *sps, std::ostream *pDecodedMessageOutputStream);
-  Void xParseSEITempMotionConstraintsTileSets (SEITempMotionConstrainedTileSets& sei, UInt payloadSize,               std::ostream *pDecodedMessageOutputStream);
-  Void xParseSEITimeCode                      (SEITimeCode& sei,                      UInt payloadSize,               std::ostream *pDecodedMessageOutputStream);
-  Void xParseSEIChromaSamplingFilterHint      (SEIChromaSamplingFilterHint& sei,      UInt payloadSize/*,TComSPS* */, std::ostream *pDecodedMessageOutputStream);
-  Void xParseSEIKneeFunctionInfo              (SEIKneeFunctionInfo& sei,              UInt payloadSize,               std::ostream *pDecodedMessageOutputStream);
-  Void xParseSEIMasteringDisplayColourVolume  (SEIMasteringDisplayColourVolume& sei,  UInt payloadSize,               std::ostream *pDecodedMessageOutputStream);
+  Void xReadSEImessage                        (SEIMessages& seis, const NalUnitType nalUnitType, const TComSPS *sps, std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIuserDataUnregistered          (SEIuserDataUnregistered &sei,          UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIActiveParameterSets           (SEIActiveParameterSets  &sei,          UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIDecodingUnitInfo              (SEIDecodingUnitInfo& sei,              UInt payloadSize, const TComSPS *sps, std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIDecodedPictureHash            (SEIDecodedPictureHash& sei,            UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIBufferingPeriod               (SEIBufferingPeriod& sei,               UInt payloadSize, const TComSPS *sps, std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIPictureTiming                 (SEIPictureTiming& sei,                 UInt payloadSize, const TComSPS *sps, std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIRecoveryPoint                 (SEIRecoveryPoint& sei,                 UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIFramePacking                  (SEIFramePacking& sei,                  UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEISegmentedRectFramePacking     (SEISegmentedRectFramePacking& sei,     UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIDisplayOrientation            (SEIDisplayOrientation &sei,            UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEITemporalLevel0Index           (SEITemporalLevel0Index &sei,           UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIRegionRefreshInfo             (SEIGradualDecodingRefreshInfo &sei,    UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEINoDisplay                     (SEINoDisplay &sei,                     UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIToneMappingInfo               (SEIToneMappingInfo& sei,               UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEISOPDescription                (SEISOPDescription &sei,                UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIScalableNesting               (SEIScalableNesting& sei, const NalUnitType nalUnitType, UInt payloadSize, const TComSPS *sps, std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEITempMotionConstraintsTileSets (SEITempMotionConstrainedTileSets& sei, UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEITimeCode                      (SEITimeCode& sei,                      UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIChromaSamplingFilterHint      (SEIChromaSamplingFilterHint& sei,      UInt payloadSize/*,TComSPS* */,       std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIKneeFunctionInfo              (SEIKneeFunctionInfo& sei,              UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIMasteringDisplayColourVolume  (SEIMasteringDisplayColourVolume& sei,  UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
 
   Void sei_read_code(std::ostream *pOS, UInt uiLength, UInt& ruiCode, const Char *pSymbolName);
   Void sei_read_uvlc(std::ostream *pOS,                UInt& ruiCode, const Char *pSymbolName);

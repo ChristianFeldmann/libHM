@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2015, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -83,14 +83,19 @@ Void TEncBinCABACCounter::encodeBin( UInt binValue, ContextModel &rcCtxModel )
 
 #ifdef DEBUG_ENCODER_SEARCH_BINS
   if ((g_debugCounter + debugEncoderSearchBinWindow) >= debugEncoderSearchBinTargetLine)
+  {
     std::cout << g_debugCounter << ": coding bin value " << binValue << ", fracBits = [" << startingFracBits << "->" << m_fracBits << "]\n";
+  }
 
   if (g_debugCounter >= debugEncoderSearchBinTargetLine)
   {
     Char breakPointThis;
     breakPointThis = 7;
   }
-  if (g_debugCounter >= (debugEncoderSearchBinTargetLine + debugEncoderSearchBinWindow)) exit(0);
+  if (g_debugCounter >= (debugEncoderSearchBinTargetLine + debugEncoderSearchBinWindow))
+  {
+    exit(0);
+  }
   g_debugCounter++;
 #endif
 }

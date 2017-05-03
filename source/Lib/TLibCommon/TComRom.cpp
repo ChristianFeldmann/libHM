@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2015, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -105,7 +105,10 @@ public:
             m_line++;
             m_column = 0;
           }
-          else m_column++;
+          else
+          {
+            m_column++;
+          }
         }
         break;
 
@@ -118,7 +121,10 @@ public:
             m_column++;
             m_line = 0;
           }
-          else m_line++;
+          else
+          {
+            m_line++;
+          }
         }
         break;
 

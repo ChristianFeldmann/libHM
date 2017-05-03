@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2015, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -206,7 +206,10 @@ Void TAppDecTop::decode()
       {
         for (UInt channelType = 0; channelType < MAX_NUM_CHANNEL_TYPE; channelType++)
         {
-          if (m_outputBitDepth[channelType] == 0) m_outputBitDepth[channelType] = g_bitDepth[channelType];
+          if (m_outputBitDepth[channelType] == 0)
+          {
+            m_outputBitDepth[channelType] = g_bitDepth[channelType];
+          }
         }
 
         m_cTVideoIOYuvReconFile.open( m_pchReconFile, true, m_outputBitDepth, m_outputBitDepth, g_bitDepth ); // write mode
@@ -289,6 +292,7 @@ Void TAppDecTop::xInitDecLib()
 }
 
 /** \param pcListPic list of pictures to be written to file
+    \param tId       temporal sub-layer ID
     \todo            DYN_REF_FREE should be revised
  */
 Void TAppDecTop::xWriteOutput( TComList<TComPic*>* pcListPic, UInt tId )
@@ -301,7 +305,7 @@ Void TAppDecTop::xWriteOutput( TComList<TComPic*>* pcListPic, UInt tId )
   TComList<TComPic*>::iterator iterPic   = pcListPic->begin();
   Int numPicsNotYetDisplayed = 0;
   Int dpbFullness = 0;
-  TComSPS* activeSPS = m_cTDecTop.getActiveSPS();
+  const TComSPS* activeSPS = &(pcListPic->front()->getPicSym()->getSPS());
   UInt numReorderPicsHighestTid;
   UInt maxDecPicBufferingHighestTid;
   UInt maxNrSublayers = activeSPS->getMaxTLayers();
@@ -361,7 +365,7 @@ Void TAppDecTop::xWriteOutput( TComList<TComPic*>* pcListPic, UInt tId )
         if ( m_pchReconFile )
         {
           const Window &conf = pcPicTop->getConformanceWindow();
-          const Window &defDisp = m_respectDefDispWindow ? pcPicTop->getDefDisplayWindow() : Window();
+          const Window  defDisp = m_respectDefDispWindow ? pcPicTop->getDefDisplayWindow() : Window();
           const Bool isTff = pcPicTop->isTopField();
 
           Bool display = true;
@@ -446,7 +450,7 @@ Void TAppDecTop::xWriteOutput( TComList<TComPic*>* pcListPic, UInt tId )
         if ( m_pchReconFile )
         {
           const Window &conf    = pcPic->getConformanceWindow();
-          const Window &defDisp = m_respectDefDispWindow ? pcPic->getDefDisplayWindow() : Window();
+          const Window  defDisp = m_respectDefDispWindow ? pcPic->getDefDisplayWindow() : Window();
 
           m_cTVideoIOYuvReconFile.write( pcPic->getPicYuvRec(),
                                          m_outputColourSpaceConvert,
@@ -514,7 +518,7 @@ Void TAppDecTop::xFlushOutput( TComList<TComPic*>* pcListPic )
         if ( m_pchReconFile )
         {
           const Window &conf = pcPicTop->getConformanceWindow();
-          const Window &defDisp = m_respectDefDispWindow ? pcPicTop->getDefDisplayWindow() : Window();
+          const Window  defDisp = m_respectDefDispWindow ? pcPicTop->getDefDisplayWindow() : Window();
           const Bool isTff = pcPicTop->isTopField();
           m_cTVideoIOYuvReconFile.write( pcPicTop->getPicYuvRec(), pcPicBottom->getPicYuvRec(),
                                          m_outputColourSpaceConvert,
@@ -590,7 +594,7 @@ Void TAppDecTop::xFlushOutput( TComList<TComPic*>* pcListPic )
         if ( m_pchReconFile )
         {
           const Window &conf    = pcPic->getConformanceWindow();
-          const Window &defDisp = m_respectDefDispWindow ? pcPic->getDefDisplayWindow() : Window();
+          const Window  defDisp = m_respectDefDispWindow ? pcPic->getDefDisplayWindow() : Window();
 
           m_cTVideoIOYuvReconFile.write( pcPic->getPicYuvRec(),
                                          m_outputColourSpaceConvert,
@@ -646,7 +650,7 @@ Bool TAppDecTop::isNaluWithinTargetDecLayerIdSet( InputNALUnit* nalu )
   }
   for (std::vector<Int>::iterator it = m_targetDecLayerIdSet.begin(); it != m_targetDecLayerIdSet.end(); it++)
   {
-    if ( nalu->m_reservedZero6Bits == (*it) )
+    if ( nalu->m_nuhLayerId == (*it) )
     {
       return true;
     }

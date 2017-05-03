@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2015, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -36,7 +36,6 @@
 #ifndef __NAL__
 #define __NAL__
 
-#include <vector>
 #include <sstream>
 #include "CommonDef.h"
 
@@ -49,16 +48,16 @@ struct NALUnit
 {
   NalUnitType m_nalUnitType; ///< nal_unit_type
   UInt        m_temporalId;  ///< temporal_id
-  UInt        m_reservedZero6Bits; ///< reserved_zero_6bits
+  UInt        m_nuhLayerId;  ///< nuh_layer_id
 
   /** construct an NALunit structure with given header values. */
   NALUnit(
     NalUnitType nalUnitType,
     Int         temporalId = 0,
-    Int         reservedZero6Bits = 0)
+    Int         nuhLayerId = 0)
     :m_nalUnitType (nalUnitType)
     ,m_temporalId  (temporalId)
-    ,m_reservedZero6Bits(reservedZero6Bits)
+    ,m_nuhLayerId  (nuhLayerId)
   {}
 
   /** default constructor - no initialization; must be perfomed by user */
@@ -106,7 +105,7 @@ struct NALUnitEBSP : public NALUnit
   std::ostringstream m_nalUnitData;
 
   /**
-   * convert the OutputNALUnit #nalu# into EBSP format by writing out
+   * convert the OutputNALUnit nalu into EBSP format by writing out
    * the NALUnit header, then the rbsp_bytes including any
    * emulation_prevention_three_byte symbols.
    */

@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2015, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -279,7 +279,10 @@ Void TAppEncTop::xInitLibCfg()
   m_cTEncTop.setTMCTSSEIEnabled                                   ( m_tmctsSEIEnabled );
   m_cTEncTop.setTimeCodeSEIEnabled                                ( m_timeCodeSEIEnabled );
   m_cTEncTop.setNumberOfTimeSets                                  ( m_timeCodeSEINumTs );
-  for(Int i = 0; i < m_timeCodeSEINumTs; i++) { m_cTEncTop.setTimeSet(m_timeSetArray[i], i); }
+  for(Int i = 0; i < m_timeCodeSEINumTs; i++)
+  {
+    m_cTEncTop.setTimeSet(m_timeSetArray[i], i);
+  }
   m_cTEncTop.setKneeSEIEnabled                                    ( m_kneeSEIEnabled );
   m_cTEncTop.setKneeSEIId                                         ( m_kneeSEIId );
   m_cTEncTop.setKneeSEICancelFlag                                 ( m_kneeSEICancelFlag );
@@ -309,7 +312,6 @@ Void TAppEncTop::xInitLibCfg()
   }
   m_cTEncTop.setLFCrossTileBoundaryFlag                           ( m_bLFCrossTileBoundaryFlag );
   m_cTEncTop.setWaveFrontSynchro                                  ( m_iWaveFrontSynchro );
-  m_cTEncTop.setWaveFrontSubstreams                               ( m_iWaveFrontSubstreams );
   m_cTEncTop.setTMVPModeId                                        ( m_TMVPModeId );
   m_cTEncTop.setUseScalingListId                                  ( m_useScalingListId  );
   m_cTEncTop.setScalingListFile                                   ( m_scalingListFile   );
@@ -467,8 +469,14 @@ Void TAppEncTop::encode()
     }
 
     // call encoding function for one frame
-    if ( m_isField ) m_cTEncTop.encode( bEos, flush ? 0 : pcPicYuvOrg, flush ? 0 : &cPicYuvTrueOrg, snrCSC, m_cListPicYuvRec, outputAccessUnits, iNumEncoded, m_isTopFieldFirst );
-    else             m_cTEncTop.encode( bEos, flush ? 0 : pcPicYuvOrg, flush ? 0 : &cPicYuvTrueOrg, snrCSC, m_cListPicYuvRec, outputAccessUnits, iNumEncoded );
+    if ( m_isField )
+    {
+      m_cTEncTop.encode( bEos, flush ? 0 : pcPicYuvOrg, flush ? 0 : &cPicYuvTrueOrg, snrCSC, m_cListPicYuvRec, outputAccessUnits, iNumEncoded, m_isTopFieldFirst );
+    }
+    else
+    {
+      m_cTEncTop.encode( bEos, flush ? 0 : pcPicYuvOrg, flush ? 0 : &cPicYuvTrueOrg, snrCSC, m_cListPicYuvRec, outputAccessUnits, iNumEncoded );
+    }
 
     // write bistream to file if necessary
     if ( iNumEncoded > 0 )
@@ -543,7 +551,11 @@ Void TAppEncTop::xDeleteBuffer( )
 
 }
 
-/** \param iNumEncoded  number of encoded frames
+/** 
+  Write access units to output file.
+  \param bitstreamFile  target bitstream file
+  \param iNumEncoded    number of encoded frames
+  \param accessUnits    list of access units to be written
  */
 Void TAppEncTop::xWriteOutput(std::ostream& bitstreamFile, Int iNumEncoded, const std::list<AccessUnit>& accessUnits)
 {

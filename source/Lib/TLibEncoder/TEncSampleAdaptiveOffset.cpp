@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2015, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,9 +45,7 @@
 //! \{
 
 
-/** rounding with IBDI
- * \param  x
- */
+//! rounding with IBDI
 inline Double xRoundIbdi2(Int bitDepth, Double x)
 {
   return ((x)>0) ? (Int)(((Int)(x)+(1<<(bitDepth-8-1)))/(1<<(bitDepth-8))) : ((Int)(((Int)(x)-(1<<(bitDepth-8-1)))/(1<<(bitDepth-8))));
@@ -514,10 +512,22 @@ Void TEncSampleAdaptiveOffset::deriveOffsets(ComponentID compIdx, Int typeIdc, S
         Double classCost;
         for(Int classIdx=0; classIdx<NUM_SAO_EO_CLASSES; classIdx++)
         {
-          if(classIdx==SAO_CLASS_EO_FULL_VALLEY && quantOffsets[classIdx] < 0) quantOffsets[classIdx] =0;
-          if(classIdx==SAO_CLASS_EO_HALF_VALLEY && quantOffsets[classIdx] < 0) quantOffsets[classIdx] =0;
-          if(classIdx==SAO_CLASS_EO_HALF_PEAK   && quantOffsets[classIdx] > 0) quantOffsets[classIdx] =0;
-          if(classIdx==SAO_CLASS_EO_FULL_PEAK   && quantOffsets[classIdx] > 0) quantOffsets[classIdx] =0;
+          if(classIdx==SAO_CLASS_EO_FULL_VALLEY && quantOffsets[classIdx] < 0)
+          {
+            quantOffsets[classIdx] =0;
+          }
+          if(classIdx==SAO_CLASS_EO_HALF_VALLEY && quantOffsets[classIdx] < 0)
+          {
+            quantOffsets[classIdx] =0;
+          }
+          if(classIdx==SAO_CLASS_EO_HALF_PEAK   && quantOffsets[classIdx] > 0)
+          {
+            quantOffsets[classIdx] =0;
+          }
+          if(classIdx==SAO_CLASS_EO_FULL_PEAK   && quantOffsets[classIdx] > 0)
+          {
+            quantOffsets[classIdx] =0;
+          }
 
           if( quantOffsets[classIdx] != 0 ) //iterative adjustment only when derived offset is not zero
           {
@@ -784,7 +794,9 @@ Void TEncSampleAdaptiveOffset::decideBlkParams(TComPic* pic, Bool* sliceEnabled,
   for(Int compId = COMPONENT_Y; compId < numberOfComponents; compId++)
   {
     if (sliceEnabled[compId])
+    {
       allBlksDisabled = false;
+    }
   }
 
   m_pcRDGoOnSbacCoder->load(m_pppcRDSbacCoder[ SAO_CABACSTATE_PIC_INIT ]);
@@ -919,10 +931,18 @@ Void TEncSampleAdaptiveOffset::getBlkStats(ComponentID compIdx, SAOStatData* sta
   {
     m_lineBufWidth = m_maxCUWidth;
 
-    if (m_signLineBuf1) delete[] m_signLineBuf1; m_signLineBuf1 = NULL;
+    if (m_signLineBuf1)
+    {
+      delete[] m_signLineBuf1;
+      m_signLineBuf1 = NULL;
+    }
     m_signLineBuf1 = new Char[m_lineBufWidth+1];
 
-    if (m_signLineBuf2) delete[] m_signLineBuf2; m_signLineBuf2 = NULL;
+    if (m_signLineBuf2)
+    {
+      delete[] m_signLineBuf2;
+      m_signLineBuf2 = NULL;
+    }
     m_signLineBuf2 = new Char[m_lineBufWidth+1];
   }
 

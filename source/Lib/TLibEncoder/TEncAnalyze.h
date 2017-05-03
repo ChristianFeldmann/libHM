@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2015, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -107,8 +107,12 @@ public:
 
     Int maximumBitDepth = g_bitDepth[0];
     for (UInt channelTypeIndex = 1; channelTypeIndex < MAX_NUM_CHANNEL_TYPE; channelTypeIndex++)
+    {
       if (g_bitDepth[channelTypeIndex] > maximumBitDepth)
+      {
         maximumBitDepth = g_bitDepth[channelTypeIndex];
+      }
+    }
 
     const UInt maxval                = 255 << (maximumBitDepth - 8);
     const UInt numberValidComponents = getNumberValidComponents(chFmt);
@@ -144,7 +148,10 @@ public:
       {
         const ComponentID compID = ComponentID(componentIndex);
 
-        if (getNumPic() == 0) MSEBasedSNR[compID] = 0 * dScale; // this is the same calculation that will be evaluated for any other statistic when there are no frames (it should result in NaN). We use it here so all the output is consistent.
+        if (getNumPic() == 0)
+        {
+          MSEBasedSNR[compID] = 0 * dScale; // this is the same calculation that will be evaluated for any other statistic when there are no frames (it should result in NaN). We use it here so all the output is consistent.
+        }
         else
         {
           //NOTE: this is not the true maximum value for any bitDepth other than 8. It comes from the original HM PSNR calculation
@@ -163,8 +170,14 @@ public:
         {
           printf( "         \tTotal Frames |   "   "Bitrate     "  "Y-PSNR" );
 
-          if (printSequenceMSE) printf( "    Y-MSE\n" );
-          else printf("\n");
+          if (printSequenceMSE)
+          {
+            printf( "    Y-MSE\n" );
+          }
+          else
+          {
+            printf("\n");
+          }
 
           //printf( "\t------------ "  " ----------"   " -------- "  " -------- "  " --------\n" );
           printf( "Average: \t %8d    %c "          "%12.4lf  "    "%8.4lf",
@@ -176,7 +189,10 @@ public:
           {
             printf( "  %8.4lf\n", m_MSEyuvframe[COMPONENT_Y ] / (Double)getNumPic() );
           }
-          else printf("\n");
+          else
+          {
+            printf("\n");
+          }
 
           printf( "From MSE:\t %8d    %c "          "%12.4lf  "    "%8.4lf\n",
                  getNumPic(), cDelim,
@@ -187,8 +203,14 @@ public:
         {
           printf( "\tTotal Frames |   "   "Bitrate     "  "Y-PSNR" );
 
-          if (printSequenceMSE) printf( "    Y-MSE\n" );
-          else printf("\n");
+          if (printSequenceMSE)
+          {
+            printf( "    Y-MSE\n" );
+          }
+          else
+          {
+            printf("\n");
+          }
 
           //printf( "\t------------ "  " ----------"   " -------- "  " -------- "  " --------\n" );
           printf( "\t %8d    %c "          "%12.4lf  "    "%8.4lf",
@@ -200,7 +222,10 @@ public:
           {
             printf( "  %8.4lf\n", m_MSEyuvframe[COMPONENT_Y ] / (Double)getNumPic() );
           }
-          else printf("\n");
+          else
+          {
+            printf("\n");
+          }
         }
         break;
       case CHROMA_420:
@@ -216,8 +241,14 @@ public:
           {
             printf( "         \tTotal Frames |   "   "Bitrate     "  "Y-PSNR    "  "U-PSNR    "  "V-PSNR    "  "YUV-PSNR " );
 
-            if (printSequenceMSE) printf( " Y-MSE     "  "U-MSE     "  "V-MSE    "  "YUV-MSE \n" );
-            else printf("\n");
+            if (printSequenceMSE)
+            {
+              printf( " Y-MSE     "  "U-MSE     "  "V-MSE    "  "YUV-MSE \n" );
+            }
+            else
+            {
+              printf("\n");
+            }
 
             //printf( "\t------------ "  " ----------"   " -------- "  " -------- "  " --------\n" );
             printf( "Average: \t %8d    %c "          "%12.4lf  "    "%8.4lf  "   "%8.4lf  "    "%8.4lf  "   "%8.4lf",
@@ -236,7 +267,10 @@ public:
                      m_MSEyuvframe[COMPONENT_Cr] / (Double)getNumPic(),
                      MSEyuv );
             }
-            else printf("\n");
+            else
+            {
+              printf("\n");
+            }
 
             printf( "From MSE:\t %8d    %c "          "%12.4lf  "    "%8.4lf  "   "%8.4lf  "    "%8.4lf  "   "%8.4lf\n",
                    getNumPic(), cDelim,
@@ -250,8 +284,14 @@ public:
           {
             printf( "\tTotal Frames |   "   "Bitrate     "  "Y-PSNR    "  "U-PSNR    "  "V-PSNR    "  "YUV-PSNR " );
             
-            if (printSequenceMSE) printf( " Y-MSE     "  "U-MSE     "  "V-MSE    "  "YUV-MSE \n" );
-            else printf("\n");
+            if (printSequenceMSE)
+            {
+              printf( " Y-MSE     "  "U-MSE     "  "V-MSE    "  "YUV-MSE \n" );
+            }
+            else
+            {
+              printf("\n");
+            }
 
             //printf( "\t------------ "  " ----------"   " -------- "  " -------- "  " --------\n" );
             printf( "\t %8d    %c "          "%12.4lf  "    "%8.4lf  "   "%8.4lf  "    "%8.4lf  "   "%8.4lf",
@@ -270,7 +310,10 @@ public:
                      m_MSEyuvframe[COMPONENT_Cr] / (Double)getNumPic(),
                      MSEyuv );
             }
-            else printf("\n");
+            else
+            {
+              printf("\n");
+            }
           }
         }
         break;
@@ -339,7 +382,10 @@ public:
                 m_MSEyuvframe[COMPONENT_Cr] / (Double)getNumPic(),
                 MSEyuv );
           }
-          else fprintf(pFile, "\n");
+          else
+          {
+            fprintf(pFile, "\n");
+          }
 
           break;
         }

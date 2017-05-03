@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2015, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -52,7 +52,10 @@ namespace
 
       double bitrate;
       left >> bitrate;
-      if( left.fail( ) ) break;
+      if( left.fail( ) )
+      {
+        break;
+      }
       if( bitrate <= ( double )0.0 )
       {
         left.setstate( std::istream::failbit );
@@ -61,7 +64,10 @@ namespace
       {
         right.push_back( bitrate );
       }
-      if( !left.good( ) ) break;
+      if( !left.good( ) )
+      {
+        break;
+      }
 
       if( left.peek( ) == ' ' )
       {
@@ -211,7 +217,10 @@ std::vector< double > guessLambdaModifiers(
     std::list< MetaLogEntry< std::vector< double > > >::const_reverse_iterator j( metaLogEntryList.rbegin( ) );
     pointList.push_front( pointFromFullMetaLogEntry( i, *j ) );
     ++j;
-    if( j != metaLogEntryList.rend( ) ) pointList.push_front( pointFromFullMetaLogEntry( i, *j ) );
+    if( j != metaLogEntryList.rend( ) )
+    {
+      pointList.push_front( pointFromFullMetaLogEntry( i, *j ) );
+    }
 
     // Calculate the new Lambda-modifier guess and add it to the result vector
     const double newLambdaModifier( guessLambdaModifier(
@@ -239,7 +248,10 @@ namespace
   {
     while( i.good( ) && character != i.get( ) )
       ;
-    if( !i.good( ) ) throw MetaLogParseException( );
+    if( !i.good( ) )
+    {
+      throw MetaLogParseException( );
+    }
   }
 
   /// Parses a Lambda-modifier map
@@ -251,24 +263,60 @@ namespace
       assert( left.good( ) );
 
       // Ignore the "-LM"
-      if( '-' != left.get( ) ) left.setstate( std::istream::failbit );
-      if( !left.good( ) ) break;
-      if( 'L' != left.get( ) ) left.setstate( std::istream::failbit );
-      if( !left.good( ) ) break;
-      if( 'M' != left.get( ) ) left.setstate( std::istream::failbit );
-      if( !left.good( ) ) break;
+      if( '-' != left.get( ) )
+      {
+        left.setstate( std::istream::failbit );
+      }
+      if( !left.good( ) )
+      {
+        break;
+      }
+      if( 'L' != left.get( ) )
+      {
+        left.setstate( std::istream::failbit );
+      }
+      if( !left.good( ) )
+      {
+        break;
+      }
+      if( 'M' != left.get( ) )
+      {
+        left.setstate( std::istream::failbit );
+      }
+      if( !left.good( ) )
+      {
+        break;
+      }
 
       // Parse the index
       long indexLong;
       left >> indexLong;
-      if( !left.good( ) ) break;
-      if( indexLong < std::numeric_limits< unsigned char >::min( ) ) left.setstate( std::istream::failbit );
-      if( std::numeric_limits< unsigned char >::max( ) < indexLong ) left.setstate( std::istream::failbit );
-      if( !left.good( ) ) break;
+      if( !left.good( ) )
+      {
+        break;
+      }
+      if( indexLong < std::numeric_limits< unsigned char >::min( ) )
+      {
+        left.setstate( std::istream::failbit );
+      }
+      if( std::numeric_limits< unsigned char >::max( ) < indexLong )
+      {
+        left.setstate( std::istream::failbit );
+      }
+      if( !left.good( ) )
+      {
+        break;
+      }
       unsigned char index( ( unsigned char )indexLong );
 
-      if( ' ' != left.get( ) ) left.setstate( std::istream::failbit );
-      if( !left.good( ) ) break;
+      if( ' ' != left.get( ) )
+      {
+        left.setstate( std::istream::failbit );
+      }
+      if( !left.good( ) )
+      {
+        break;
+      }
 
       // Parse the Lambda-modifier
       double lambdaModifier;
@@ -281,7 +329,10 @@ namespace
       {
         right[ index ] = lambdaModifier;
       }
-      if( !left.good( ) ) break;
+      if( !left.good( ) )
+      {
+        break;
+      }
 
       // If we peek and see a space, then there should be more Lambda-modifiers to parse.  Otherwise, we are finished.
       if( left.peek( ) == ' ' )
@@ -325,7 +376,10 @@ void guessLambdaModifiers(
   // Parse the targets
   std::vector< double > targetVector;
   parseBitrateVector( targetsIstream, targetVector );
-  if( targetVector.empty( ) || targetsIstream.fail( ) || targetsIstream.good( ) ) throw TargetsParseException( );
+  if( targetVector.empty( ) || targetsIstream.fail( ) || targetsIstream.good( ) )
+  {
+    throw TargetsParseException( );
+  }
 
   // Parse the metalog
   std::list< MetaLogEntry< std::map< unsigned char, double > > > metaLogEntryList;
@@ -334,32 +388,62 @@ void guessLambdaModifiers(
     // Parse the Lambda-modifiers
     MetaLogEntry< std::map< unsigned char, double > > entry;
     parseLambdaModifierMap( metaLogIstream, entry.lambdaModifiers );
-    if( !metaLogIstream.good( ) ) throw MetaLogParseException( );
+    if( !metaLogIstream.good( ) )
+    {
+      throw MetaLogParseException( );
+    }
 
     // Skip the ';'
-    if( ';' != metaLogIstream.get( ) ) throw MetaLogParseException( );
-    if( !metaLogIstream.good( ) ) throw MetaLogParseException( );
+    if( ';' != metaLogIstream.get( ) )
+    {
+      throw MetaLogParseException( );
+    }
+    if( !metaLogIstream.good( ) )
+    {
+      throw MetaLogParseException( );
+    }
 
     // Parse the bitrates
     parseBitrateVector( metaLogIstream, entry.bitrateVector );
-    if( metaLogIstream.fail( ) ) throw MetaLogParseException( );
+    if( metaLogIstream.fail( ) )
+    {
+      throw MetaLogParseException( );
+    }
     metaLogEntryList.push_back( entry );
 
-    if( !metaLogIstream.good( ) ) break;
-    if( metaLogIstream.get( ) != '\n' ) throw MetaLogParseException( );
+    if( !metaLogIstream.good( ) )
+    {
+      break;
+    }
+    if( metaLogIstream.get( ) != '\n' )
+    {
+      throw MetaLogParseException( );
+    }
     metaLogIstream.peek( );
   } while( metaLogIstream.good( ) );
-  if( metaLogEntryList.empty( ) ) throw MetaLogParseException( );  // The meta-log should not be empty
+  if( metaLogEntryList.empty( ) )
+  {
+    throw MetaLogParseException( );  // The meta-log should not be empty
+  }
 
   // Initialize firstIndexVector and check that the sizes and indexes match
   std::set< unsigned char > firstIndexSet( indexSetFromMap( metaLogEntryList.front( ).lambdaModifiers ) );
-  if( firstIndexSet.size( ) != targetVector.size( ) ) throw MismatchedIndexesException( );
+  if( firstIndexSet.size( ) != targetVector.size( ) )
+  {
+    throw MismatchedIndexesException( );
+  }
   for( std::list< MetaLogEntry< std::map< unsigned char, double > > >::const_iterator i( metaLogEntryList.begin( ) );
       i != metaLogEntryList.end( );
       ++i )
   {
-    if( indexSetFromMap( i->lambdaModifiers ) != firstIndexSet ) throw MismatchedIndexesException( );
-    if( i->bitrateVector.size( ) != targetVector.size( ) ) throw MismatchedIndexesException( );
+    if( indexSetFromMap( i->lambdaModifiers ) != firstIndexSet )
+    {
+      throw MismatchedIndexesException( );
+    }
+    if( i->bitrateVector.size( ) != targetVector.size( ) )
+    {
+      throw MismatchedIndexesException( );
+    }
   }
 
   // Initialize simplifiedMetaLogEntryList
@@ -384,7 +468,10 @@ void guessLambdaModifiers(
   std::vector< double >::const_iterator resultIter( resultVector.begin( ) );
   do
   {
-    if( indexIter != firstIndexSet.begin( ) ) o << " ";
+    if( indexIter != firstIndexSet.begin( ) )
+    {
+      o << " ";
+    }
     o << "-LM" << ( long )( *indexIter ) << " ";
     o.setf( std::ostream::fixed, std::ostream::floatfield );
     o.precision( 7 );

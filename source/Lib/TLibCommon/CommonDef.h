@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2015, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -57,7 +57,7 @@
 // Version information
 // ====================================================================================================================
 
-#define NV_VERSION        "16.2"                 ///< Current software version
+#define NV_VERSION        "16.3"                 ///< Current software version
 
 // ====================================================================================================================
 // Platform information

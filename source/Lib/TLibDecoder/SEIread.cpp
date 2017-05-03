@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2015, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -65,25 +65,37 @@ Void  xTraceSEIMessageType(SEI::PayloadType payloadType)
 Void SEIReader::sei_read_code(std::ostream *pOS, UInt uiLength, UInt& ruiCode, const Char *pSymbolName)
 {
   READ_CODE(uiLength, ruiCode, pSymbolName);
-  if (pOS)      (*pOS) << "  " << std::setw(55) << pSymbolName << ": " << ruiCode << "\n";
+  if (pOS)
+  {
+    (*pOS) << "  " << std::setw(55) << pSymbolName << ": " << ruiCode << "\n";
+  }
 }
 
 Void SEIReader::sei_read_uvlc(std::ostream *pOS, UInt& ruiCode, const Char *pSymbolName)
 {
   READ_UVLC(ruiCode, pSymbolName);
-  if (pOS)      (*pOS) << "  " << std::setw(55) << pSymbolName << ": " << ruiCode << "\n";
+  if (pOS)
+  {
+    (*pOS) << "  " << std::setw(55) << pSymbolName << ": " << ruiCode << "\n";
+  }
 }
 
 Void SEIReader::sei_read_svlc(std::ostream *pOS, Int& ruiCode, const Char *pSymbolName)
 {
   READ_SVLC(ruiCode, pSymbolName);
-  if (pOS)      (*pOS) << "  " << std::setw(55) << pSymbolName << ": " << ruiCode << "\n";
+  if (pOS)
+  {
+    (*pOS) << "  " << std::setw(55) << pSymbolName << ": " << ruiCode << "\n";
+  }
 }
 
 Void SEIReader::sei_read_flag(std::ostream *pOS, UInt& ruiCode, const Char *pSymbolName)
 {
   READ_FLAG(ruiCode, pSymbolName);
-  if (pOS)      (*pOS) << "  " << std::setw(55) << pSymbolName << ": " << (ruiCode?1:0) << "\n";
+  if (pOS)
+  {
+    (*pOS) << "  " << std::setw(55) << pSymbolName << ": " << (ruiCode?1:0) << "\n";
+  }
 }
 
 static inline Void output_sei_message_header(SEI &sei, std::ostream *pDecodedMessageOutputStream, UInt payloadSize)
@@ -104,7 +116,7 @@ static inline Void output_sei_message_header(SEI &sei, std::ostream *pDecodedMes
 /**
  * unmarshal a single SEI message from bitstream bs
  */
-Void SEIReader::parseSEImessage(TComInputBitstream* bs, SEIMessages& seis, const NalUnitType nalUnitType, TComSPS *sps, std::ostream *pDecodedMessageOutputStream)
+Void SEIReader::parseSEImessage(TComInputBitstream* bs, SEIMessages& seis, const NalUnitType nalUnitType, const TComSPS *sps, std::ostream *pDecodedMessageOutputStream)
 {
   setBitstream(bs);
 
@@ -116,14 +128,15 @@ Void SEIReader::parseSEImessage(TComInputBitstream* bs, SEIMessages& seis, const
     /* SEI messages are an integer number of bytes, something has failed
     * in the parsing if bitstream not byte-aligned */
     assert(!m_pcBitstream->getNumBitsUntilByteAligned());
-  } while (m_pcBitstream->getNumBitsLeft() > 8);
+  }
+  while (m_pcBitstream->getNumBitsLeft() > 8);
 
   UInt rbspTrailingBits;
   sei_read_code(NULL, 8, rbspTrailingBits, "rbsp_trailing_bits");
   assert(rbspTrailingBits == 0x80);
 }
 
-Void SEIReader::xReadSEImessage(SEIMessages& seis, const NalUnitType nalUnitType, TComSPS *sps, std::ostream *pDecodedMessageOutputStream)
+Void SEIReader::xReadSEImessage(SEIMessages& seis, const NalUnitType nalUnitType, const TComSPS *sps, std::ostream *pDecodedMessageOutputStream)
 {
 #if ENC_DEC_TRACE
   xTraceSEIHeader();
@@ -386,7 +399,10 @@ Void SEIReader::xParseSEIuserDataUnregistered(SEIuserDataUnregistered &sei, UInt
     sei_read_code( NULL, 8, val, "user_data_payload_byte" );
     sei.userData[i] = val;
   }
-  if (pDecodedMessageOutputStream) (*pDecodedMessageOutputStream) << "  User data payload size: " << sei.userDataLength << "\n";
+  if (pDecodedMessageOutputStream)
+  {
+    (*pDecodedMessageOutputStream) << "  User data payload size: " << sei.userDataLength << "\n";
+  }
 }
 
 /**
@@ -411,17 +427,26 @@ Void SEIReader::xParseSEIDecodedPictureHash(SEIDecodedPictureHash& sei, UInt pay
     default: assert(false); break;
   }
 
-  if (pDecodedMessageOutputStream) (*pDecodedMessageOutputStream) << "  " << std::setw(55) << traceString << ": " << std::hex << std::setfill('0');
+  if (pDecodedMessageOutputStream)
+  {
+    (*pDecodedMessageOutputStream) << "  " << std::setw(55) << traceString << ": " << std::hex << std::setfill('0');
+  }
 
   sei.m_digest.hash.clear();
   for(;bytesRead < payloadSize; bytesRead++)
   {
     sei_read_code( NULL, 8, val, traceString);
     sei.m_digest.hash.push_back((UChar)val);
-    if (pDecodedMessageOutputStream) (*pDecodedMessageOutputStream) << std::setw(2) << val;
+    if (pDecodedMessageOutputStream)
+    {
+      (*pDecodedMessageOutputStream) << std::setw(2) << val;
+    }
   }
 
-  if (pDecodedMessageOutputStream) (*pDecodedMessageOutputStream) << std::dec << std::setfill(' ') << "\n";
+  if (pDecodedMessageOutputStream)
+  {
+    (*pDecodedMessageOutputStream) << std::dec << std::setfill(' ') << "\n";
+  }
 }
 
 Void SEIReader::xParseSEIActiveParameterSets(SEIActiveParameterSets& sei, UInt payloadSize, std::ostream *pDecodedMessageOutputStream)
@@ -441,14 +466,14 @@ Void SEIReader::xParseSEIActiveParameterSets(SEIActiveParameterSets& sei, UInt p
   }
 }
 
-Void SEIReader::xParseSEIDecodingUnitInfo(SEIDecodingUnitInfo& sei, UInt payloadSize, TComSPS *sps, std::ostream *pDecodedMessageOutputStream)
+Void SEIReader::xParseSEIDecodingUnitInfo(SEIDecodingUnitInfo& sei, UInt payloadSize, const TComSPS *sps, std::ostream *pDecodedMessageOutputStream)
 {
   UInt val;
   output_sei_message_header(sei, pDecodedMessageOutputStream, payloadSize);
   sei_read_uvlc( pDecodedMessageOutputStream, val, "decoding_unit_idx");
   sei.m_decodingUnitIdx = val;
 
-  TComVUI *vui = sps->getVuiParameters();
+  const TComVUI *vui = sps->getVuiParameters();
   if(vui->getHrdParameters()->getSubPicCpbParamsInPicTimingSEIFlag())
   {
     sei_read_code( pDecodedMessageOutputStream, ( vui->getHrdParameters()->getDuCpbRemovalDelayLengthMinus1() + 1 ), val, "du_spt_cpb_removal_delay_increment");
@@ -466,13 +491,13 @@ Void SEIReader::xParseSEIDecodingUnitInfo(SEIDecodingUnitInfo& sei, UInt payload
   }
 }
 
-Void SEIReader::xParseSEIBufferingPeriod(SEIBufferingPeriod& sei, UInt payloadSize, TComSPS *sps, std::ostream *pDecodedMessageOutputStream)
+Void SEIReader::xParseSEIBufferingPeriod(SEIBufferingPeriod& sei, UInt payloadSize, const TComSPS *sps, std::ostream *pDecodedMessageOutputStream)
 {
   Int i, nalOrVcl;
   UInt code;
 
-  TComVUI *pVUI = sps->getVuiParameters();
-  TComHRD *pHRD = pVUI->getHrdParameters();
+  const TComVUI *pVUI = sps->getVuiParameters();
+  const TComHRD *pHRD = pVUI->getHrdParameters();
 
   output_sei_message_header(sei, pDecodedMessageOutputStream, payloadSize);
 
@@ -516,13 +541,13 @@ Void SEIReader::xParseSEIBufferingPeriod(SEIBufferingPeriod& sei, UInt payloadSi
   }
 }
 
-Void SEIReader::xParseSEIPictureTiming(SEIPictureTiming& sei, UInt payloadSize, TComSPS *sps, std::ostream *pDecodedMessageOutputStream)
+Void SEIReader::xParseSEIPictureTiming(SEIPictureTiming& sei, UInt payloadSize, const TComSPS *sps, std::ostream *pDecodedMessageOutputStream)
 {
   Int i;
   UInt code;
 
-  TComVUI *vui = sps->getVuiParameters();
-  TComHRD *hrd = vui->getHrdParameters();
+  const TComVUI *vui = sps->getVuiParameters();
+  const TComHRD *hrd = vui->getHrdParameters();
   output_sei_message_header(sei, pDecodedMessageOutputStream, payloadSize);
 
   if( vui->getFrameFieldInfoPresentFlag() )
@@ -784,7 +809,7 @@ Void SEIReader::xParseSEISOPDescription(SEISOPDescription &sei, UInt payloadSize
   }
 }
 
-Void SEIReader::xParseSEIScalableNesting(SEIScalableNesting& sei, const NalUnitType nalUnitType, UInt payloadSize, TComSPS *sps, std::ostream *pDecodedMessageOutputStream)
+Void SEIReader::xParseSEIScalableNesting(SEIScalableNesting& sei, const NalUnitType nalUnitType, UInt payloadSize, const TComSPS *sps, std::ostream *pDecodedMessageOutputStream)
 {
   UInt uiCode;
   SEIMessages seis;
@@ -826,11 +851,15 @@ Void SEIReader::xParseSEIScalableNesting(SEIScalableNesting& sei, const NalUnitT
   sei.m_callerOwnsSEIs = false;
 
   // read nested SEI messages
-  do {
+  do
+  {
     xReadSEImessage(sei.m_nestedSEIs, nalUnitType, sps, pDecodedMessageOutputStream);
   } while (m_pcBitstream->getNumBitsLeft() > 8);
 
-  if (pDecodedMessageOutputStream) (*pDecodedMessageOutputStream) << "End of scalable nesting SEI message\n";
+  if (pDecodedMessageOutputStream)
+  {
+    (*pDecodedMessageOutputStream) << "End of scalable nesting SEI message\n";
+  }
 }
 
 Void SEIReader::xParseSEITempMotionConstraintsTileSets(SEITempMotionConstrainedTileSets& sei, UInt payloadSize, std::ostream *pDecodedMessageOutputStream)
@@ -924,7 +953,9 @@ Void SEIReader::xParseSEITimeCode(SEITimeCode& sei, UInt payloadSize, std::ostre
             sei_read_code( pDecodedMessageOutputStream, 6, code, "minutes_value"); currentTimeSet.minutesValue = code;
             sei_read_flag( pDecodedMessageOutputStream, code, "hours_flag"); currentTimeSet.hoursFlag = code;
             if(currentTimeSet.hoursFlag)
+            {
               sei_read_code( pDecodedMessageOutputStream, 5, code, "hours_value"); currentTimeSet.hoursValue = code;
+            }
           }
         }
       }

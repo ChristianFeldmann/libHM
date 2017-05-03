@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2015, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -136,8 +136,14 @@ Void TComInterpolationFilter::filterCopy(Int bitDepth, const Pel *src, Int srcSt
       {
         Pel val = src[ col ];
         val = rightShift_round((val + IF_INTERNAL_OFFS), shift);
-        if (val < minVal) val = minVal;
-        if (val > maxVal) val = maxVal;
+        if (val < minVal)
+        {
+          val = minVal;
+        }
+        if (val > maxVal)
+        {
+          val = maxVal;
+        }
         dst[col] = val;
       }
 
@@ -281,6 +287,7 @@ Void TComInterpolationFilter::filterHor(Int bitDepth, Pel *src, Int srcStride, P
  * \brief Filter a block of samples (vertical)
  *
  * \tparam N          Number of taps
+ * \param  bitDepth   Bit depth
  * \param  src        Pointer to source samples
  * \param  srcStride  Stride of source samples
  * \param  dst        Pointer to destination samples
@@ -319,6 +326,7 @@ Void TComInterpolationFilter::filterVer(Int bitDepth, Pel *src, Int srcStride, P
 /**
  * \brief Filter a block of Luma/Chroma samples (horizontal)
  *
+ * \param  compID     Chroma component ID
  * \param  src        Pointer to source samples
  * \param  srcStride  Stride of source samples
  * \param  dst        Pointer to destination samples
@@ -327,6 +335,7 @@ Void TComInterpolationFilter::filterVer(Int bitDepth, Pel *src, Int srcStride, P
  * \param  height     Height of block
  * \param  frac       Fractional sample offset
  * \param  isLast     Flag indicating whether it is the last filtering operation
+ * \param  fmt        Chroma format
  */
 Void TComInterpolationFilter::filterHor(const ComponentID compID, Pel *src, Int srcStride, Pel *dst, Int dstStride, Int width, Int height, Int frac, Bool isLast, const ChromaFormat fmt )
 {
@@ -351,6 +360,7 @@ Void TComInterpolationFilter::filterHor(const ComponentID compID, Pel *src, Int 
 /**
  * \brief Filter a block of Luma/Chroma samples (vertical)
  *
+ * \param  compID     Colour component ID
  * \param  src        Pointer to source samples
  * \param  srcStride  Stride of source samples
  * \param  dst        Pointer to destination samples
@@ -360,6 +370,7 @@ Void TComInterpolationFilter::filterHor(const ComponentID compID, Pel *src, Int 
  * \param  frac       Fractional sample offset
  * \param  isFirst    Flag indicating whether it is the first filtering operation
  * \param  isLast     Flag indicating whether it is the last filtering operation
+ * \param  fmt        Chroma format
  */
 Void TComInterpolationFilter::filterVer(const ComponentID compID, Pel *src, Int srcStride, Pel *dst, Int dstStride, Int width, Int height, Int frac, Bool isFirst, Bool isLast, const ChromaFormat fmt )
 {

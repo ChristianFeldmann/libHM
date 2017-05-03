@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2015, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -36,9 +36,11 @@
 */
 
 // Include files
-#include "TComSlice.h"
-#include "TComWeightPrediction.h"
+#include "CommonDef.h"
+#include "TComYuv.h"
+#include "TComPic.h"
 #include "TComInterpolationFilter.h"
+#include "TComWeightPrediction.h"
 
 
 static inline Pel weightBidir( Int w0, Pel P0, Int w1, Pel P1, Int round, Int shift, Int offset, Int clipBD)
@@ -61,17 +63,7 @@ TComWeightPrediction::TComWeightPrediction()
 }
 
 
-/** weighted averaging for bi-pred
- * \param TComYuv* pcYuvSrc0
- * \param TComYuv* pcYuvSrc1
- * \param iPartUnitIdx
- * \param iWidth
- * \param iHeight
- * \param WPScalingParam *wp0
- * \param WPScalingParam *wp1
- * \param TComYuv* rpcYuvDst
- * \returns Void
- */
+//! weighted averaging for bi-pred
 Void TComWeightPrediction::addWeightBi( const TComYuv              *pcYuvSrc0,
                                         const TComYuv              *pcYuvSrc1,
                                         const UInt                  iPartUnitIdx,
@@ -136,15 +128,7 @@ Void TComWeightPrediction::addWeightBi( const TComYuv              *pcYuvSrc0,
 }
 
 
-/** weighted averaging for uni-pred
- * \param TComYuv* pcYuvSrc0
- * \param iPartUnitIdx
- * \param iWidth
- * \param iHeight
- * \param WPScalingParam *wp0
- * \param TComYuv* rpcYuvDst
- * \returns Void
- */
+//! weighted averaging for uni-pred
 Void TComWeightPrediction::addWeightUni( const TComYuv        *const pcYuvSrc0,
                                          const UInt                  iPartUnitIdx,
                                          const UInt                  uiWidth,
@@ -199,15 +183,7 @@ Void TComWeightPrediction::addWeightUni( const TComYuv        *const pcYuvSrc0,
 //=======================================================
 //  getWpScaling()
 //=======================================================
-/** derivation of wp tables
- * \param TComDataCU* pcCU
- * \param iRefIdx0
- * \param iRefIdx1
- * \param WPScalingParam *&wp0
- * \param WPScalingParam *&wp1
- * \param ibdi
- * \returns Void
- */
+//! derivation of wp tables
 Void TComWeightPrediction::getWpScaling(       TComDataCU *const pcCU,
                                          const Int               iRefIdx0,
                                          const Int               iRefIdx1,
@@ -286,18 +262,7 @@ Void TComWeightPrediction::getWpScaling(       TComDataCU *const pcCU,
 }
 
 
-/** weighted prediction for bi-pred
- * \param TComDataCU* pcCU
- * \param TComYuv* pcYuvSrc0
- * \param TComYuv* pcYuvSrc1
- * \param iRefIdx0
- * \param iRefIdx1
- * \param uiPartIdx
- * \param iWidth
- * \param iHeight
- * \param TComYuv* rpcYuvDst
- * \returns Void
- */
+//! weighted prediction for bi-pred
 Void TComWeightPrediction::xWeightedPredictionBi(       TComDataCU *const pcCU,
                                                   const TComYuv    *const pcYuvSrc0,
                                                   const TComYuv    *const pcYuvSrc1,
@@ -334,18 +299,7 @@ Void TComWeightPrediction::xWeightedPredictionBi(       TComDataCU *const pcCU,
 }
 
 
-/** weighted prediction for uni-pred
- * \param TComDataCU* pcCU
- * \param TComYuv* pcYuvSrc
- * \param uiPartAddr
- * \param iWidth
- * \param iHeight
- * \param eRefPicList
- * \param TComYuv* pcYuvPred
- * \param iPartIdx
- * \param iRefIdx
- * \returns Void
- */
+//! weighted prediction for uni-pred
 Void TComWeightPrediction::xWeightedPredictionUni(       TComDataCU *const pcCU,
                                                    const TComYuv    *const pcYuvSrc,
                                                    const UInt              uiPartAddr,

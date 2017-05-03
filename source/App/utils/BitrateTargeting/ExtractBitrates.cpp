@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2015, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -68,7 +68,10 @@ namespace
   {
     while( iLine.good( ) && character != iLine.get( ) )
       ;
-    if( !iLine.good( ) ) throw POCParseException( line );
+    if( !iLine.good( ) )
+    {
+      throw POCParseException( line );
+    }
   }
 
   /// Extracts the average bitrates for each of the temporal layers from the given log
@@ -85,23 +88,56 @@ namespace
       std::string line;
       std::getline( i, line );
       std::istringstream iLine( line );
-      if( !iLine.good( ) ) continue;
+      if( !iLine.good( ) )
+      {
+        continue;
+      }
 
       // Ignore the "POC"
-      if( iLine.get( ) != 'P' ) continue;
-      if( !iLine.good( ) ) continue;
-      if( iLine.get( ) != 'O' ) continue;
-      if( !iLine.good( ) ) continue;
-      if( iLine.get( ) != 'C' ) continue;
-      if( !iLine.good( ) ) throw POCParseException( line );
+      if( iLine.get( ) != 'P' )
+      {
+        continue;
+      }
+      if( !iLine.good( ) )
+      {
+        continue;
+      }
+      if( iLine.get( ) != 'O' )
+      {
+        continue;
+      }
+      if( !iLine.good( ) )
+      {
+        continue;
+      }
+      if( iLine.get( ) != 'C' )
+      {
+        continue;
+      }
+      if( !iLine.good( ) )
+      {
+        throw POCParseException( line );
+      }
 
       ignoreUpTo( line, iLine, '(' );
 
-      if( iLine.get( ) != ' ' ) throw POCParseException( line );
-      if( !iLine.good( ) ) throw POCParseException( line );
+      if( iLine.get( ) != ' ' )
+      {
+        throw POCParseException( line );
+      }
+      if( !iLine.good( ) )
+      {
+        throw POCParseException( line );
+      }
 
-      if( 'I' == iLine.get( ) ) continue;
-      if( !iLine.good( ) ) throw POCParseException( line );
+      if( 'I' == iLine.get( ) )
+      {
+        continue;
+      }
+      if( !iLine.good( ) )
+      {
+        throw POCParseException( line );
+      }
 
       ignoreUpTo( line, iLine, ' ' );
       ignoreUpTo( line, iLine, ' ' );
@@ -109,9 +145,15 @@ namespace
       // Parse the qpIndex
       long qpIndexLong;
       iLine >> qpIndexLong;
-      if( ( long )std::numeric_limits< unsigned char >::max( ) < qpIndexLong ) throw POCParseException( line );
+      if( ( long )std::numeric_limits< unsigned char >::max( ) < qpIndexLong )
+      {
+        throw POCParseException( line );
+      }
       unsigned char qpIndex( ( unsigned char )qpIndexLong );
-      if( !iLine.good( ) ) throw POCParseException( line );
+      if( !iLine.good( ) )
+      {
+        throw POCParseException( line );
+      }
 
       ignoreUpTo( line, iLine, ')' );
       ignoreUpTo( line, iLine, ' ' );
@@ -119,7 +161,10 @@ namespace
       // Parse the number of bits
       unsigned long bitsULong;
       iLine >> bitsULong;
-      if( !iLine.good( ) ) throw POCParseException( line );
+      if( !iLine.good( ) )
+      {
+        throw POCParseException( line );
+      }
 
       // Find the tally that corresponds to our QP.  If there is no such tally yet, then add a new one to the map.
       std::map< unsigned char, Tally >::iterator iter( tallyMap.find( qpIndex ) );
@@ -154,7 +199,10 @@ std::vector< double > extractBitratesForTemporalLayers( std::istream& i )
 
     for( std::map< unsigned char, double >::const_iterator i( bitratesForQPsMap.begin( ) ); i != bitratesForQPsMap.end( ); ++i )
     {
-      if( i->first != expectedNextQPIndex ) throw NonContiguousQPSetException( );
+      if( i->first != expectedNextQPIndex )
+      {
+        throw NonContiguousQPSetException( );
+      }
       ++expectedNextQPIndex;
       result.push_back( i->second );
     }

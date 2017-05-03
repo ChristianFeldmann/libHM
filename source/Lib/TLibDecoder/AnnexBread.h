@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2015, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -88,7 +88,9 @@ public:
   {
     assert(n <= 4);
     if (m_NumFutureBytes >= n)
+    {
       return false;
+    }
 
     n -= m_NumFutureBytes;
     try
@@ -152,7 +154,9 @@ public:
   {
     uint32_t val = 0;
     for (UInt i = 0; i < n; i++)
+    {
       val = (val << 8) | readByte();
+    }
     return val;
   }
 

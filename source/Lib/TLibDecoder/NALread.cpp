@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2015, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -109,32 +109,35 @@ Void readNalUnitHeader(InputNALUnit& nalu)
   Bool forbidden_zero_bit = bs.read(1);           // forbidden_zero_bit
   assert(forbidden_zero_bit == 0);
   nalu.m_nalUnitType = (NalUnitType) bs.read(6);  // nal_unit_type
-  nalu.m_reservedZero6Bits = bs.read(6);       // nuh_reserved_zero_6bits
-  assert(nalu.m_reservedZero6Bits == 0);
+  nalu.m_nuhLayerId = bs.read(6);                 // nuh_layer_id
   nalu.m_temporalId = bs.read(3) - 1;             // nuh_temporal_id_plus1
 #if RExt__DECODER_DEBUG_BIT_STATISTICS
   TComCodingStatistics::IncrementStatisticEP(STATS__NAL_UNIT_HEADER_BITS, 1+6+6+3, 0);
 #endif
 
-  if ( nalu.m_temporalId )
+  // only check these rules for base layer
+  if (nalu.m_nuhLayerId == 0)
   {
-    assert( nalu.m_nalUnitType != NAL_UNIT_CODED_SLICE_BLA_W_LP
-         && nalu.m_nalUnitType != NAL_UNIT_CODED_SLICE_BLA_W_RADL
-         && nalu.m_nalUnitType != NAL_UNIT_CODED_SLICE_BLA_N_LP
-         && nalu.m_nalUnitType != NAL_UNIT_CODED_SLICE_IDR_W_RADL
-         && nalu.m_nalUnitType != NAL_UNIT_CODED_SLICE_IDR_N_LP
-         && nalu.m_nalUnitType != NAL_UNIT_CODED_SLICE_CRA
-         && nalu.m_nalUnitType != NAL_UNIT_VPS
-         && nalu.m_nalUnitType != NAL_UNIT_SPS
-         && nalu.m_nalUnitType != NAL_UNIT_EOS
-         && nalu.m_nalUnitType != NAL_UNIT_EOB );
-  }
-  else
-  {
-    assert( nalu.m_nalUnitType != NAL_UNIT_CODED_SLICE_TSA_R
-         && nalu.m_nalUnitType != NAL_UNIT_CODED_SLICE_TSA_N
-         && nalu.m_nalUnitType != NAL_UNIT_CODED_SLICE_STSA_R
-         && nalu.m_nalUnitType != NAL_UNIT_CODED_SLICE_STSA_N );
+    if ( nalu.m_temporalId )
+    {
+      assert( nalu.m_nalUnitType != NAL_UNIT_CODED_SLICE_BLA_W_LP
+           && nalu.m_nalUnitType != NAL_UNIT_CODED_SLICE_BLA_W_RADL
+           && nalu.m_nalUnitType != NAL_UNIT_CODED_SLICE_BLA_N_LP
+           && nalu.m_nalUnitType != NAL_UNIT_CODED_SLICE_IDR_W_RADL
+           && nalu.m_nalUnitType != NAL_UNIT_CODED_SLICE_IDR_N_LP
+           && nalu.m_nalUnitType != NAL_UNIT_CODED_SLICE_CRA
+           && nalu.m_nalUnitType != NAL_UNIT_VPS
+           && nalu.m_nalUnitType != NAL_UNIT_SPS
+           && nalu.m_nalUnitType != NAL_UNIT_EOS
+           && nalu.m_nalUnitType != NAL_UNIT_EOB );
+    }
+    else
+    {
+      assert( nalu.m_nalUnitType != NAL_UNIT_CODED_SLICE_TSA_R
+           && nalu.m_nalUnitType != NAL_UNIT_CODED_SLICE_TSA_N
+           && nalu.m_nalUnitType != NAL_UNIT_CODED_SLICE_STSA_R
+           && nalu.m_nalUnitType != NAL_UNIT_CODED_SLICE_STSA_N );
+    }
   }
 }
 /**
