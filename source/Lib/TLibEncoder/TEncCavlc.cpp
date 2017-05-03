@@ -64,9 +64,24 @@ Void  xTraceSliceHeader ()
   fprintf( g_hTrace, "=========== Slice ===========\n");
 }
 
+Void  xTraceAccessUnitDelimiter ()
+{
+  fprintf( g_hTrace, "=========== Access Unit Delimiter ===========\n");
+}
+
 #endif
 
+Void AUDWriter::codeAUD(TComBitIf& bs, const Int pictureType)
+{
+#if ENC_DEC_TRACE
+  xTraceAccessUnitDelimiter();
+#endif
 
+  assert (pictureType < 3);
+  setBitstream(&bs);
+  WRITE_CODE(pictureType, 3, "pic_type");
+  xWriteRbspTrailingBits();
+}
 
 // ====================================================================================================================
 // Constructor / destructor / create / destroy
@@ -242,14 +257,14 @@ Void TEncCavlc::codePPS( const TComPPS* pcPPS )
   if (pps_extension_present_flag)
   {
 #if ENC_DEC_TRACE || RExt__DECODER_DEBUG_BIT_STATISTICS
-    static const char *syntaxStrings[]={ "pps_range_extension_flag",
-                                         "pps_multilayer_extension_flag",
-                                         "pps_extension_6bits[0]",
-                                         "pps_extension_6bits[1]",
-                                         "pps_extension_6bits[2]",
-                                         "pps_extension_6bits[3]",
-                                         "pps_extension_6bits[4]",
-                                         "pps_extension_6bits[5]" };
+    static const TChar *syntaxStrings[]={ "pps_range_extension_flag",
+                                          "pps_multilayer_extension_flag",
+                                          "pps_extension_6bits[0]",
+                                          "pps_extension_6bits[1]",
+                                          "pps_extension_6bits[2]",
+                                          "pps_extension_6bits[3]",
+                                          "pps_extension_6bits[4]",
+                                          "pps_extension_6bits[5]" };
 #endif
 
     for(Int i=0; i<NUM_PPS_EXTENSION_FLAGS; i++)
@@ -502,7 +517,7 @@ Void TEncCavlc::codeSPS( const TComSPS* pcSPS )
   {
     WRITE_UVLC( pcSPS->getMaxDecPicBuffering(i) - 1,       "sps_max_dec_pic_buffering_minus1[i]" );
     WRITE_UVLC( pcSPS->getNumReorderPics(i),               "sps_max_num_reorder_pics[i]" );
-    WRITE_UVLC( pcSPS->getMaxLatencyIncrease(i),           "sps_max_latency_increase_plus1[i]" );
+    WRITE_UVLC( pcSPS->getMaxLatencyIncreasePlus1(i),      "sps_max_latency_increase_plus1[i]" );
     if (!subLayerOrderingInfoPresentFlag)
     {
       break;
@@ -584,14 +599,14 @@ Void TEncCavlc::codeSPS( const TComSPS* pcSPS )
   if (sps_extension_present_flag)
   {
 #if ENC_DEC_TRACE || RExt__DECODER_DEBUG_BIT_STATISTICS
-    static const char *syntaxStrings[]={ "sps_range_extension_flag",
-                                         "sps_multilayer_extension_flag",
-                                         "sps_extension_6bits[0]",
-                                         "sps_extension_6bits[1]",
-                                         "sps_extension_6bits[2]",
-                                         "sps_extension_6bits[3]",
-                                         "sps_extension_6bits[4]",
-                                         "sps_extension_6bits[5]" };
+    static const TChar *syntaxStrings[]={ "sps_range_extension_flag",
+                                          "sps_multilayer_extension_flag",
+                                          "sps_extension_6bits[0]",
+                                          "sps_extension_6bits[1]",
+                                          "sps_extension_6bits[2]",
+                                          "sps_extension_6bits[3]",
+                                          "sps_extension_6bits[4]",
+                                          "sps_extension_6bits[5]" };
 #endif
 
     for(Int i=0; i<NUM_SPS_EXTENSION_FLAGS; i++)
@@ -1457,27 +1472,28 @@ Void TEncCavlc::xCodeScalingList(const TComScalingList* scalingList, UInt sizeId
   Int nextCoef = SCALING_LIST_START_VALUE;
   Int data;
   const Int *src = scalingList->getScalingListAddress(sizeId, listId);
-    if( sizeId > SCALING_LIST_8x8 )
+  if( sizeId > SCALING_LIST_8x8 )
+  {
+    WRITE_SVLC( scalingList->getScalingListDC(sizeId,listId) - 8, "scaling_list_dc_coef_minus8");
+    nextCoef = scalingList->getScalingListDC(sizeId,listId);
+  }
+  for(Int i=0;i<coefNum;i++)
+  {
+    data = src[scan[i]] - nextCoef;
+    nextCoef = src[scan[i]];
+    if(data > 127)
     {
-      WRITE_SVLC( scalingList->getScalingListDC(sizeId,listId) - 8, "scaling_list_dc_coef_minus8");
-      nextCoef = scalingList->getScalingListDC(sizeId,listId);
+      data = data - 256;
     }
-    for(Int i=0;i<coefNum;i++)
+    if(data < -128)
     {
-      data = src[scan[i]] - nextCoef;
-      nextCoef = src[scan[i]];
-      if(data > 127)
-      {
-        data = data - 256;
-      }
-      if(data < -128)
-      {
-        data = data + 256;
-      }
+      data = data + 256;
+    }
 
-      WRITE_SVLC( data,  "scaling_list_delta_coef");
-    }
+    WRITE_SVLC( data,  "scaling_list_delta_coef");
+  }
 }
+
 Bool TEncCavlc::findMatchingLTRP ( TComSlice* pcSlice, UInt *ltrpsIndex, Int ltrpPOC, Bool usedFlag )
 {
   // Bool state = true, state2 = false;

@@ -904,18 +904,18 @@ Void TEncSampleAdaptiveOffset::getBlkStats(const ComponentID compIdx, const Int 
       delete[] m_signLineBuf1;
       m_signLineBuf1 = NULL;
     }
-    m_signLineBuf1 = new Char[m_lineBufWidth+1];
+    m_signLineBuf1 = new SChar[m_lineBufWidth+1];
 
     if (m_signLineBuf2)
     {
       delete[] m_signLineBuf2;
       m_signLineBuf2 = NULL;
     }
-    m_signLineBuf2 = new Char[m_lineBufWidth+1];
+    m_signLineBuf2 = new SChar[m_lineBufWidth+1];
   }
 
   Int x,y, startX, startY, endX, endY, edgeType, firstLineStartX, firstLineEndX;
-  Char signLeft, signRight, signDown;
+  SChar signLeft, signRight, signDown;
   Int64 *diff, *count;
   Pel *srcLine, *orgLine;
   Int* skipLinesR = m_skipLinesR[compIdx];
@@ -945,10 +945,10 @@ Void TEncSampleAdaptiveOffset::getBlkStats(const ComponentID compIdx, const Int 
                                                  ;
         for (y=0; y<endY; y++)
         {
-          signLeft = (Char)sgn(srcLine[startX] - srcLine[startX-1]);
+          signLeft = (SChar)sgn(srcLine[startX] - srcLine[startX-1]);
           for (x=startX; x<endX; x++)
           {
-            signRight =  (Char)sgn(srcLine[x] - srcLine[x+1]);
+            signRight =  (SChar)sgn(srcLine[x] - srcLine[x+1]);
             edgeType  =  signRight + signLeft;
             signLeft  = -signRight;
 
@@ -967,10 +967,10 @@ Void TEncSampleAdaptiveOffset::getBlkStats(const ComponentID compIdx, const Int 
 
             for(y=0; y<skipLinesB[typeIdx]; y++)
             {
-              signLeft = (Char)sgn(srcLine[startX] - srcLine[startX-1]);
+              signLeft = (SChar)sgn(srcLine[startX] - srcLine[startX-1]);
               for (x=startX; x<endX; x++)
               {
-                signRight =  (Char)sgn(srcLine[x] - srcLine[x+1]);
+                signRight =  (SChar)sgn(srcLine[x] - srcLine[x+1]);
                 edgeType  =  signRight + signLeft;
                 signLeft  = -signRight;
 
@@ -988,7 +988,7 @@ Void TEncSampleAdaptiveOffset::getBlkStats(const ComponentID compIdx, const Int 
       {
         diff +=2;
         count+=2;
-        Char *signUpLine = m_signLineBuf1;
+        SChar *signUpLine = m_signLineBuf1;
 
         startX = (!isCalculatePreDeblockSamples) ? 0
                                                  : (isRightAvail ? (width - skipLinesR[typeIdx]) : width)
@@ -1007,7 +1007,7 @@ Void TEncSampleAdaptiveOffset::getBlkStats(const ComponentID compIdx, const Int 
         Pel* srcLineAbove = srcLine - srcStride;
         for (x=startX; x<endX; x++)
         {
-          signUpLine[x] = (Char)sgn(srcLine[x] - srcLineAbove[x]);
+          signUpLine[x] = (SChar)sgn(srcLine[x] - srcLineAbove[x]);
         }
 
         Pel* srcLineBelow;
@@ -1017,7 +1017,7 @@ Void TEncSampleAdaptiveOffset::getBlkStats(const ComponentID compIdx, const Int 
 
           for (x=startX; x<endX; x++)
           {
-            signDown  = (Char)sgn(srcLine[x] - srcLineBelow[x]); 
+            signDown  = (SChar)sgn(srcLine[x] - srcLineBelow[x]);
             edgeType  = signDown + signUpLine[x];
             signUpLine[x]= -signDown;
 
@@ -1057,7 +1057,7 @@ Void TEncSampleAdaptiveOffset::getBlkStats(const ComponentID compIdx, const Int 
       {
         diff +=2;
         count+=2;
-        Char *signUpLine, *signDownLine, *signTmpLine;
+        SChar *signUpLine, *signDownLine, *signTmpLine;
 
         signUpLine  = m_signLineBuf1;
         signDownLine= m_signLineBuf2;
@@ -1075,7 +1075,7 @@ Void TEncSampleAdaptiveOffset::getBlkStats(const ComponentID compIdx, const Int 
         Pel* srcLineBelow = srcLine + srcStride;
         for (x=startX; x<endX+1; x++)
         {
-          signUpLine[x] = (Char)sgn(srcLineBelow[x] - srcLine[x-1]);
+          signUpLine[x] = (SChar)sgn(srcLineBelow[x] - srcLine[x-1]);
         }
 
         //1st line
@@ -1099,14 +1099,14 @@ Void TEncSampleAdaptiveOffset::getBlkStats(const ComponentID compIdx, const Int 
 
           for (x=startX; x<endX; x++)
           {
-            signDown = (Char)sgn(srcLine[x] - srcLineBelow[x+1]);
+            signDown = (SChar)sgn(srcLine[x] - srcLineBelow[x+1]);
             edgeType = signDown + signUpLine[x];
             diff [edgeType] += (orgLine[x] - srcLine[x]);
             count[edgeType] ++;
 
             signDownLine[x+1] = -signDown;
           }
-          signDownLine[startX] = (Char)sgn(srcLineBelow[startX] - srcLine[startX-1]);
+          signDownLine[startX] = (SChar)sgn(srcLineBelow[startX] - srcLine[startX-1]);
 
           signTmpLine  = signUpLine;
           signUpLine   = signDownLine;
@@ -1144,7 +1144,7 @@ Void TEncSampleAdaptiveOffset::getBlkStats(const ComponentID compIdx, const Int 
       {
         diff +=2;
         count+=2;
-        Char *signUpLine = m_signLineBuf1+1;
+        SChar *signUpLine = m_signLineBuf1+1;
 
         startX = (!isCalculatePreDeblockSamples) ? (isLeftAvail  ? 0 : 1)
                                                  : (isRightAvail ? (width - skipLinesR[typeIdx]) : (width - 1))
@@ -1158,7 +1158,7 @@ Void TEncSampleAdaptiveOffset::getBlkStats(const ComponentID compIdx, const Int 
         Pel* srcLineBelow = srcLine + srcStride;
         for (x=startX-1; x<endX; x++)
         {
-          signUpLine[x] = (Char)sgn(srcLineBelow[x] - srcLine[x+1]);
+          signUpLine[x] = (SChar)sgn(srcLineBelow[x] - srcLine[x+1]);
         }
 
 
@@ -1187,7 +1187,7 @@ Void TEncSampleAdaptiveOffset::getBlkStats(const ComponentID compIdx, const Int 
 
           for(x=startX; x<endX; x++)
           {
-            signDown = (Char)sgn(srcLine[x] - srcLineBelow[x-1]);
+            signDown = (SChar)sgn(srcLine[x] - srcLineBelow[x-1]);
             edgeType = signDown + signUpLine[x];
 
             diff [edgeType] += (orgLine[x] - srcLine[x]);
@@ -1195,7 +1195,7 @@ Void TEncSampleAdaptiveOffset::getBlkStats(const ComponentID compIdx, const Int 
 
             signUpLine[x-1] = -signDown;
           }
-          signUpLine[endX-1] = (Char)sgn(srcLineBelow[endX-1] - srcLine[endX]);
+          signUpLine[endX-1] = (SChar)sgn(srcLineBelow[endX-1] - srcLine[endX]);
           srcLine  += srcStride;
           orgLine  += orgStride;
         }

@@ -58,11 +58,9 @@ namespace po = df::program_options_lite;
 /** \param argc number of arguments
     \param argv array of arguments
  */
-Bool TAppDecCfg::parseCfg( Int argc, Char* argv[] )
+Bool TAppDecCfg::parseCfg( Int argc, TChar* argv[] )
 {
   Bool do_help = false;
-  string cfg_BitstreamFile;
-  string cfg_ReconFile;
   string cfg_TargetDecLayerIdSetFile;
   string outputColourSpaceConvert;
   Int warnUnknowParameter = 0;
@@ -72,8 +70,8 @@ Bool TAppDecCfg::parseCfg( Int argc, Char* argv[] )
 
 
   ("help",                      do_help,                               false,      "this help text")
-  ("BitstreamFile,b",           cfg_BitstreamFile,                     string(""), "bitstream input file name")
-  ("ReconFile,o",               cfg_ReconFile,                         string(""), "reconstructed YUV output file name\n"
+  ("BitstreamFile,b",           m_bitstreamFileName,                   string(""), "bitstream input file name")
+  ("ReconFile,o",               m_reconFileName,                       string(""), "reconstructed YUV output file name\n"
                                                                                    "YUV writing is skipped if omitted")
   ("WarnUnknowParameter,w",     warnUnknowParameter,                                  0, "warn for unknown configuration parameters instead of failing")
   ("SkipFrames,s",              m_iSkipFrame,                          0,          "number of frames to skip before random access")
@@ -87,6 +85,7 @@ Bool TAppDecCfg::parseCfg( Int argc, Char* argv[] )
   ("SEINoDisplay",              m_decodedNoDisplaySEIEnabled,          true,       "Control handling of decoded no display SEI messages")
   ("TarDecLayerIdSetFile,l",    cfg_TargetDecLayerIdSetFile,           string(""), "targetDecLayerIdSet file name. The file should include white space separated LayerId values to be decoded. Omitting the option or a value of -1 in the file decodes all layers.")
   ("RespectDefDispWindow,w",    m_respectDefDispWindow,                0,          "Only output content inside the default display window\n")
+  ("SEIColourRemappingInfoFilename",  m_colourRemapSEIFileName,        string(""), "Colour Remapping YUV output file name. If empty, no remapping is applied (ignore SEI message)\n")
 #if O0043_BEST_EFFORT_DECODING
   ("ForceDecodeBitDepth",       m_forceDecodeBitDepth,                 0U,         "Force the decoder to operate at a particular bit-depth (best effort decoding)")
 #endif
@@ -96,9 +95,9 @@ Bool TAppDecCfg::parseCfg( Int argc, Char* argv[] )
 
   po::setDefaults(opts);
   po::ErrorReporter err;
-  const list<const Char*>& argv_unhandled = po::scanArgv(opts, argc, (const Char**) argv, err);
+  const list<const TChar*>& argv_unhandled = po::scanArgv(opts, argc, (const TChar**) argv, err);
 
-  for (list<const Char*>::const_iterator it = argv_unhandled.begin(); it != argv_unhandled.end(); it++)
+  for (list<const TChar*>::const_iterator it = argv_unhandled.begin(); it != argv_unhandled.end(); it++)
   {
     fprintf(stderr, "Unhandled argument ignored: `%s'\n", *it);
   }
@@ -125,11 +124,7 @@ Bool TAppDecCfg::parseCfg( Int argc, Char* argv[] )
     return false;
   }
 
-  /* convert std::string to c string for compatability */
-  m_pchBitstreamFile = cfg_BitstreamFile.empty() ? NULL : strdup(cfg_BitstreamFile.c_str());
-  m_pchReconFile = cfg_ReconFile.empty() ? NULL : strdup(cfg_ReconFile.c_str());
-
-  if (!m_pchBitstreamFile)
+  if (m_bitstreamFileName.empty())
   {
     fprintf(stderr, "No input file specified, aborting\n");
     return false;

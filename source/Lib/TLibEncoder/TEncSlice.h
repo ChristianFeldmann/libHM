@@ -111,8 +111,8 @@ public:
   Void    init                ( TEncTop* pcEncTop );
 
   /// preparation of slice encoding (reference marking, QP and lambda)
-  Void    initEncSlice        ( TComPic*  pcPic, Int pocLast, Int pocCurr, 
-                                Int iGOPid,   TComSlice*& rpcSlice, Bool isField );
+  Void    initEncSlice        ( TComPic*  pcPic, const Int pocLast, const Int pocCurr,
+                                const Int iGOPid,   TComSlice*& rpcSlice, const Bool isField );
   Void    resetQP             ( TComPic* pic, Int sliceQP, Double lambda );
   // compress and encode slice
   Void    precompressSlice    ( TComPic* pcPic                                     );      ///< precompress slice for multi-loop slice-level QP opt.

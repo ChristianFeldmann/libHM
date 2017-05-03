@@ -48,7 +48,7 @@
 
 #if ENC_DEC_TRACE
 
-Void  SyntaxElementParser::xReadCodeTr           (UInt length, UInt& rValue, const Char *pSymbolName)
+Void  SyntaxElementParser::xReadCodeTr           (UInt length, UInt& rValue, const TChar *pSymbolName)
 {
 #if RExt__DECODER_DEBUG_BIT_STATISTICS
   xReadCode (length, rValue, pSymbolName);
@@ -67,7 +67,7 @@ Void  SyntaxElementParser::xReadCodeTr           (UInt length, UInt& rValue, con
   fflush ( g_hTrace );
 }
 
-Void  SyntaxElementParser::xReadUvlcTr           (UInt& rValue, const Char *pSymbolName)
+Void  SyntaxElementParser::xReadUvlcTr           (UInt& rValue, const TChar *pSymbolName)
 {
 #if RExt__DECODER_DEBUG_BIT_STATISTICS
   xReadUvlc (rValue, pSymbolName);
@@ -79,7 +79,7 @@ Void  SyntaxElementParser::xReadUvlcTr           (UInt& rValue, const Char *pSym
   fflush ( g_hTrace );
 }
 
-Void  SyntaxElementParser::xReadSvlcTr           (Int& rValue, const Char *pSymbolName)
+Void  SyntaxElementParser::xReadSvlcTr           (Int& rValue, const TChar *pSymbolName)
 {
 #if RExt__DECODER_DEBUG_BIT_STATISTICS
   xReadSvlc (rValue, pSymbolName);
@@ -91,7 +91,7 @@ Void  SyntaxElementParser::xReadSvlcTr           (Int& rValue, const Char *pSymb
   fflush ( g_hTrace );
 }
 
-Void  SyntaxElementParser::xReadFlagTr           (UInt& rValue, const Char *pSymbolName)
+Void  SyntaxElementParser::xReadFlagTr           (UInt& rValue, const TChar *pSymbolName)
 {
 #if RExt__DECODER_DEBUG_BIT_STATISTICS
   xReadFlag (rValue, pSymbolName);
@@ -120,7 +120,7 @@ Void xTraceFillerData ()
 // Protected member functions
 // ====================================================================================================================
 #if RExt__DECODER_DEBUG_BIT_STATISTICS
-Void SyntaxElementParser::xReadCode (UInt uiLength, UInt& ruiCode, const Char *pSymbolName)
+Void SyntaxElementParser::xReadCode (UInt uiLength, UInt& ruiCode, const TChar *pSymbolName)
 #else
 Void SyntaxElementParser::xReadCode (UInt uiLength, UInt& ruiCode)
 #endif
@@ -133,7 +133,7 @@ Void SyntaxElementParser::xReadCode (UInt uiLength, UInt& ruiCode)
 }
 
 #if RExt__DECODER_DEBUG_BIT_STATISTICS
-Void SyntaxElementParser::xReadUvlc( UInt& ruiVal, const Char *pSymbolName)
+Void SyntaxElementParser::xReadUvlc( UInt& ruiVal, const TChar *pSymbolName)
 #else
 Void SyntaxElementParser::xReadUvlc( UInt& ruiVal)
 #endif
@@ -171,7 +171,7 @@ Void SyntaxElementParser::xReadUvlc( UInt& ruiVal)
 }
 
 #if RExt__DECODER_DEBUG_BIT_STATISTICS
-Void SyntaxElementParser::xReadSvlc( Int& riVal, const Char *pSymbolName)
+Void SyntaxElementParser::xReadSvlc( Int& riVal, const TChar *pSymbolName)
 #else
 Void SyntaxElementParser::xReadSvlc( Int& riVal)
 #endif
@@ -209,7 +209,7 @@ Void SyntaxElementParser::xReadSvlc( Int& riVal)
 }
 
 #if RExt__DECODER_DEBUG_BIT_STATISTICS
-Void SyntaxElementParser::xReadFlag (UInt& ruiCode, const Char *pSymbolName)
+Void SyntaxElementParser::xReadFlag (UInt& ruiCode, const TChar *pSymbolName)
 #else
 Void SyntaxElementParser::xReadFlag (UInt& ruiCode)
 #endif

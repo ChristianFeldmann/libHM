@@ -89,7 +89,7 @@ Void TEncBinCABACCounter::encodeBin( UInt binValue, ContextModel &rcCtxModel )
 
   if (g_debugCounter >= debugEncoderSearchBinTargetLine)
   {
-    Char breakPointThis;
+    UChar breakPointThis;
     breakPointThis = 7;
   }
   if (g_debugCounter >= (debugEncoderSearchBinTargetLine + debugEncoderSearchBinWindow))

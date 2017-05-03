@@ -82,14 +82,15 @@ public:
     MASTERING_DISPLAY_COLOUR_VOLUME      = 137,
     SEGM_RECT_FRAME_PACKING              = 138,
     TEMP_MOTION_CONSTRAINED_TILE_SETS    = 139,
-    CHROMA_SAMPLING_FILTER_HINT          = 140,
-    KNEE_FUNCTION_INFO                   = 141
+    CHROMA_RESAMPLING_FILTER_HINT        = 140,
+    KNEE_FUNCTION_INFO                   = 141,
+    COLOUR_REMAPPING_INFO                = 142,
   };
 
   SEI() {}
   virtual ~SEI() {}
 
-  static const Char *getSEIMessageString(SEI::PayloadType payloadType);
+  static const TChar *getSEIMessageString(SEI::PayloadType payloadType);
 
   virtual PayloadType payloadType() const = 0;
 };
@@ -123,13 +124,7 @@ public:
   SEIDecodedPictureHash() {}
   virtual ~SEIDecodedPictureHash() {}
 
-  enum Method
-  {
-    MD5,
-    CRC,
-    CHECKSUM,
-    RESERVED,
-  } method;
+  HashType method;
 
   TComPictureHash m_pictureHash;
 };
@@ -419,43 +414,62 @@ public:
   std::vector<Int> m_kneeOutputKneePoint;
 };
 
-class SEIChromaSamplingFilterHint : public SEI
+class SEIColourRemappingInfo : public SEI
 {
 public:
-  PayloadType payloadType() const {return CHROMA_SAMPLING_FILTER_HINT;}
-  SEIChromaSamplingFilterHint() {}
-  virtual ~SEIChromaSamplingFilterHint() {
-    if(m_verChromaFilterIdc == 1)
+
+  struct CRIlut
+  {
+    Int codedValue;
+    Int targetValue;
+    bool operator < (const CRIlut& a) const
     {
-      for(Int i = 0; i < m_numVerticalFilters; i ++)
-      {
-        free(m_verFilterCoeff[i]);
-      }
-      free(m_verFilterCoeff);
-      free(m_verTapLengthMinus1);
+      return codedValue < a.codedValue;
     }
-    if(m_horChromaFilterIdc == 1)
-    {
-      for(Int i = 0; i < m_numHorizontalFilters; i ++)
-      {
-        free(m_horFilterCoeff[i]);
-      }
-      free(m_horFilterCoeff);
-      free(m_horTapLengthMinus1);
-    }
+  };
+
+  PayloadType payloadType() const { return COLOUR_REMAPPING_INFO; }
+  SEIColourRemappingInfo() {}
+  ~SEIColourRemappingInfo() {}
+
+  Void copyFrom( const SEIColourRemappingInfo &seiCriInput)
+  {
+    (*this) = seiCriInput;
   }
 
-  Int   m_verChromaFilterIdc;
-  Int   m_horChromaFilterIdc;
-  Bool  m_verFilteringProcessFlag;
-  Int   m_targetFormatIdc;
-  Bool  m_perfectReconstructionFlag;
-  Int   m_numVerticalFilters;
-  Int*  m_verTapLengthMinus1;
-  Int** m_verFilterCoeff;
-  Int   m_numHorizontalFilters;
-  Int*  m_horTapLengthMinus1;
-  Int** m_horFilterCoeff;
+  UInt                m_colourRemapId;
+  Bool                m_colourRemapCancelFlag;
+  Bool                m_colourRemapPersistenceFlag;
+  Bool                m_colourRemapVideoSignalInfoPresentFlag;
+  Bool                m_colourRemapFullRangeFlag;
+  Int                 m_colourRemapPrimaries;
+  Int                 m_colourRemapTransferFunction;
+  Int                 m_colourRemapMatrixCoefficients;
+  Int                 m_colourRemapInputBitDepth;
+  Int                 m_colourRemapBitDepth;
+  Int                 m_preLutNumValMinus1[3];
+  std::vector<CRIlut> m_preLut[3];
+  Bool                m_colourRemapMatrixPresentFlag;
+  Int                 m_log2MatrixDenom;
+  Int                 m_colourRemapCoeffs[3][3];
+  Int                 m_postLutNumValMinus1[3];
+  std::vector<CRIlut> m_postLut[3];
+};
+
+class SEIChromaResamplingFilterHint : public SEI
+{
+public:
+  PayloadType payloadType() const {return CHROMA_RESAMPLING_FILTER_HINT;}
+  SEIChromaResamplingFilterHint() {}
+  virtual ~SEIChromaResamplingFilterHint() {}
+
+  Int                            m_verChromaFilterIdc;
+  Int                            m_horChromaFilterIdc;
+  Bool                           m_verFilteringFieldProcessingFlag;
+  Int                            m_targetFormatIdc;
+  Bool                           m_perfectReconstructionFlag;
+  std::vector<std::vector<Int> > m_verFilterCoeff;
+  std::vector<std::vector<Int> > m_horFilterCoeff;
 };
 
 class SEIMasteringDisplayColourVolume : public SEI

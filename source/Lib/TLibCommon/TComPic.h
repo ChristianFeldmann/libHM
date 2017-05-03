@@ -100,6 +100,7 @@ public:
   Bool          getCheckLTMSBPresent     () { return m_bCheckLTMSB;}
 
   TComPicSym*   getPicSym()           { return  &m_picSym;    }
+  const TComPicSym* getPicSym() const { return  &m_picSym;    }
   TComSlice*    getSlice(Int i)       { return  m_picSym.getSlice(i);  }
   Int           getPOC() const        { return  m_picSym.getSlice(m_uiCurrSliceIdx)->getPOC();  }
   TComDataCU*   getCtu( UInt ctuRsAddr )           { return  m_picSym.getCtu( ctuRsAddr ); }

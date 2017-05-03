@@ -1378,6 +1378,12 @@ Void TEncRateCtrl::init( Int totalFrames, Int targetBitrate, Int frameRate, Int 
   {
     m_encRCSeq->initLCUPara();
   }
+#if U0132_TARGET_BITS_SATURATION
+  m_CpbSaturationEnabled = false;
+  m_cpbSize              = targetBitrate;
+  m_cpbState             = (UInt)(m_cpbSize*0.5f);
+  m_bufferingRate        = (Int)(targetBitrate / frameRate);
+#endif
 
   delete[] bitsRatio;
   delete[] GOPID2Level;
@@ -1394,6 +1400,36 @@ Void TEncRateCtrl::initRCGOP( Int numberOfPictures )
   m_encRCGOP = new TEncRCGOP;
   m_encRCGOP->create( m_encRCSeq, numberOfPictures );
 }
+
+#if U0132_TARGET_BITS_SATURATION
+Int  TEncRateCtrl::updateCpbState(Int actualBits)
+{
+  Int cpbState = 1;
+
+  m_cpbState -= actualBits;
+  if (m_cpbState < 0)
+  {
+    cpbState = -1;
+  }
+
+  m_cpbState += m_bufferingRate;
+  if (m_cpbState > m_cpbSize)
+  {
+    cpbState = 0;
+  }
+
+  return cpbState;
+}
+
+Void TEncRateCtrl::initHrdParam(const TComHRD* pcHrd, Int iFrameRate, Double fInitialCpbFullness)
+{
+  m_CpbSaturationEnabled = true;
+  m_cpbSize = (pcHrd->getCpbSizeValueMinus1(0, 0, 0) + 1) << (4 + pcHrd->getCpbSizeScale());
+  m_cpbState = (UInt)(m_cpbSize*fInitialCpbFullness);
+  m_bufferingRate = (UInt)(((pcHrd->getBitRateValueMinus1(0, 0, 0) + 1) << (6 + pcHrd->getBitRateScale())) / iFrameRate);
+  printf("\nHRD - [Initial CPB state %6d] [CPB Size %6d] [Buffering Rate %6d]\n", m_cpbState, m_cpbSize, m_bufferingRate);
+}
+#endif
 
 Void TEncRateCtrl::destroyRCGOP()
 {

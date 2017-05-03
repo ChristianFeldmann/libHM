@@ -124,7 +124,7 @@ extern const TMatrixCoeff g_as_DST_MAT_4 [TRANSFORM_NUMBER_OF_DIRECTIONS][4][4];
 // Misc.
 // ====================================================================================================================
 
-extern       Char   g_aucConvertToBit  [ MAX_CU_SIZE+1 ];   // from width to log2(width)-2
+extern       SChar   g_aucConvertToBit  [ MAX_CU_SIZE+1 ];   // from width to log2(width)-2
 
 
 #if ENC_DEC_TRACE
@@ -158,10 +158,10 @@ extern UInt64 g_nSymbolCounter;
 
 #endif
 
-const Char* nalUnitTypeToString(NalUnitType type);
+const TChar* nalUnitTypeToString(NalUnitType type);
 
-extern const Char *MatrixType[SCALING_LIST_SIZE_NUM][SCALING_LIST_NUM];
-extern const Char *MatrixType_DC[SCALING_LIST_SIZE_NUM][SCALING_LIST_NUM];
+extern const TChar *MatrixType[SCALING_LIST_SIZE_NUM][SCALING_LIST_NUM];
+extern const TChar *MatrixType_DC[SCALING_LIST_SIZE_NUM][SCALING_LIST_NUM];
 
 extern const Int g_quantTSDefault4x4[4*4];
 extern const Int g_quantIntraDefault8x8[8*8];

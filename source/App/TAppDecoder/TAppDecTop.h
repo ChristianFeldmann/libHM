@@ -67,6 +67,8 @@ private:
   Int                             m_iPOCLastDisplay;              ///< last POC in display order
   std::ofstream                   m_seiMessageFileStream;         ///< Used for outputing SEI messages.
 
+  SEIColourRemappingInfo*         m_pcSeiColourRemappingInfoPrevious;
+
 public:
   TAppDecTop();
   virtual ~TAppDecTop() {}
@@ -84,6 +86,10 @@ protected:
   Void  xWriteOutput      ( TComList<TComPic*>* pcListPic , UInt tId); ///< write YUV to file
   Void  xFlushOutput      ( TComList<TComPic*>* pcListPic ); ///< flush all remaining decoded pictures to file
   Bool  isNaluWithinTargetDecLayerIdSet ( InputNALUnit* nalu ); ///< check whether given Nalu is within targetDecLayerIdSet
+
+private:
+  Void applyColourRemapping(const TComPicYuv& pic, SEIColourRemappingInfo& pCriSEI, const TComSPS &activeSPS);
+  Void xOutputColourRemapPic(TComPic* pcPic);
 };
 
 //! \}

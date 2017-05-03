@@ -50,7 +50,7 @@
 //! \ingroup TLibCommon
 //! \{
 
-const Char* nalUnitTypeToString(NalUnitType type)
+const TChar* nalUnitTypeToString(NalUnitType type)
 {
   switch (type)
   {
@@ -569,7 +569,7 @@ const UChar g_chroma422IntraAngleMappingTable[NUM_INTRA_MODE] =
 // Misc.
 // ====================================================================================================================
 
-Char  g_aucConvertToBit  [ MAX_CU_SIZE+1 ];
+SChar  g_aucConvertToBit  [ MAX_CU_SIZE+1 ];
 
 #if ENC_DEC_TRACE
 FILE*  g_hTrace = NULL; // Set to NULL to open up a file. Set to stdout to use the current output
@@ -597,7 +597,7 @@ const UInt ctxIndMap4x4[4*4] =
 const UInt g_uiMinInGroup[ LAST_SIGNIFICANT_GROUPS ] = {0,1,2,3,4,6,8,12,16,24};
 const UInt g_uiGroupIdx[ MAX_TU_SIZE ]   = {0,1,2,3,4,4,5,5,6,6,6,6,7,7,7,7,8,8,8,8,8,8,8,8,9,9,9,9,9,9,9,9};
 
-const Char *MatrixType[SCALING_LIST_SIZE_NUM][SCALING_LIST_NUM] =
+const TChar *MatrixType[SCALING_LIST_SIZE_NUM][SCALING_LIST_NUM] =
 {
   {
     "INTRA4X4_LUMA",
@@ -633,7 +633,7 @@ const Char *MatrixType[SCALING_LIST_SIZE_NUM][SCALING_LIST_NUM] =
   },
 };
 
-const Char *MatrixType_DC[SCALING_LIST_SIZE_NUM][SCALING_LIST_NUM] =
+const TChar *MatrixType_DC[SCALING_LIST_SIZE_NUM][SCALING_LIST_NUM] =
 {
   {
   },

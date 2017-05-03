@@ -82,10 +82,10 @@ protected:
   Void  xWriteSvlc            ( Int  iCode   );
   Void  xWriteFlag            ( UInt uiCode );
 #if ENC_DEC_TRACE
-  Void  xWriteCodeTr          ( UInt value, UInt  length, const Char *pSymbolName);
-  Void  xWriteUvlcTr          ( UInt value,               const Char *pSymbolName);
-  Void  xWriteSvlcTr          ( Int  value,               const Char *pSymbolName);
-  Void  xWriteFlagTr          ( UInt value,               const Char *pSymbolName);
+  Void  xWriteCodeTr          ( UInt value, UInt  length, const TChar *pSymbolName);
+  Void  xWriteUvlcTr          ( UInt value,               const TChar *pSymbolName);
+  Void  xWriteSvlcTr          ( Int  value,               const TChar *pSymbolName);
+  Void  xWriteFlagTr          ( UInt value,               const TChar *pSymbolName);
 #endif
   Void xWriteRbspTrailingBits();
 
