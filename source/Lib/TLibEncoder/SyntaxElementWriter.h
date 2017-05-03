@@ -87,6 +87,7 @@ protected:
   Void  xWriteSvlcTr          ( Int  value,               const Char *pSymbolName);
   Void  xWriteFlagTr          ( UInt value,               const Char *pSymbolName);
 #endif
+  Void xWriteRbspTrailingBits();
 
   UInt  xConvertToUInt        ( Int iValue ) {  return ( iValue <= 0) ? -iValue<<1 : (iValue<<1)-1; }
 };

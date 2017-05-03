@@ -70,7 +70,7 @@ TDecSbac::TDecSbac()
 , m_cCUMergeIdxExtSCModel                    ( 1,             1,                      NUM_MERGE_IDX_EXT_CTX                , m_contextModels + m_numContextModels, m_numContextModels)
 , m_cCUPartSizeSCModel                       ( 1,             1,                      NUM_PART_SIZE_CTX                    , m_contextModels + m_numContextModels, m_numContextModels)
 , m_cCUPredModeSCModel                       ( 1,             1,                      NUM_PRED_MODE_CTX                    , m_contextModels + m_numContextModels, m_numContextModels)
-, m_cCUIntraPredSCModel                      ( 1,             1,                      NUM_ADI_CTX                          , m_contextModels + m_numContextModels, m_numContextModels)
+, m_cCUIntraPredSCModel                      ( 1,             1,                      NUM_INTRA_PREDICT_CTX                , m_contextModels + m_numContextModels, m_numContextModels)
 , m_cCUChromaPredSCModel                     ( 1,             1,                      NUM_CHROMA_PRED_CTX                  , m_contextModels + m_numContextModels, m_numContextModels)
 , m_cCUDeltaQpSCModel                        ( 1,             1,                      NUM_DELTA_QP_CTX                     , m_contextModels + m_numContextModels, m_numContextModels)
 , m_cCUInterDirSCModel                       ( 1,             1,                      NUM_INTER_DIR_CTX                    , m_contextModels + m_numContextModels, m_numContextModels)
@@ -850,7 +850,7 @@ Void TDecSbac::parseCrossComponentPrediction( TComTU &rTu, ComponentID compID )
 {
   TComDataCU *pcCU = rTu.getCU();
 
-  if( isLuma(compID) || !pcCU->getSlice()->getPPS()->getUseCrossComponentPrediction() )
+  if( isLuma(compID) || !pcCU->getSlice()->getPPS()->getPpsRangeExtension().getCrossComponentPredictionEnabledFlag() )
   {
     return;
   }
@@ -978,15 +978,15 @@ Void TDecSbac::parseChromaQpAdjustment( TComDataCU* cu, UInt absPartIdx, UInt de
   const TComCodingStatisticsClassType ctype(STATS__CABAC_BITS__CHROMA_QP_ADJUSTMENT, g_aucConvertToBit[cu->getSlice()->getSPS()->getMaxCUWidth()>>depth]+2, CHANNEL_TYPE_CHROMA);
 #endif
 
-  Int tableSize = cu->getSlice()->getPPS()->getChromaQpAdjTableSize();
+  Int chromaQpOffsetListLen = cu->getSlice()->getPPS()->getPpsRangeExtension().getChromaQpOffsetListLen();
 
-  /* cu_chroma_qp_adjustment_flag */
+  // cu_chroma_qp_offset_flag
   m_pcTDecBinIf->decodeBin( symbol, m_ChromaQpAdjFlagSCModel.get( 0, 0, 0 ) RExt__DECODER_DEBUG_BIT_STATISTICS_PASS_OPT_ARG(ctype) );
 
-  if (symbol && tableSize > 1)
+  if (symbol && chromaQpOffsetListLen > 1)
   {
-    /* cu_chroma_qp_adjustment_idc */
-    xReadUnaryMaxSymbol( symbol,  &m_ChromaQpAdjIdcSCModel.get( 0, 0, 0 ), 0, tableSize - 1 RExt__DECODER_DEBUG_BIT_STATISTICS_PASS_OPT_ARG(ctype) );
+    // cu_chroma_qp_offset_idx
+    xReadUnaryMaxSymbol( symbol,  &m_ChromaQpAdjIdcSCModel.get( 0, 0, 0 ), 0, chromaQpOffsetListLen - 1 RExt__DECODER_DEBUG_BIT_STATISTICS_PASS_OPT_ARG(ctype) );
     symbol++;
   }
   /* NB, symbol = 0 if outer flag is not set,
@@ -1108,7 +1108,7 @@ Void TDecSbac::parseTransformSkipFlags (TComTU &rTu, ComponentID component)
     return;
   }
 
-  if (!TUCompRectHasAssociatedTransformSkipFlag(rTu.getRect(component), pcCU->getSlice()->getPPS()->getTransformSkipLog2MaxSize()))
+  if (!TUCompRectHasAssociatedTransformSkipFlag(rTu.getRect(component), pcCU->getSlice()->getPPS()->getPpsRangeExtension().getLog2MaxTransformSkipBlockSize()))
   {
     return;
   }
@@ -1281,9 +1281,9 @@ Void TDecSbac::parseCoeffNxN(  TComTU &rTu, ComponentID compID )
   const UInt         uiMaxNumCoeffM1   = uiMaxNumCoeff - 1;
 
   const ChannelType  channelType       = toChannelType(compID);
-  const Bool         extendedPrecision = sps.getUseExtendedPrecision();
+  const Bool         extendedPrecision = sps.getSpsRangeExtension().getExtendedPrecisionProcessingFlag();
 
-  const Bool         alignCABACBeforeBypass = sps.getAlignCABACBeforeBypass();
+  const Bool         alignCABACBeforeBypass = sps.getSpsRangeExtension().getCabacBypassAlignmentEnabledFlag();
   const Int          maxLog2TrDynamicRange  = sps.getMaxLog2TrDynamicRange(channelType);
 
 #if RExt__DECODER_DEBUG_BIT_STATISTICS
@@ -1346,7 +1346,7 @@ Void TDecSbac::parseCoeffNxN(  TComTU &rTu, ComponentID compID )
 
   //--------------------------------------------------------------------------------------------------
 
-  const Bool  bUseGolombRiceParameterAdaptation = sps.getUseGolombRiceParameterAdaptation();
+  const Bool  bUseGolombRiceParameterAdaptation = sps.getSpsRangeExtension().getPersistentRiceAdaptationEnabledFlag();
         UInt &currentGolombRiceStatistic        = m_golombRiceAdaptationStatistics[rTu.getGolombRiceStatisticsIndex(compID)];
 
   //select scans

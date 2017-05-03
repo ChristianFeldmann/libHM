@@ -131,7 +131,7 @@ Void getTUEntropyCodingParameters(      TUEntropyCodingParameters &result,
 
   //set the significance map context selection parameters
 
-  if (pcCU->getSlice()->getSPS()->getUseSingleSignificanceMapContext()
+  if (pcCU->getSlice()->getSPS()->getSpsRangeExtension().getTransformSkipContextEnabledFlag()
       && (pcCU->getCUTransquantBypass(uiAbsPartIdx) || (pcCU->getTransformSkip(uiAbsPartIdx, component) != 0)))
   {
     result.firstSignificanceMapContext = significanceMapContextSetStart[channelType][CONTEXT_TYPE_SINGLE];

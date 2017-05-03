@@ -80,8 +80,8 @@ private:
 
   //  Data : encoder control
   Bool                    m_bEncodeDQP;
-  Bool                    m_CodeChromaQpAdjFlag;
-  Int                     m_ChromaQpAdjIdc;
+  Bool                    m_stillToCodeChromaQpOffsetFlag; //indicates whether chroma QP offset flag needs to coded at this particular CU granularity.
+  Int                     m_cuChromaQpOffsetIdxPlus1; // if 0, then cu_chroma_qp_offset_flag will be 0, otherwise cu_chroma_qp_offset_flag will be 1.
 
   //  Access channel
   TEncCfg*                m_pcEncCfg;
@@ -116,7 +116,7 @@ public:
   Int   updateCtuDataISlice ( TComDataCU* pCtu, Int width, Int height );
 
 protected:
-  Void  finishCU            ( TComDataCU*  pcCU, UInt uiAbsPartIdx,           UInt uiDepth        );
+  Void  finishCU            ( TComDataCU*  pcCU, UInt uiAbsPartIdx );
 #if AMP_ENC_SPEEDUP
   Void  xCompressCU         ( TComDataCU*& rpcBestCU, TComDataCU*& rpcTempCU, UInt uiDepth DEBUG_STRING_FN_DECLARE(sDebug), PartSize eParentPartSize = NUMBER_OF_PART_SIZES );
 #else
@@ -146,14 +146,14 @@ protected:
 
   Void  xCheckIntraPCM      ( TComDataCU*& rpcBestCU, TComDataCU*& rpcTempCU                      );
   Void  xCopyAMVPInfo       ( AMVPInfo* pSrc, AMVPInfo* pDst );
-  Void  xCopyYuv2Pic        (TComPic* rpcPic, UInt uiCUAddr, UInt uiAbsPartIdx, UInt uiDepth, UInt uiSrcDepth, TComDataCU* pcCU, UInt uiLPelX, UInt uiTPelY );
+  Void  xCopyYuv2Pic        (TComPic* rpcPic, UInt uiCUAddr, UInt uiAbsPartIdx, UInt uiDepth, UInt uiSrcDepth );
   Void  xCopyYuv2Tmp        ( UInt uhPartUnitIdx, UInt uiDepth );
 
   Bool getdQPFlag           ()                        { return m_bEncodeDQP;        }
   Void setdQPFlag           ( Bool b )                { m_bEncodeDQP = b;           }
 
-  Bool getCodeChromaQpAdjFlag() { return m_CodeChromaQpAdjFlag; }
-  Void setCodeChromaQpAdjFlag( Bool b ) { m_CodeChromaQpAdjFlag = b; }
+  Bool getCodeChromaQpAdjFlag() { return m_stillToCodeChromaQpOffsetFlag; }
+  Void setCodeChromaQpAdjFlag( Bool b ) { m_stillToCodeChromaQpOffsetFlag = b; }
 
 #if ADAPTIVE_QP_SELECTION
   // Adaptive reconstruction level (ARL) statistics collection functions

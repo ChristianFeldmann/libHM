@@ -36,7 +36,7 @@
 */
 
 #include "TEncEntropy.h"
-#include "TLibCommon/TypeDef.h"
+#include "TLibCommon/CommonDef.h"
 #include "TLibCommon/TComSampleAdaptiveOffset.h"
 #include "TLibCommon/TComTU.h"
 
@@ -579,9 +579,9 @@ Void TEncEntropy::encodeQtCbfZero( TComTU &rTu, const ChannelType chType )
   m_pcEntropyCoderIf->codeQtCbfZero( rTu, chType );
 }
 
-Void TEncEntropy::encodeQtRootCbfZero( TComDataCU* pcCU )
+Void TEncEntropy::encodeQtRootCbfZero( )
 {
-  m_pcEntropyCoderIf->codeQtRootCbfZero( pcCU );
+  m_pcEntropyCoderIf->codeQtRootCbfZero( );
 }
 
 // dQP

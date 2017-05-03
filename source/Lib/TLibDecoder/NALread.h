@@ -33,7 +33,7 @@
 
 /**
  \file     NALread.h
- \brief    reading funtionality for NAL units
+ \brief    reading functionality for NAL units
  */
 
 #pragma once
@@ -41,7 +41,7 @@
 #ifndef __NALREAD__
 #define __NALREAD__
 
-#include "TLibCommon/TypeDef.h"
+#include "TLibCommon/CommonDef.h"
 #include "TLibCommon/TComBitStream.h"
 #include "TLibCommon/NAL.h"
 
@@ -52,15 +52,21 @@
  * A convenience wrapper to NALUnit that also provides a
  * bitstream object.
  */
-struct InputNALUnit : public NALUnit
+class InputNALUnit : public NALUnit
 {
-  InputNALUnit() : m_Bitstream(0) {};
-  ~InputNALUnit() { delete m_Bitstream; }
+  private:
+    TComInputBitstream m_Bitstream;
 
-  TComInputBitstream* m_Bitstream;
+  public:
+    InputNALUnit(const InputNALUnit &src) : NALUnit(src), m_Bitstream(src.m_Bitstream) {};
+    InputNALUnit() : m_Bitstream() {};
+    virtual ~InputNALUnit() { }
+    const TComInputBitstream &getBitstream() const { return m_Bitstream; }
+          TComInputBitstream &getBitstream()       { return m_Bitstream; }
 };
 
-Void read(InputNALUnit& nalu, std::vector<uint8_t>& nalUnitBuf);
+Void read(InputNALUnit& nalu);
+Void readNalUnitHeader(InputNALUnit& nalu);
 
 //! \}
 

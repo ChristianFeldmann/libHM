@@ -325,29 +325,9 @@ public:
   }
 
 
-  Void    printSummary(const ChromaFormat chFmt, const Bool printSequenceMSE, const BitDepths &bitDepths, Char ch='T')
+  Void    printSummary(const ChromaFormat chFmt, const Bool printSequenceMSE, const BitDepths &bitDepths, const std::string &sFilename)
   {
-    FILE* pFile = NULL;
-
-    switch( ch )
-    {
-      case 'T':
-        pFile = fopen ("summaryTotal.txt", "at");
-        break;
-      case 'I':
-        pFile = fopen ("summary_I.txt", "at");
-        break;
-      case 'P':
-        pFile = fopen ("summary_P.txt", "at");
-        break;
-      case 'B':
-        pFile = fopen ("summary_B.txt", "at");
-        break;
-      default:
-        assert(0);
-        return;
-        break;
-    }
+    FILE* pFile = fopen (sFilename.c_str(), "at");
 
     Double dFps     =   m_dFrmRate; //--CFG_KDY
     Double dScale   = dFps / 1000 / (Double)m_uiNumPic;

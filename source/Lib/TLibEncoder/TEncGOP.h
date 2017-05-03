@@ -99,9 +99,7 @@ private:
   Int                     m_iGopSize;
   Int                     m_iNumPicCoded;
   Bool                    m_bFirst;
-#if ALLOW_RECOVERY_POINT_AS_RAP
   Int                     m_iLastRecoveryPicPOC;
-#endif
 
   //  Access channel
   TEncTop*                m_pcEncTop;
@@ -132,11 +130,7 @@ private:
   std::vector<Int> m_vRVM_RP;
   UInt                    m_lastBPSEI;
   UInt                    m_totalCoded;
-  Bool                    m_activeParameterSetSEIPresentInAU;
   Bool                    m_bufferingPeriodSEIPresentInAU;
-  Bool                    m_pictureTimingSEIPresentInAU;
-  Bool                    m_nestedBufferingPeriodSEIPresentInAU;
-  Bool                    m_nestedPictureTimingSEIPresentInAU;
   SEIEncoder              m_seiEncoder;
 
 public:
@@ -168,14 +162,14 @@ protected:
 
 protected:
 
-  Void  xInitGOP          ( Int iPOCLast, Int iNumPicRcvd, TComList<TComPic*>& rcListPic, TComList<TComPicYuv*>& rcListPicYuvRecOut, Bool isField );
+  Void  xInitGOP          ( Int iPOCLast, Int iNumPicRcvd, Bool isField );
   Void  xGetBuffer        ( TComList<TComPic*>& rcListPic, TComList<TComPicYuv*>& rcListPicYuvRecOut, Int iNumPicRcvd, Int iTimeOffset, TComPic*& rpcPic, TComPicYuv*& rpcPicYuvRecOut, Int pocCurr, Bool isField );
 
   Void  xCalculateAddPSNRs         ( const Bool isField, const Bool isFieldTopFieldFirst, const Int iGOPid, TComPic* pcPic, const AccessUnit&accessUnit, TComList<TComPic*> &rcListPic, Double dEncTime, const InputColourSpaceConversion snr_conversion, const Bool printFrameMSE );
   Void  xCalculateAddPSNR          ( TComPic* pcPic, TComPicYuv* pcPicD, const AccessUnit&, Double dEncTime, const InputColourSpaceConversion snr_conversion, const Bool printFrameMSE );
   Void  xCalculateInterlacedAddPSNR( TComPic* pcPicOrgFirstField, TComPic* pcPicOrgSecondField,
                                      TComPicYuv* pcPicRecFirstField, TComPicYuv* pcPicRecSecondField,
-                                     const AccessUnit& accessUnit, Double dEncTime, const InputColourSpaceConversion snr_conversion, const Bool printFrameMSE );
+                                     const InputColourSpaceConversion snr_conversion, const Bool printFrameMSE );
 
   UInt64 xFindDistortionFrame (TComPicYuv* pcPic0, TComPicYuv* pcPic1, const BitDepths &bitDepths);
 
@@ -183,7 +177,7 @@ protected:
 
   Void xCreateIRAPLeadingSEIMessages (SEIMessages& seiMessages, const TComSPS *sps, const TComPPS *pps);
   Void xCreatePerPictureSEIMessages (Int picInGOP, SEIMessages& seiMessages, SEIMessages& nestedSeiMessages, TComSlice *slice);
-  Void xCreatePictureTimingSEI  (Int IRAPGOPid, SEIMessages& seiMessages, SEIMessages& nestedSeiMessages, SEIMessages& duInfoSeiMessages, AccessUnit &accessUnit, TComSlice *slice, Bool isField, std::deque<DUData> &duData);
+  Void xCreatePictureTimingSEI  (Int IRAPGOPid, SEIMessages& seiMessages, SEIMessages& nestedSeiMessages, SEIMessages& duInfoSeiMessages, TComSlice *slice, Bool isField, std::deque<DUData> &duData);
   Void xUpdateDuData(AccessUnit &testAU, std::deque<DUData> &duData);
   Void xUpdateTimingSEI(SEIPictureTiming *pictureTimingSEI, std::deque<DUData> &duData, const TComSPS *sps);
   Void xUpdateDuInfoSEI(SEIMessages &duInfoSeiMessages, SEIPictureTiming *pictureTimingSEI);
@@ -202,17 +196,6 @@ protected:
   Int xWritePPS (AccessUnit &accessUnit, const TComPPS *pps);
   Int xWriteParameterSets (AccessUnit &accessUnit, TComSlice *slice);
 
-  Void xResetNonNestedSEIPresentFlags()
-  {
-    m_activeParameterSetSEIPresentInAU = false;
-    m_bufferingPeriodSEIPresentInAU    = false;
-    m_pictureTimingSEIPresentInAU      = false;
-  }
-  Void xResetNestedSEIPresentFlags()
-  {
-    m_nestedBufferingPeriodSEIPresentInAU    = false;
-    m_nestedPictureTimingSEIPresentInAU      = false;
-  }
   Void applyDeblockingFilterMetric( TComPic* pcPic, UInt uiNumSlices );
 };// END CLASS DEFINITION TEncGOP
 

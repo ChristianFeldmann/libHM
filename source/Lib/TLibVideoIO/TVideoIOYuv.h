@@ -71,10 +71,15 @@ public:
   // if fileFormat<NUM_CHROMA_FORMAT, the format of the file is that format specified, else it is the format of the TComPicYuv.
 
 
-  Bool  read  ( TComPicYuv* pPicYuv, TComPicYuv* pPicYuvTrueOrg, const InputColourSpaceConversion ipcsc, Int aiPad[2], ChromaFormat fileFormat=NUM_CHROMA_FORMAT );     ///< read one frame with padding parameter
-  Bool  write ( TComPicYuv* pPicYuv, const InputColourSpaceConversion ipCSC, Int confLeft=0, Int confRight=0, Int confTop=0, Int confBottom=0, ChromaFormat fileFormat=NUM_CHROMA_FORMAT );     ///< write one YUV frame with padding parameter
-  Bool  write ( TComPicYuv* pPicYuvTop, TComPicYuv* pPicYuvBottom, const InputColourSpaceConversion ipCSC, Int confLeft=0, Int confRight=0, Int confTop=0, Int confBottom=0, ChromaFormat fileFormat=NUM_CHROMA_FORMAT, Bool isTff=false);
-  static Void ColourSpaceConvert(const TComPicYuv &src, TComPicYuv &dest, const InputColourSpaceConversion conversion, const Int bitDepths[MAX_NUM_CHANNEL_TYPE], Bool bIsForwards);
+  // If fileFormat=NUM_CHROMA_FORMAT, use the format defined by pPicYuvTrueOrg
+  Bool  read  ( TComPicYuv* pPicYuv, TComPicYuv* pPicYuvTrueOrg, const InputColourSpaceConversion ipcsc, Int aiPad[2], ChromaFormat fileFormat=NUM_CHROMA_FORMAT, const Bool bClipToRec709=false );     ///< read one frame with padding parameter
+
+  // If fileFormat=NUM_CHROMA_FORMAT, use the format defined by pPicYuv
+  Bool  write ( TComPicYuv* pPicYuv, const InputColourSpaceConversion ipCSC, Int confLeft=0, Int confRight=0, Int confTop=0, Int confBottom=0, ChromaFormat fileFormat=NUM_CHROMA_FORMAT, const Bool bClipToRec709=false );     ///< write one YUV frame with padding parameter
+
+  // If fileFormat=NUM_CHROMA_FORMAT, use the format defined by pPicYuvTop and pPicYuvBottom
+  Bool  write ( TComPicYuv* pPicYuvTop, TComPicYuv* pPicYuvBottom, const InputColourSpaceConversion ipCSC, Int confLeft=0, Int confRight=0, Int confTop=0, Int confBottom=0, ChromaFormat fileFormat=NUM_CHROMA_FORMAT, const Bool isTff=false, const Bool bClipToRec709=false);
+  static Void ColourSpaceConvert(const TComPicYuv &src, TComPicYuv &dest, const InputColourSpaceConversion conversion, Bool bIsForwards);
 
   Bool  isEof ();                                           ///< check for end-of-file
   Bool  isFail();                                           ///< check for failure

@@ -57,7 +57,7 @@
 #define NUM_PART_SIZE_CTX             4       ///< number of context models for partition size
 #define NUM_PRED_MODE_CTX             1       ///< number of context models for prediction mode
 
-#define NUM_ADI_CTX                   1       ///< number of context models for intra prediction
+#define NUM_INTRA_PREDICT_CTX         1       ///< number of context models for intra prediction
 
 #define NUM_CHROMA_PRED_CTX           2       ///< number of context models for intra prediction (chroma)
 #define NUM_INTER_DIR_CTX             5       ///< number of context models for inter prediction direction
@@ -226,7 +226,7 @@ INIT_PRED_MODE[NUMBER_OF_SLICE_TYPES][NUM_PRED_MODE_CTX] =
 };
 
 static const UChar
-INIT_INTRA_PRED_MODE[NUMBER_OF_SLICE_TYPES][NUM_ADI_CTX] =
+INIT_INTRA_PRED_MODE[NUMBER_OF_SLICE_TYPES][NUM_INTRA_PREDICT_CTX] =
 {
   { 183, },
   { 154, },

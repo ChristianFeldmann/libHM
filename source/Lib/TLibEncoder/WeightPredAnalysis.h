@@ -37,7 +37,7 @@
 #ifndef __WEIGHTPREDANALYSIS__
 #define __WEIGHTPREDANALYSIS__
 
-#include "../TLibCommon/TypeDef.h"
+#include "../TLibCommon/CommonDef.h"
 #include "../TLibCommon/TComSlice.h"
 #include "TEncCavlc.h"
 

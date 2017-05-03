@@ -103,7 +103,7 @@ static inline Void output_sei_message_header(SEI &sei, std::ostream *pDecodedMes
   if (pDecodedMessageOutputStream)
   {
     std::string seiMessageHdr(SEI::getSEIMessageString(sei.payloadType())); seiMessageHdr+=" SEI message";
-    (*pDecodedMessageOutputStream) << std::setfill('-') << std::setw(seiMessageHdr.size()) << "-" << std::setfill(' ') << "\n" << seiMessageHdr << "\n";
+    (*pDecodedMessageOutputStream) << std::setfill('-') << std::setw(seiMessageHdr.size()) << "-" << std::setfill(' ') << "\n" << seiMessageHdr << " (" << payloadSize << " bytes)"<< "\n";
   }
 }
 
@@ -131,9 +131,7 @@ Void SEIReader::parseSEImessage(TComInputBitstream* bs, SEIMessages& seis, const
   }
   while (m_pcBitstream->getNumBitsLeft() > 8);
 
-  UInt rbspTrailingBits;
-  sei_read_code(NULL, 8, rbspTrailingBits, "rbsp_trailing_bits");
-  assert(rbspTrailingBits == 0x80);
+  xReadRbspTrailingBits();
 }
 
 Void SEIReader::xReadSEImessage(SEIMessages& seis, const NalUnitType nalUnitType, const TComSPS *sps, std::ostream *pDecodedMessageOutputStream)
@@ -364,7 +362,6 @@ Void SEIReader::xReadSEImessage(SEIMessages& seis, const NalUnitType nalUnitType
   }
 
   /* restore primary bitstream for sei_message */
-  getBitstream()->deleteFifo();
   delete getBitstream();
   setBitstream(bs);
 }

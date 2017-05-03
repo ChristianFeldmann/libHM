@@ -180,7 +180,7 @@ Void TComPrediction::initTempBuff(ChromaFormat chromaFormatIDC)
 
 // Function for calculating DC value of the reference samples used in Intra prediction
 //NOTE: Bit-Limit - 25-bit source
-Pel TComPrediction::predIntraGetPredValDC( const Pel* pSrc, Int iSrcStride, UInt iWidth, UInt iHeight, ChannelType channelType, ChromaFormat format, Bool bAbove, Bool bLeft )
+Pel TComPrediction::predIntraGetPredValDC( const Pel* pSrc, Int iSrcStride, UInt iWidth, UInt iHeight, Bool bAbove, Bool bLeft )
 {
   assert(iWidth > 0 && iHeight > 0);
   Int iInd, iSum = 0;
@@ -250,7 +250,7 @@ Pel TComPrediction::predIntraGetPredValDC( const Pel* pSrc, Int iSrcStride, UInt
 Void TComPrediction::xPredIntraAng(       Int bitDepth,
                                     const Pel* pSrc,     Int srcStride,
                                           Pel* pTrueDst, Int dstStrideTrue,
-                                          UInt uiWidth, UInt uiHeight, ChannelType channelType, ChromaFormat format,
+                                          UInt uiWidth, UInt uiHeight, ChannelType channelType,
                                           UInt dirMode, Bool blkAboveAvailable, Bool blkLeftAvailable
                                   , const Bool bEnableEdgeFilters
                                   )
@@ -265,7 +265,7 @@ Void TComPrediction::xPredIntraAng(       Int bitDepth,
   // Do the DC prediction
   if (modeDC)
   {
-    const Pel dcval = predIntraGetPredValDC(pSrc, srcStride, width, height, channelType, format, blkAboveAvailable, blkLeftAvailable);
+    const Pel dcval = predIntraGetPredValDC(pSrc, srcStride, width, height, blkAboveAvailable, blkLeftAvailable);
 
     for (Int y=height;y>0;y--, pTrueDst+=dstStrideTrue)
     {
@@ -411,7 +411,6 @@ Void TComPrediction::xPredIntraAng(       Int bitDepth,
 
 Void TComPrediction::predIntraAng( const ComponentID compID, UInt uiDirMode, Pel* piOrg /* Will be null for decoding */, UInt uiOrgStride, Pel* piPred, UInt uiStride, TComTU &rTu, Bool bAbove, Bool bLeft, const Bool bUseFilteredPredSamples, const Bool bUseLosslessDPCM )
 {
-  const ChromaFormat   format      = rTu.GetChromaFormat();
   const ChannelType    channelType = toChannelType(compID);
   const TComRectangle &rect        = rTu.getRect(isLuma(compID) ? COMPONENT_Y : COMPONENT_Cb);
   const Int            iWidth      = rect.width;
@@ -471,7 +470,7 @@ Void TComPrediction::predIntraAng( const ComponentID compID, UInt uiDirMode, Pel
 
     if ( uiDirMode == PLANAR_IDX )
     {
-      xPredIntraPlanar( ptrSrc+sw+1, sw, pDst, uiStride, iWidth, iHeight, channelType, format );
+      xPredIntraPlanar( ptrSrc+sw+1, sw, pDst, uiStride, iWidth, iHeight );
     }
     else
     {
@@ -484,7 +483,7 @@ Void TComPrediction::predIntraAng( const ComponentID compID, UInt uiDirMode, Pel
 #else
       const Int channelsBitDepthForPrediction = rTu.getCU()->getSlice()->getSPS()->getBitDepth(channelType);
 #endif
-      xPredIntraAng( channelsBitDepthForPrediction, ptrSrc+sw+1, sw, pDst, uiStride, iWidth, iHeight, channelType, format, uiDirMode, bAbove, bLeft, enableEdgeFilters );
+      xPredIntraAng( channelsBitDepthForPrediction, ptrSrc+sw+1, sw, pDst, uiStride, iWidth, iHeight, channelType, uiDirMode, bAbove, bLeft, enableEdgeFilters );
 
       if(( uiDirMode == DC_IDX ) && bAbove && bLeft )
       {
@@ -754,7 +753,7 @@ Void TComPrediction::getMvPredAMVP( TComDataCU* pcCU, UInt uiPartIdx, UInt uiPar
  * This function derives the prediction samples for planar mode (intra coding).
  */
 //NOTE: Bit-Limit - 24-bit source
-Void TComPrediction::xPredIntraPlanar( const Pel* pSrc, Int srcStride, Pel* rpDst, Int dstStride, UInt width, UInt height, ChannelType channelType, ChromaFormat format )
+Void TComPrediction::xPredIntraPlanar( const Pel* pSrc, Int srcStride, Pel* rpDst, Int dstStride, UInt width, UInt height )
 {
   assert(width <= height);
 

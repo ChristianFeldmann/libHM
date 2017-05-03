@@ -35,7 +35,7 @@
     \brief    weighted prediction encoder class
 */
 
-#include "../TLibCommon/TypeDef.h"
+#include "../TLibCommon/CommonDef.h"
 #include "../TLibCommon/TComSlice.h"
 #include "../TLibCommon/TComPic.h"
 #include "../TLibCommon/TComPicYuv.h"
@@ -111,7 +111,7 @@ Void WeightPredAnalysis::xCalcACDCParamSlice(TComSlice *const slice)
       }
     }
 
-    const Int fixedBitShift = (slice->getSPS()->getUseHighPrecisionPredictionWeighting())?RExt__PREDICTION_WEIGHTING_ANALYSIS_DC_PRECISION:0;
+    const Int fixedBitShift = (slice->getSPS()->getSpsRangeExtension().getHighPrecisionOffsetsEnabledFlag())?RExt__PREDICTION_WEIGHTING_ANALYSIS_DC_PRECISION:0;
     weightACDCParam[compID].iDC = (((iOrgDC<<fixedBitShift)+(iSample>>1)) / iSample);
     weightACDCParam[compID].iAC = iOrgAC;
   }
@@ -200,7 +200,7 @@ Void WeightPredAnalysis::xEstimateWPParamSlice(TComSlice *const slice)
 Bool WeightPredAnalysis::xUpdatingWPParameters(TComSlice *const slice, const Int log2Denom)
 {
   const Int  numComp                    = slice->getPic()->getPicYuvOrg()->getNumberValidComponents();
-  const Bool bUseHighPrecisionWeighting = slice->getSPS()->getUseHighPrecisionPredictionWeighting();
+  const Bool bUseHighPrecisionWeighting = slice->getSPS()->getSpsRangeExtension().getHighPrecisionOffsetsEnabledFlag();
   const Int numPredDir                  = slice->isInterP() ? 1 : 2;
 
   assert (numPredDir <= Int(NUM_REF_PIC_LIST_01));
@@ -274,7 +274,7 @@ Bool WeightPredAnalysis::xSelectWP(TComSlice *const slice, const Int log2Denom)
         TComPicYuv *const pPic                                = slice->getPic()->getPicYuvOrg();
   const Int               iDefaultWeight                      = ((Int)1<<log2Denom);
   const Int               iNumPredDir                         = slice->isInterP() ? 1 : 2;
-  const Bool              useHighPrecisionPredictionWeighting = slice->getSPS()->getUseHighPrecisionPredictionWeighting();
+  const Bool              useHighPrecisionPredictionWeighting = slice->getSPS()->getSpsRangeExtension().getHighPrecisionOffsetsEnabledFlag();
 
   assert (iNumPredDir <= Int(NUM_REF_PIC_LIST_01));
 

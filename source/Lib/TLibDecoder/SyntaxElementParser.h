@@ -108,7 +108,27 @@ protected:
 public:
   Void  setBitstream ( TComInputBitstream* p )   { m_pcBitstream = p; }
   TComInputBitstream* getBitstream() { return m_pcBitstream; }
+
+protected:
+  Void xReadRbspTrailingBits();
 };
+
+class AUDReader: public SyntaxElementParser
+{
+public:
+  AUDReader() {};
+  virtual ~AUDReader() {};
+  Void parseAccessUnitDelimiter(TComInputBitstream* bs, UInt &picType);
+};
+
+class FDReader: public SyntaxElementParser
+{
+public:
+  FDReader() {};
+  virtual ~FDReader() {};
+  Void parseFillerData(TComInputBitstream* bs, UInt &fdSize);
+};
+
 
 //! \}
 

@@ -52,7 +52,7 @@
 #include "TDecCAVLC.h"
 #include "SEIread.h"
 
-struct InputNALUnit;
+class InputNALUnit;
 
 //! \ingroup TLibDecoder
 //! \{
@@ -75,7 +75,7 @@ private:
   ParameterSetManager     m_parameterSetManager;  // storage for parameter sets
   TComSlice*              m_apcSlicePilot;
 
-  SEIMessages             m_SEIs; ///< List of SEI messages that have been received before the first slice and between slices
+  SEIMessages             m_SEIs; ///< List of SEI messages that have been received before the first slice and between slices, excluding prefix SEIs...
 
   // functional classes
   TComPrediction          m_cPrediction;
@@ -112,6 +112,7 @@ private:
 
   Bool                    m_warningMessageSkipPicture;
 
+  std::list<InputNALUnit*> m_prefixSEINALUs; /// Buffered up prefix SEI NAL Units.
 public:
   TDecTop();
   virtual ~TDecTop();
@@ -146,12 +147,12 @@ protected:
 
   Void      xActivateParameterSets();
   Bool      xDecodeSlice(InputNALUnit &nalu, Int &iSkipFrame, Int iPOCLastDisplay);
-  Void      xDecodeVPS(const std::vector<UChar> *pNaluData);
-  Void      xDecodeSPS(const std::vector<UChar> *pNaluData);
-  Void      xDecodePPS(const std::vector<UChar> *pNaluData);
-  Void      xDecodeSEI( TComInputBitstream* bs, const NalUnitType nalUnitType );
+  Void      xDecodeVPS(const std::vector<UChar> &naluData);
+  Void      xDecodeSPS(const std::vector<UChar> &naluData);
+  Void      xDecodePPS(const std::vector<UChar> &naluData);
   Void      xUpdatePreviousTid0POC( TComSlice *pSlice ) { if ((pSlice->getTLayer()==0) && (pSlice->isReferenceNalu() && (pSlice->getNalUnitType()!=NAL_UNIT_CODED_SLICE_RASL_R)&& (pSlice->getNalUnitType()!=NAL_UNIT_CODED_SLICE_RADL_R))) { m_prevTid0POC=pSlice->getPOC(); } }
-
+  Void      xParsePrefixSEImessages();
+  Void      xParsePrefixSEIsForUnknownVCLNal();
 
 };// END CLASS DEFINITION TDecTop
 

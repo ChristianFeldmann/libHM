@@ -103,6 +103,16 @@ Void  SyntaxElementParser::xReadFlagTr           (UInt& rValue, const Char *pSym
   fflush ( g_hTrace );
 }
 
+Void  xTraceAccessUnitDelimiter ()
+{
+  fprintf( g_hTrace, "=========== Access Unit Delimiter ===========\n");
+}
+
+Void xTraceFillerData ()
+{
+  fprintf( g_hTrace, "=========== Filler Data ===========\n");
+}
+
 #endif
 
 
@@ -209,6 +219,51 @@ Void SyntaxElementParser::xReadFlag (UInt& ruiCode)
   TComCodingStatistics::IncrementStatisticEP(pSymbolName, 1, Int(ruiCode));
 #endif
 }
+
+Void SyntaxElementParser::xReadRbspTrailingBits()
+{
+  UInt bit;
+  READ_FLAG( bit, "rbsp_stop_one_bit");
+  assert (bit==1);
+  Int cnt = 0;
+  while (m_pcBitstream->getNumBitsUntilByteAligned())
+  {
+    READ_FLAG( bit, "rbsp_alignment_zero_bit");
+    assert (bit==0);
+    cnt++;
+  }
+  assert(cnt<8);
+}
+
+Void AUDReader::parseAccessUnitDelimiter(TComInputBitstream* bs, UInt &picType)
+{
+  setBitstream(bs);
+
+#if ENC_DEC_TRACE
+  xTraceAccessUnitDelimiter();
+#endif
+
+  READ_CODE (3, picType, "pic_type");
+  xReadRbspTrailingBits();
+}
+
+Void FDReader::parseFillerData(TComInputBitstream* bs, UInt &fdSize)
+{
+  setBitstream(bs);
+#if ENC_DEC_TRACE
+  xTraceFillerData();
+#endif
+  UInt ffByte;
+  fdSize = 0;
+  while( m_pcBitstream->getNumBitsLeft() >8 )
+  {
+    READ_CODE (8, ffByte, "ff_byte");
+    assert (ffByte==0xff);
+    fdSize++;
+  }
+  xReadRbspTrailingBits();
+}
+
 
 //! \}
 

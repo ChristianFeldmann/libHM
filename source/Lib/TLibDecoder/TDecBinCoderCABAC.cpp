@@ -110,7 +110,7 @@ Void TDecBinCABAC::decodeBin( UInt& ruiBin, ContextModel &rcCtxModel, const TCom
 Void TDecBinCABAC::decodeBin( UInt& ruiBin, ContextModel &rcCtxModel )
 #endif
 {
-#ifdef DEBUG_CABAC_BINS
+#if DEBUG_CABAC_BINS
   const UInt startingRange = m_uiRange;
 #endif
 
@@ -160,7 +160,7 @@ Void TDecBinCABAC::decodeBin( UInt& ruiBin, ContextModel &rcCtxModel )
     }
   }
 
-#ifdef DEBUG_CABAC_BINS
+#if DEBUG_CABAC_BINS
   if ((g_debugCounter + debugCabacBinWindow) >= debugCabacBinTargetLine)
   {
     std::cout << g_debugCounter << ": coding bin value " << ruiBin << ", range = [" << startingRange << "->" << m_uiRange << "]\n";

@@ -46,7 +46,7 @@
 #include <sstream>
 #include <TLibCommon/CommonDef.h>
 
-#ifdef DEBUG_STRING
+#if DEBUG_STRING
 extern const Char *debug_reorder_data_inter_token[MAX_NUM_COMPONENT+1];
 extern const Char *partSizeToString[NUMBER_OF_PART_SIZES];
 #endif
@@ -102,7 +102,7 @@ namespace DebugOptionList
   extern EnvVar ForceLumaMode;
   extern EnvVar ForceChromaMode;
 
-#ifdef DEBUG_STRING
+#if DEBUG_STRING
   extern EnvVar DebugString_Structure;
   extern EnvVar DebugString_Pred;
   extern EnvVar DebugString_Resi;
@@ -121,12 +121,12 @@ Void printMacroSettings();
 
 extern UInt g_debugCounter;
 
-#ifdef DEBUG_ENCODER_SEARCH_BINS
+#if DEBUG_ENCODER_SEARCH_BINS
 extern const UInt debugEncoderSearchBinTargetLine;
 extern const UInt debugEncoderSearchBinWindow;
 #endif
 
-#ifdef DEBUG_CABAC_BINS
+#if DEBUG_CABAC_BINS
 extern const UInt debugCabacBinTargetLine;
 extern const UInt debugCabacBinWindow;
 #endif
@@ -269,7 +269,7 @@ std::string indentNewLines(const std::string &input, const UInt indentBy);
 
 // ---------------------------------------------------------------------------------------------- //
 
-#ifdef DEBUG_STRING
+#if DEBUG_STRING
   Int DebugStringGetPredModeMask(PredMode mode);
   Void DebugInterPredResiReco(std::string &sDebug, TComYuv &pred, TComYuv &resi, TComYuv &reco, Int predmode_mask);
 #endif

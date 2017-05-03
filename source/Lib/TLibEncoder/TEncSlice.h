@@ -100,7 +100,7 @@ private:
   SliceType               m_encCABACTableIdx;
 
   Void     setUpLambda(TComSlice* slice, const Double dLambda, Int iQP);
-  Void     calculateBoundingCtuTsAddrForSlice(UInt &startCtuTSAddrSlice, UInt &boundingCtuTSAddrSlice, Bool &haveReachedTileBoundary, TComPic* pcPic, const Int sliceMode, const Int sliceArgument, const UInt uiSliceCurEndCtuTSAddr);
+  Void     calculateBoundingCtuTsAddrForSlice(UInt &startCtuTSAddrSlice, UInt &boundingCtuTSAddrSlice, Bool &haveReachedTileBoundary, TComPic* pcPic, const Int sliceMode, const Int sliceArgument);
 
 public:
   TEncSlice();
@@ -111,12 +111,12 @@ public:
   Void    init                ( TEncTop* pcEncTop );
 
   /// preparation of slice encoding (reference marking, QP and lambda)
-  Void    initEncSlice        ( TComPic*  pcPic, Int pocLast, Int pocCurr, Int iNumPicRcvd,
+  Void    initEncSlice        ( TComPic*  pcPic, Int pocLast, Int pocCurr, 
                                 Int iGOPid,   TComSlice*& rpcSlice, Bool isField );
   Void    resetQP             ( TComPic* pic, Int sliceQP, Double lambda );
   // compress and encode slice
-  Void    precompressSlice    ( TComPic* pcPic                                     );      ///< precompress slice for multi-loop opt.
-  Void    compressSlice       ( TComPic* pcPic                                     );      ///< analysis stage of slice
+  Void    precompressSlice    ( TComPic* pcPic                                     );      ///< precompress slice for multi-loop slice-level QP opt.
+  Void    compressSlice       ( TComPic* pcPic, const Bool bCompressEntireSlice    );      ///< analysis stage of slice
   Void    calCostSliceI       ( TComPic* pcPic );
   Void    encodeSlice         ( TComPic* pcPic, TComOutputBitstream* pcSubstreams, UInt &numBinsCoded );
 

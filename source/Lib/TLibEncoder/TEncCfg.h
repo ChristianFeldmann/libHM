@@ -124,6 +124,7 @@ protected:
   UInt              m_bitDepthConstraintValue;
   ChromaFormat      m_chromaFormatConstraintValue;
   Bool              m_intraConstraintFlag;
+  Bool              m_onePictureOnlyConstraintFlag;
   Bool              m_lowerBitRateConstraintFlag;
 
   //====== Coding Structure ========
@@ -161,21 +162,26 @@ protected:
   Bool      m_loopFilterOffsetInPPS;
   Int       m_loopFilterBetaOffsetDiv2;
   Int       m_loopFilterTcOffsetDiv2;
-  Bool      m_DeblockingFilterControlPresent;
   Bool      m_DeblockingFilterMetric;
   Bool      m_bUseSAO;
+  Bool      m_bTestSAODisableAtPictureLevel;
+  Double    m_saoEncodingRate;       // When non-0 SAO early picture termination is enabled for luma and chroma
+  Double    m_saoEncodingRateChroma; // The SAO early picture termination rate to use for chroma (when m_SaoEncodingRate is >0). If <=0, use results for luma.
   Int       m_maxNumOffsetsPerPic;
   Bool      m_saoCtuBoundary;
 
   //====== Motion search ========
+  Bool      m_bDisableIntraPUsInInterSlices;
   Int       m_iFastSearch;                      //  0:Full search  1:Diamond  2:PMVFAST
   Int       m_iSearchRange;                     //  0:Full frame
   Int       m_bipredSearchRange;
+  Bool      m_bClipForBiPredMeEnabled;
+  Bool      m_bFastMEAssumingSmootherMVEnabled;
 
   //====== Quality control ========
   Int       m_iMaxDeltaQP;                      //  Max. absolute delta QP (1:default)
   Int       m_iMaxCuDQPDepth;                   //  Max. depth for a minimum CuDQP (0:default)
-  Int       m_maxCUChromaQpAdjustmentDepth;
+  Int       m_diffCuChromaQpOffsetDepth;        ///< If negative, then do not apply chroma qp offsets.
 
   Int       m_chromaCbQpOffset;                 //  Chroma Cb QP Offset (0:default)
   Int       m_chromaCrQpOffset;                 //  Chroma Cr Qp Offset (0:default)
@@ -184,8 +190,8 @@ protected:
 #if ADAPTIVE_QP_SELECTION
   Bool      m_bUseAdaptQpSelect;
 #endif
-  Bool      m_useExtendedPrecision;
-  Bool      m_useHighPrecisionPredictionWeighting;
+  Bool      m_extendedPrecisionProcessingFlag;
+  Bool      m_highPrecisionOffsetsEnabledFlag;
   Bool      m_bUseAdaptiveQP;
   Int       m_iQPAdaptationRange;
 
@@ -204,21 +210,24 @@ protected:
   Bool      m_useFastDecisionForMerge;
   Bool      m_bUseCbfFastMode;
   Bool      m_useEarlySkipDetection;
-  Bool      m_useCrossComponentPrediction;
+  Bool      m_crossComponentPredictionEnabledFlag;
   Bool      m_reconBasedCrossCPredictionEstimate;
-  UInt      m_saoOffsetBitShift[MAX_NUM_CHANNEL_TYPE];
+  UInt      m_log2SaoOffsetScale[MAX_NUM_CHANNEL_TYPE];
   Bool      m_useTransformSkip;
   Bool      m_useTransformSkipFast;
-  UInt      m_transformSkipLog2MaxSize;
-  Bool      m_useResidualRotation;
-  Bool      m_useSingleSignificanceMapContext;
-  Bool      m_useGolombRiceParameterAdaptation;
-  Bool      m_alignCABACBeforeBypass;
-  Bool      m_useResidualDPCM[NUMBER_OF_RDPCM_SIGNALLING_MODES];
+  UInt      m_log2MaxTransformSkipBlockSize;
+  Bool      m_transformSkipRotationEnabledFlag;
+  Bool      m_transformSkipContextEnabledFlag;
+  Bool      m_persistentRiceAdaptationEnabledFlag;
+  Bool      m_cabacBypassAlignmentEnabledFlag;
+  Bool      m_rdpcmEnabledFlag[NUMBER_OF_RDPCM_SIGNALLING_MODES];
   Int*      m_aidQP;
   UInt      m_uiDeltaQpRD;
 
   Bool      m_bUseConstrainedIntraPred;
+  Bool      m_bFastUDIUseMPMEnabled;
+  Bool      m_bFastMEForGenBLowDelayEnabled;
+  Bool      m_bUseBLambdaForNonKeyLowDelayPictures;
   Bool      m_usePCM;
   Int       m_PCMBitDepth[MAX_NUM_CHANNEL_TYPE];
   UInt      m_pcmLog2MaxSize;
@@ -233,7 +242,7 @@ protected:
 
   Bool      m_bPCMInputBitDepthFlag;
   Bool      m_bPCMFilterDisableFlag;
-  Bool      m_disableIntraReferenceSmoothing;
+  Bool      m_intraSmoothingDisabledFlag;
   Bool      m_loopFilterAcrossTilesEnabledFlag;
   Bool      m_tileUniformSpacingFlag;
   Int       m_iNumColumnsMinus1;
@@ -365,6 +374,12 @@ protected:
   Int       m_log2MaxMvLengthVertical;                        ///< Indicate the maximum absolute value of a decoded vertical MV component in quarter-pel luma units
 
   Bool      m_useStrongIntraSmoothing;                        ///< enable the use of strong intra smoothing (bi_linear interpolation) for 32x32 blocks when reference samples are flat.
+  Bool      m_bEfficientFieldIRAPEnabled;                     ///< enable to code fields in a specific, potentially more efficient, order.
+  Bool      m_bHarmonizeGopFirstFieldCoupleEnabled;
+
+  std::string m_summaryOutFilename;                           ///< filename to use for producing summary output file.
+  std::string m_summaryPicFilenameBase;                       ///< Base filename to use for producing summary picture output files. The actual filenames used will have I.txt, P.txt and B.txt appended.
+  UInt        m_summaryVerboseness;                           ///< Specifies the level of the verboseness of the text output.
 
 public:
   TEncCfg()
@@ -441,20 +456,22 @@ public:
   Void      setLoopFilterOffsetInPPS        ( Bool  b )      { m_loopFilterOffsetInPPS      = b; }
   Void      setLoopFilterBetaOffset         ( Int   i )      { m_loopFilterBetaOffsetDiv2  = i; }
   Void      setLoopFilterTcOffset           ( Int   i )      { m_loopFilterTcOffsetDiv2    = i; }
-  Void      setDeblockingFilterControlPresent ( Bool b ) { m_DeblockingFilterControlPresent = b; }
   Void      setDeblockingFilterMetric       ( Bool  b )      { m_DeblockingFilterMetric = b; }
 
   //====== Motion search ========
+  Void      setDisableIntraPUsInInterSlices ( Bool  b )      { m_bDisableIntraPUsInInterSlices = b; }
   Void      setFastSearch                   ( Int   i )      { m_iFastSearch = i; }
   Void      setSearchRange                  ( Int   i )      { m_iSearchRange = i; }
   Void      setBipredSearchRange            ( Int   i )      { m_bipredSearchRange = i; }
+  Void      setClipForBiPredMeEnabled       ( Bool  b )      { m_bClipForBiPredMeEnabled = b; }
+  Void      setFastMEAssumingSmootherMVEnabled ( Bool b )    { m_bFastMEAssumingSmootherMVEnabled = b; }
 
   //====== Quality control ========
   Void      setMaxDeltaQP                   ( Int   i )      { m_iMaxDeltaQP = i; }
   Void      setMaxCuDQPDepth                ( Int   i )      { m_iMaxCuDQPDepth = i; }
 
-  Int       getMaxCUChromaQpAdjustmentDepth ()         const { return m_maxCUChromaQpAdjustmentDepth;  }
-  Void      setMaxCUChromaQpAdjustmentDepth (Int value)      { m_maxCUChromaQpAdjustmentDepth = value; }
+  Int       getDiffCuChromaQpOffsetDepth    ()         const { return m_diffCuChromaQpOffsetDepth;  }
+  Void      setDiffCuChromaQpOffsetDepth    (Int value)      { m_diffCuChromaQpOffsetDepth = value; }
 
   Void      setChromaCbQpOffset             ( Int   i )      { m_chromaCbQpOffset = i; }
   Void      setChromaCrQpOffset             ( Int   i )      { m_chromaCrQpOffset = i; }
@@ -467,11 +484,11 @@ public:
   Bool      getUseAdaptQpSelect             ()           { return   m_bUseAdaptQpSelect; }
 #endif
 
-  Bool      getUseExtendedPrecision         ()         const { return m_useExtendedPrecision;  }
-  Void      setUseExtendedPrecision         (Bool value)     { m_useExtendedPrecision = value; }
+  Bool      getExtendedPrecisionProcessingFlag         ()         const { return m_extendedPrecisionProcessingFlag;  }
+  Void      setExtendedPrecisionProcessingFlag         (Bool value)     { m_extendedPrecisionProcessingFlag = value; }
 
-  Bool      getUseHighPrecisionPredictionWeighting() const { return m_useHighPrecisionPredictionWeighting; }
-  Void      setUseHighPrecisionPredictionWeighting(Bool value) { m_useHighPrecisionPredictionWeighting = value; }
+  Bool      getHighPrecisionOffsetsEnabledFlag() const { return m_highPrecisionOffsetsEnabledFlag; }
+  Void      setHighPrecisionOffsetsEnabledFlag(Bool value) { m_highPrecisionOffsetsEnabledFlag = value; }
 
   Void      setUseAdaptiveQP                ( Bool  b )      { m_bUseAdaptiveQP = b; }
   Void      setQPAdaptationRange            ( Int   i )      { m_iQPAdaptationRange = i; }
@@ -506,12 +523,14 @@ public:
   Bool      getLoopFilterOffsetInPPS        ()      { return m_loopFilterOffsetInPPS; }
   Int       getLoopFilterBetaOffset         ()      { return m_loopFilterBetaOffsetDiv2; }
   Int       getLoopFilterTcOffset           ()      { return m_loopFilterTcOffsetDiv2; }
-  Bool      getDeblockingFilterControlPresent()  { return  m_DeblockingFilterControlPresent; }
   Bool      getDeblockingFilterMetric       ()      { return m_DeblockingFilterMetric; }
 
   //==== Motion search ========
-  Int       getFastSearch                   ()      { return  m_iFastSearch; }
-  Int       getSearchRange                  ()      { return  m_iSearchRange; }
+  Bool      getDisableIntraPUsInInterSlices () const { return m_bDisableIntraPUsInInterSlices; }
+  Int       getFastSearch                   () const { return m_iFastSearch; }
+  Int       getSearchRange                  () const { return m_iSearchRange; }
+  Bool      getClipForBiPredMeEnabled       () const { return m_bClipForBiPredMeEnabled; }
+  Bool      getFastMEAssumingSmootherMVEnabled ( ) const { return m_bFastMEAssumingSmootherMVEnabled; }
 
   //==== Quality control ========
   Int       getMaxDeltaQP                   ()      { return  m_iMaxDeltaQP; }
@@ -535,6 +554,10 @@ public:
   Void      setUseCbfFastMode            ( Bool  b )     { m_bUseCbfFastMode = b; }
   Void      setUseEarlySkipDetection        ( Bool  b )     { m_useEarlySkipDetection = b; }
   Void      setUseConstrainedIntraPred      ( Bool  b )     { m_bUseConstrainedIntraPred = b; }
+  Void      setFastUDIUseMPMEnabled         ( Bool  b )     { m_bFastUDIUseMPMEnabled = b; }
+  Void      setFastMEForGenBLowDelayEnabled ( Bool  b )     { m_bFastMEForGenBLowDelayEnabled = b; }
+  Void      setUseBLambdaForNonKeyLowDelayPictures ( Bool b ) { m_bUseBLambdaForNonKeyLowDelayPictures = b; }
+
   Void      setPCMInputBitDepthFlag         ( Bool  b )     { m_bPCMInputBitDepthFlag = b; }
   Void      setPCMFilterDisableFlag         ( Bool  b )     {  m_bPCMFilterDisableFlag = b; }
   Void      setUsePCM                       ( Bool  b )     {  m_usePCM = b;               }
@@ -557,36 +580,39 @@ public:
   Bool      getUseCbfFastMode               ()      { return m_bUseCbfFastMode; }
   Bool      getUseEarlySkipDetection        ()      { return m_useEarlySkipDetection; }
   Bool      getUseConstrainedIntraPred      ()      { return m_bUseConstrainedIntraPred; }
+  Bool      getFastUDIUseMPMEnabled         ()      { return m_bFastUDIUseMPMEnabled; }
+  Bool      getFastMEForGenBLowDelayEnabled ()      { return m_bFastMEForGenBLowDelayEnabled; }
+  Bool      getUseBLambdaForNonKeyLowDelayPictures () { return m_bUseBLambdaForNonKeyLowDelayPictures; }
   Bool      getPCMInputBitDepthFlag         ()      { return m_bPCMInputBitDepthFlag;   }
   Bool      getPCMFilterDisableFlag         ()      { return m_bPCMFilterDisableFlag;   }
   Bool      getUsePCM                       ()      { return m_usePCM;                 }
   UInt      getPCMLog2MaxSize               ()      { return m_pcmLog2MaxSize;  }
   UInt      getPCMLog2MinSize               ()      { return  m_uiPCMLog2MinSize;  }
 
-  Bool      getUseCrossComponentPrediction        ()                const { return m_useCrossComponentPrediction;   }
-  Void      setUseCrossComponentPrediction        (const Bool value)      { m_useCrossComponentPrediction = value;  }
+  Bool      getCrossComponentPredictionEnabledFlag     ()                const { return m_crossComponentPredictionEnabledFlag;   }
+  Void      setCrossComponentPredictionEnabledFlag     (const Bool value)      { m_crossComponentPredictionEnabledFlag = value;  }
   Bool      getUseReconBasedCrossCPredictionEstimate ()                const { return m_reconBasedCrossCPredictionEstimate;  }
   Void      setUseReconBasedCrossCPredictionEstimate (const Bool value)      { m_reconBasedCrossCPredictionEstimate = value; }
-  Void      setSaoOffsetBitShift(ChannelType type, UInt uiBitShift)          { m_saoOffsetBitShift[type] = uiBitShift; }
+  Void      setLog2SaoOffsetScale(ChannelType type, UInt uiBitShift)         { m_log2SaoOffsetScale[type] = uiBitShift; }
 
   Bool getUseTransformSkip                             ()      { return m_useTransformSkip;        }
   Void setUseTransformSkip                             ( Bool b ) { m_useTransformSkip  = b;       }
-  Bool getUseResidualRotation                          ()            const { return m_useResidualRotation;  }
-  Void setUseResidualRotation                          (const Bool value)  { m_useResidualRotation = value; }
-  Bool getUseSingleSignificanceMapContext              ()            const { return m_useSingleSignificanceMapContext;  }
-  Void setUseSingleSignificanceMapContext              (const Bool value)  { m_useSingleSignificanceMapContext = value; }
-  Bool getUseGolombRiceParameterAdaptation             ()                 const { return m_useGolombRiceParameterAdaptation;  }
-  Void setUseGolombRiceParameterAdaptation             (const Bool value)       { m_useGolombRiceParameterAdaptation = value; }
-  Bool getAlignCABACBeforeBypass                       ()       const      { return m_alignCABACBeforeBypass;  }
-  Void setAlignCABACBeforeBypass                       (const Bool value)  { m_alignCABACBeforeBypass = value; }
-  Bool getUseResidualDPCM                              (const RDPCMSignallingMode signallingMode)        const      { return m_useResidualDPCM[signallingMode];  }
-  Void setUseResidualDPCM                              (const RDPCMSignallingMode signallingMode, const Bool value) { m_useResidualDPCM[signallingMode] = value; }
+  Bool getTransformSkipRotationEnabledFlag             ()            const { return m_transformSkipRotationEnabledFlag;  }
+  Void setTransformSkipRotationEnabledFlag             (const Bool value)  { m_transformSkipRotationEnabledFlag = value; }
+  Bool getTransformSkipContextEnabledFlag              ()            const { return m_transformSkipContextEnabledFlag;  }
+  Void setTransformSkipContextEnabledFlag              (const Bool value)  { m_transformSkipContextEnabledFlag = value; }
+  Bool getPersistentRiceAdaptationEnabledFlag          ()                 const { return m_persistentRiceAdaptationEnabledFlag;  }
+  Void setPersistentRiceAdaptationEnabledFlag          (const Bool value)       { m_persistentRiceAdaptationEnabledFlag = value; }
+  Bool getCabacBypassAlignmentEnabledFlag              ()       const      { return m_cabacBypassAlignmentEnabledFlag;  }
+  Void setCabacBypassAlignmentEnabledFlag              (const Bool value)  { m_cabacBypassAlignmentEnabledFlag = value; }
+  Bool getRdpcmEnabledFlag                             (const RDPCMSignallingMode signallingMode)        const      { return m_rdpcmEnabledFlag[signallingMode];  }
+  Void setRdpcmEnabledFlag                             (const RDPCMSignallingMode signallingMode, const Bool value) { m_rdpcmEnabledFlag[signallingMode] = value; }
   Bool getUseTransformSkipFast                         ()      { return m_useTransformSkipFast;    }
   Void setUseTransformSkipFast                         ( Bool b ) { m_useTransformSkipFast  = b;   }
-  UInt getTransformSkipLog2MaxSize                     () const      { return m_transformSkipLog2MaxSize;     }
-  Void setTransformSkipLog2MaxSize                     ( UInt u )    { m_transformSkipLog2MaxSize  = u;       }
-  Void setDisableIntraReferenceSmoothing               (Bool bValue) { m_disableIntraReferenceSmoothing=bValue; }
-  Bool getDisableIntraReferenceSmoothing               ()      const { return m_disableIntraReferenceSmoothing; }
+  UInt getLog2MaxTransformSkipBlockSize                () const      { return m_log2MaxTransformSkipBlockSize;     }
+  Void setLog2MaxTransformSkipBlockSize                ( UInt u )    { m_log2MaxTransformSkipBlockSize  = u;       }
+  Bool getIntraSmoothingDisabledFlag               ()      const { return m_intraSmoothingDisabledFlag; }
+  Void setIntraSmoothingDisabledFlag               (Bool bValue) { m_intraSmoothingDisabledFlag=bValue; }
 
   Int*      getdQPs                         ()      { return m_aidQP;       }
   UInt      getDeltaQpRD                    ()      { return m_uiDeltaQpRD; }
@@ -606,6 +632,13 @@ public:
 
   Void      setUseSAO                  (Bool bVal)                   { m_bUseSAO = bVal; }
   Bool      getUseSAO                  ()                            { return m_bUseSAO; }
+  Void  setTestSAODisableAtPictureLevel (Bool bVal)                  { m_bTestSAODisableAtPictureLevel = bVal; }
+  Bool  getTestSAODisableAtPictureLevel ( ) const                    { return m_bTestSAODisableAtPictureLevel; }
+
+  Void   setSaoEncodingRate(Double v)                                { m_saoEncodingRate = v; }
+  Double getSaoEncodingRate() const                                  { return m_saoEncodingRate; }
+  Void   setSaoEncodingRateChroma(Double v)                          { m_saoEncodingRateChroma = v; }
+  Double getSaoEncodingRateChroma() const                            { return m_saoEncodingRateChroma; }
   Void  setMaxNumOffsetsPerPic                   (Int iVal)          { m_maxNumOffsetsPerPic = iVal; }
   Int   getMaxNumOffsetsPerPic                   ()                  { return m_maxNumOffsetsPerPic; }
   Void  setSaoCtuBoundary              (Bool val)                    { m_saoCtuBoundary = val; }
@@ -797,6 +830,12 @@ public:
   Void         setUseStrongIntraSmoothing ( Bool b )                 { m_useStrongIntraSmoothing = b;    }
   Bool         getUseStrongIntraSmoothing ()                         { return m_useStrongIntraSmoothing; }
 
+  Void         setEfficientFieldIRAPEnabled( Bool b )                { m_bEfficientFieldIRAPEnabled = b; }
+  Bool         getEfficientFieldIRAPEnabled( ) const                 { return m_bEfficientFieldIRAPEnabled; }
+
+  Void         setHarmonizeGopFirstFieldCoupleEnabled( Bool b )      { m_bHarmonizeGopFirstFieldCoupleEnabled = b; }
+  Bool         getHarmonizeGopFirstFieldCoupleEnabled( ) const       { return m_bHarmonizeGopFirstFieldCoupleEnabled; }
+
   Void         setActiveParameterSetsSEIEnabled ( Int b )            { m_activeParameterSetsSEIEnabled = b; }
   Int          getActiveParameterSetsSEIEnabled ()                   { return m_activeParameterSetsSEIEnabled; }
   Bool         getVuiParametersPresentFlag()                         { return m_vuiParametersPresentFlag; }
@@ -881,6 +920,9 @@ public:
   Bool         getIntraConstraintFlag() const                        { return m_intraConstraintFlag; }
   Void         setIntraConstraintFlag(Bool b)                        { m_intraConstraintFlag=b; }
 
+  Bool         getOnePictureOnlyConstraintFlag() const               { return m_onePictureOnlyConstraintFlag; }
+  Void         setOnePictureOnlyConstraintFlag(Bool b)               { m_onePictureOnlyConstraintFlag=b; }
+
   Bool         getLowerBitRateConstraintFlag() const                 { return m_lowerBitRateConstraintFlag; }
   Void         setLowerBitRateConstraintFlag(Bool b)                 { m_lowerBitRateConstraintFlag=b; }
   Bool      getChromaSamplingFilterHintEnabled()                     { return m_chromaSamplingFilterHintEnabled;}
@@ -889,6 +931,14 @@ public:
   Void      setChromaSamplingHorFilterIdc(Int i)                     { m_chromaSamplingHorFilterIdc = i;}
   Int       getChromaSamplingVerFilterIdc()                          { return m_chromaSamplingVerFilterIdc;}
   Void      setChromaSamplingVerFilterIdc(Int i)                     { m_chromaSamplingVerFilterIdc = i;}
+
+  Void      setSummaryOutFilename(const std::string &s)              { m_summaryOutFilename = s; }
+  const std::string& getSummaryOutFilename() const                   { return m_summaryOutFilename; }
+  Void      setSummaryPicFilenameBase(const std::string &s)          { m_summaryPicFilenameBase = s; }
+  const std::string& getSummaryPicFilenameBase() const               { return m_summaryPicFilenameBase; }
+
+  Void      setSummaryVerboseness(UInt v)                            { m_summaryVerboseness = v; }
+  UInt      getSummaryVerboseness( ) const                           { return m_summaryVerboseness; }
 };
 
 //! \}

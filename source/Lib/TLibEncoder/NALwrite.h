@@ -38,7 +38,7 @@
 
 #include <ostream>
 
-#include "TLibCommon/TypeDef.h"
+#include "TLibCommon/CommonDef.h"
 #include "TLibCommon/TComBitStream.h"
 #include "TLibCommon/NAL.h"
 
@@ -75,7 +75,6 @@ struct OutputNALUnit : public NALUnit
 };
 
 Void write(std::ostream& out, OutputNALUnit& nalu);
-Void writeRBSPTrailingBits(TComOutputBitstream& bs);
 
 inline NALUnitEBSP::NALUnitEBSP(OutputNALUnit& nalu)
   : NALUnit(nalu)

@@ -91,6 +91,7 @@ Bool TAppDecCfg::parseCfg( Int argc, Char* argv[] )
   ("ForceDecodeBitDepth",       m_forceDecodeBitDepth,                 0U,         "Force the decoder to operate at a particular bit-depth (best effort decoding)")
 #endif
   ("OutputDecodedSEIMessagesFilename",  m_outputDecodedSEIMessagesFilename,    string(""), "When non empty, output decoded SEI messages to the indicated file. If file is '-', then output to stdout\n")
+  ("ClipOutputVideoToRec709Range",      m_bClipOutputVideoToRec709Range,  false, "If true then clip output video to the Rec. 709 Range on saving")
   ;
 
   po::setDefaults(opts);

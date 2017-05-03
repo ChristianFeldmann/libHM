@@ -50,6 +50,11 @@ struct NALUnit
   UInt        m_temporalId;  ///< temporal_id
   UInt        m_nuhLayerId;  ///< nuh_layer_id
 
+  NALUnit(const NALUnit &src)
+  :m_nalUnitType (src.m_nalUnitType)
+  ,m_temporalId  (src.m_temporalId)
+  ,m_nuhLayerId  (src.m_nuhLayerId)
+  { }
   /** construct an NALunit structure with given header values. */
   NALUnit(
     NalUnitType nalUnitType,
@@ -60,8 +65,10 @@ struct NALUnit
     ,m_nuhLayerId  (nuhLayerId)
   {}
 
-  /** default constructor - no initialization; must be perfomed by user */
+  /** default constructor - no initialization; must be performed by user */
   NALUnit() {}
+
+  virtual ~NALUnit() { }
 
   /** returns true if the NALunit is a slice NALunit */
   Bool isSlice()

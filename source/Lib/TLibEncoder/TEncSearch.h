@@ -320,7 +320,6 @@ protected:
                                     Distortion& ruiCost );
 
   Distortion xGetTemplateCost    ( TComDataCU*  pcCU,
-                                    UInt        uiPartIdx,
                                     UInt        uiPartAddr,
                                     TComYuv*    pcOrgYuv,
                                     TComYuv*    pcTemplateCand,
@@ -427,12 +426,11 @@ protected:
                                     TComMv*      pcMvInt,
                                     TComMv&      rcMvHalf,
                                     TComMv&      rcMvQter,
-                                    Distortion&  ruiCost,
-                                    Bool         biPred
+                                    Distortion&  ruiCost
                                    );
 
-  Void xExtDIFUpSamplingH( TComPattern* pcPattern, Bool biPred  );
-  Void xExtDIFUpSamplingQ( TComPattern* pcPatternKey, TComMv halfPelRef, Bool biPred );
+  Void xExtDIFUpSamplingH( TComPattern* pcPattern );
+  Void xExtDIFUpSamplingQ( TComPattern* pcPatternKey, TComMv halfPelRef );
 
   // -------------------------------------------------------------------------------------------------------------------
   // T & Q & Q-1 & T-1
@@ -443,7 +441,7 @@ protected:
   Void xEstimateInterResidualQT( TComYuv* pcResi, Double &rdCost, UInt &ruiBits, Distortion &ruiDist, Distortion *puiZeroDist, TComTU &rTu DEBUG_STRING_FN_DECLARE(sDebug) );
   Void xSetInterResidualQTData( TComYuv* pcResi, Bool bSpatial, TComTU &rTu  );
 
-  UInt  xModeBitsIntra ( TComDataCU* pcCU, UInt uiMode, UInt uiPartOffset, UInt uiDepth, UInt uiInitTrDepth, const ChannelType compID );
+  UInt  xModeBitsIntra ( TComDataCU* pcCU, UInt uiMode, UInt uiPartOffset, UInt uiDepth, const ChannelType compID );
   UInt  xUpdateCandList( UInt uiMode, Double uiCost, UInt uiFastCandNum, UInt * CandModeList, Double * CandCostList );
 
   // -------------------------------------------------------------------------------------------------------------------
@@ -451,8 +449,6 @@ protected:
   // -------------------------------------------------------------------------------------------------------------------
 
   Void xAddSymbolBitsInter       ( TComDataCU*   pcCU,
-                                   UInt          uiQp,
-                                   UInt          uiTrMode,
                                    UInt&         ruiBits);
 
   Void  setWpScalingDistParam( TComDataCU* pcCU, Int iRefIdx, RefPicList eRefPicListCur );

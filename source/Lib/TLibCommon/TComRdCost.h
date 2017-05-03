@@ -158,7 +158,7 @@ public:
   Distortion calcHAD(Int bitDepth, Pel* pi0, Int iStride0, Pel* pi1, Int iStride1, Int iWidth, Int iHeight );
 
   // for motion cost
-  UInt    xGetComponentBits( Int iVal );
+  static UInt    xGetExpGolombNumberOfBits( Int iVal );
 #if RExt__HIGH_BIT_DEPTH_SUPPORT
   Void    getMotionCost( Bool bSad, Int iAdd, Bool bIsTransquantBypass ) { m_dCost = (bSad ? m_dLambdaMotionSAD[(bIsTransquantBypass && m_costMode==COST_MIXED_LOSSLESS_LOSSY_CODING) ?1:0] + iAdd : m_dLambdaMotionSSE[(bIsTransquantBypass && m_costMode==COST_MIXED_LOSSLESS_LOSSY_CODING)?1:0] + iAdd); }
 #else
@@ -184,8 +184,8 @@ public:
 #endif
   UInt    getBits( Int x, Int y )
   {
-    return xGetComponentBits((x << m_iCostScale) - m_mvPredictor.getHor())
-    +      xGetComponentBits((y << m_iCostScale) - m_mvPredictor.getVer());
+    return xGetExpGolombNumberOfBits((x << m_iCostScale) - m_mvPredictor.getHor())
+    +      xGetExpGolombNumberOfBits((y << m_iCostScale) - m_mvPredictor.getVer());
   }
 
 private:
@@ -206,12 +206,9 @@ private:
   static Distortion xGetSAD64         ( DistParam* pcDtParam );
   static Distortion xGetSAD16N        ( DistParam* pcDtParam );
 
-#if AMP_SAD
   static Distortion xGetSAD12         ( DistParam* pcDtParam );
   static Distortion xGetSAD24         ( DistParam* pcDtParam );
   static Distortion xGetSAD48         ( DistParam* pcDtParam );
-
-#endif
 
   static Distortion xGetHADs          ( DistParam* pcDtParam );
   static Distortion xCalcHADs2x2      ( Pel *piOrg, Pel *piCurr, Int iStrideOrg, Int iStrideCur, Int iStep );

@@ -206,7 +206,7 @@ Void TDecCu::xDecodeCU( TComDataCU*const pcCU, const UInt uiAbsPartIdx, const UI
       pcCU->setQPSubParts( pcCU->getRefQP(uiAbsPartIdx), uiAbsPartIdx, uiDepth ); // set QP to default QP
     }
 
-    if( uiDepth == pps.getMaxCuChromaQpAdjDepth() && pcCU->getSlice()->getUseChromaQpAdj() )
+    if( uiDepth == pps.getPpsRangeExtension().getDiffCuChromaQpOffsetDepth() && pcCU->getSlice()->getUseChromaQpAdj() )
     {
       setIsChromaQpAdjCoded(true);
     }
@@ -244,7 +244,7 @@ Void TDecCu::xDecodeCU( TComDataCU*const pcCU, const UInt uiAbsPartIdx, const UI
     pcCU->setQPSubParts( pcCU->getRefQP(uiAbsPartIdx), uiAbsPartIdx, uiDepth ); // set QP to default QP
   }
 
-  if( uiDepth <= pps.getMaxCuChromaQpAdjDepth() && pcCU->getSlice()->getUseChromaQpAdj() )
+  if( uiDepth <= pps.getPpsRangeExtension().getDiffCuChromaQpOffsetDepth() && pcCU->getSlice()->getUseChromaQpAdj() )
   {
     setIsChromaQpAdjCoded(true);
   }
@@ -373,7 +373,7 @@ Void TDecCu::xDecompressCU( TComDataCU* pCtu, UInt uiAbsPartIdx,  UInt uiDepth )
   // Residual reconstruction
   m_ppcYuvResi[uiDepth]->clear();
 
-  m_ppcCU[uiDepth]->copySubCU( pCtu, uiAbsPartIdx, uiDepth );
+  m_ppcCU[uiDepth]->copySubCU( pCtu, uiAbsPartIdx );
 
   switch( m_ppcCU[uiDepth]->getPredictionMode(0) )
   {
@@ -388,7 +388,7 @@ Void TDecCu::xDecompressCU( TComDataCU* pCtu, UInt uiAbsPartIdx,  UInt uiDepth )
       break;
   }
 
-#ifdef DEBUG_STRING
+#if DEBUG_STRING
   const PredMode predMode=m_ppcCU[uiDepth]->getPredictionMode(0);
   if (DebugOptionList::DebugString_Structure.getInt()&DebugStringGetPredModeMask(predMode))
   {
@@ -413,7 +413,7 @@ Void TDecCu::xReconInter( TComDataCU* pcCU, UInt uiDepth )
   // inter prediction
   m_pcPrediction->motionCompensation( pcCU, m_ppcYuvReco[uiDepth] );
 
-#ifdef DEBUG_STRING
+#if DEBUG_STRING
   const Int debugPredModeMask=DebugStringGetPredModeMask(MODE_INTER);
   if (DebugOptionList::DebugString_Pred.getInt()&debugPredModeMask)
   {
@@ -424,7 +424,7 @@ Void TDecCu::xReconInter( TComDataCU* pcCU, UInt uiDepth )
   // inter recon
   xDecodeInterTexture( pcCU, uiDepth );
 
-#ifdef DEBUG_STRING
+#if DEBUG_STRING
   if (DebugOptionList::DebugString_Resi.getInt()&debugPredModeMask)
   {
     printBlockToStream(std::cout, "###inter-resi: ", *(m_ppcYuvResi[uiDepth]));
@@ -440,7 +440,7 @@ Void TDecCu::xReconInter( TComDataCU* pcCU, UInt uiDepth )
   {
     m_ppcYuvReco[uiDepth]->copyPartToPartYuv( m_ppcYuvReco[uiDepth],0, pcCU->getWidth( 0 ),pcCU->getHeight( 0 ));
   }
-#ifdef DEBUG_STRING
+#if DEBUG_STRING
   if (DebugOptionList::DebugString_Reco.getInt()&debugPredModeMask)
   {
     printBlockToStream(std::cout, "###inter-reco: ", *(m_ppcYuvReco[uiDepth]));
@@ -503,21 +503,21 @@ TDecCu::xIntraRecBlk(       TComYuv*    pcRecoYuv,
   Bool  bAboveAvail = false;
   Bool  bLeftAvail  = false;
 
-  const Bool bUseFilteredPredictions=TComPrediction::filteringIntraReferenceSamples(compID, uiChFinalMode, uiWidth, uiHeight, chFmt, pcCU->getSlice()->getSPS()->getDisableIntraReferenceSmoothing());
+  const Bool bUseFilteredPredictions=TComPrediction::filteringIntraReferenceSamples(compID, uiChFinalMode, uiWidth, uiHeight, chFmt, pcCU->getSlice()->getSPS()->getSpsRangeExtension().getIntraSmoothingDisabledFlag());
 
-#ifdef DEBUG_STRING
+#if DEBUG_STRING
   std::ostream &ss(std::cout);
 #endif
 
   DEBUG_STRING_NEW(sTemp)
-  m_pcPrediction->initAdiPatternChType( rTu, bAboveAvail, bLeftAvail, compID, bUseFilteredPredictions  DEBUG_STRING_PASS_INTO(sTemp) );
+  m_pcPrediction->initIntraPatternChType( rTu, bAboveAvail, bLeftAvail, compID, bUseFilteredPredictions  DEBUG_STRING_PASS_INTO(sTemp) );
 
 
   //===== get prediction signal =====
 
   m_pcPrediction->predIntraAng( compID,   uiChFinalMode, 0 /* Decoder does not have an original image */, 0, piPred, uiStride, rTu, bAboveAvail, bLeftAvail, bUseFilteredPredictions );
 
-#ifdef DEBUG_STRING
+#if DEBUG_STRING
   ss << sTemp;
 #endif
 
@@ -529,7 +529,7 @@ TDecCu::xIntraRecBlk(       TComYuv*    pcRecoYuv,
 
 
   DEBUG_STRING_NEW(sDebug);
-#ifdef DEBUG_STRING
+#if DEBUG_STRING
   const Int debugPredModeMask=DebugStringGetPredModeMask(MODE_INTRA);
   std::string *psDebug=(DebugOptionList::DebugString_InvTran.getInt()&debugPredModeMask) ? &sDebug : 0;
 #endif
@@ -549,7 +549,7 @@ TDecCu::xIntraRecBlk(       TComYuv*    pcRecoYuv,
     }
   }
 
-#ifdef DEBUG_STRING
+#if DEBUG_STRING
   if (psDebug)
   {
     ss << (*psDebug);
@@ -569,7 +569,7 @@ TDecCu::xIntraRecBlk(       TComYuv*    pcRecoYuv,
         Pel* pRecIPred  = pcCU->getPic()->getPicYuvRec()->getAddr( compID, pcCU->getCtuRsAddr(), pcCU->getZorderIdxInCtu() + uiAbsPartIdx );
 
 
-#ifdef DEBUG_STRING
+#if DEBUG_STRING
   const Bool bDebugPred=((DebugOptionList::DebugString_Pred.getInt()&debugPredModeMask) && DEBUG_STRING_CHANNEL_CONDITION(compID));
   const Bool bDebugResi=((DebugOptionList::DebugString_Resi.getInt()&debugPredModeMask) && DEBUG_STRING_CHANNEL_CONDITION(compID));
   const Bool bDebugReco=((DebugOptionList::DebugString_Reco.getInt()&debugPredModeMask) && DEBUG_STRING_CHANNEL_CONDITION(compID));
@@ -591,7 +591,7 @@ TDecCu::xIntraRecBlk(       TComYuv*    pcRecoYuv,
 
   for( UInt uiY = 0; uiY < uiHeight; uiY++ )
   {
-#ifdef DEBUG_STRING
+#if DEBUG_STRING
     if (bDebugPred || bDebugResi || bDebugReco)
     {
       ss << "###: ";
@@ -613,7 +613,7 @@ TDecCu::xIntraRecBlk(       TComYuv*    pcRecoYuv,
 
     for( UInt uiX = 0; uiX < uiWidth; uiX++ )
     {
-#ifdef DEBUG_STRING
+#if DEBUG_STRING
       if (bDebugResi)
       {
         ss << pResi[ uiX ] << ", ";
@@ -626,7 +626,7 @@ TDecCu::xIntraRecBlk(       TComYuv*    pcRecoYuv,
 #endif
       pRecIPred[ uiX ] = pReco[ uiX ];
     }
-#ifdef DEBUG_STRING
+#if DEBUG_STRING
     if (bDebugReco)
     {
       ss << " - reco: ";

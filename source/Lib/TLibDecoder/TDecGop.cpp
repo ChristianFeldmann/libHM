@@ -125,7 +125,6 @@ Void TDecGop::decompressSlice(TComInputBitstream* pcBitstream, TComPic* pcPic)
   // deallocate all created substreams, including internal buffers.
   for (UInt ui = 0; ui < uiNumSubstreams; ui++)
   {
-    ppcSubstreams[ui]->deleteFifo();
     delete ppcSubstreams[ui];
   }
   delete[] ppcSubstreams;

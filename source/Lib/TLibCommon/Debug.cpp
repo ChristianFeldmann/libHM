@@ -46,7 +46,7 @@ static const UInt settingNameWidth  = 66;
 static const UInt settingHelpWidth  = 84;
 static const UInt settingValueWidth = 3;
 
-#ifdef DEBUG_STRING
+#if DEBUG_STRING
 // these strings are used to reorder the debug output so that the encoder and decoder match.
 const Char *debug_reorder_data_inter_token[MAX_NUM_COMPONENT+1]
  = {"Start of channel 0 inter debug\n", "Start of channel 1 inter debug\n", "Start of channel 2 inter debug\n", "End of inter residual debug\n"} ;
@@ -152,7 +152,7 @@ EnvVar DebugOptionList::DebugPred             ("DEBUG_PRED",        "0", "Output
 EnvVar DebugOptionList::ForceLumaMode         ("FORCE_LUMA_MODE",   "0", "Force a particular intra direction for Luma (0-34)"                                             );
 EnvVar DebugOptionList::ForceChromaMode       ("FORCE_CHROMA_MODE", "0", "Force a particular intra direction for chroma (0-5)"                                            );
 
-#ifdef DEBUG_STRING
+#if DEBUG_STRING
 EnvVar DebugOptionList::DebugString_Structure ("DEBUG_STRUCTURE",   "0", "Produce output on chosen structure                        bit0=intra, bit1=inter");
 EnvVar DebugOptionList::DebugString_Pred      ("DEBUG_PRED",        "0", "Produce output on prediction data.                        bit0=intra, bit1=inter");
 EnvVar DebugOptionList::DebugString_Resi      ("DEBUG_RESI",        "0", "Produce output on residual data.                          bit0=intra, bit1=inter");
@@ -178,8 +178,6 @@ Void printMacroSettings()
 
   PRINT_CONSTANT(O0043_BEST_EFFORT_DECODING,                                        settingNameWidth, settingValueWidth);
 
-  PRINT_CONSTANT(RD_TEST_SAO_DISABLE_AT_PICTURE_LEVEL,                              settingNameWidth, settingValueWidth);
-
   //------------------------------------------------
 
   std::cout << std::endl;
@@ -192,12 +190,12 @@ Void printMacroSettings()
 
 UInt  g_debugCounter  = 0;
 
-#ifdef DEBUG_ENCODER_SEARCH_BINS
+#if DEBUG_ENCODER_SEARCH_BINS
 const UInt debugEncoderSearchBinTargetLine = 0;
 const UInt debugEncoderSearchBinWindow     = 1000000;
 #endif
 
-#ifdef DEBUG_CABAC_BINS
+#if DEBUG_CABAC_BINS
 const UInt debugCabacBinTargetLine = 0;
 const UInt debugCabacBinWindow     = 1000000;
 #endif
@@ -457,7 +455,7 @@ Void printBlockToStream( std::ostream &ss, const Char *pLinePrefix, TComYuv &src
   }
 }
 
-#ifdef DEBUG_STRING
+#if DEBUG_STRING
 Int DebugStringGetPredModeMask(PredMode mode)
 {
   return (mode==MODE_INTRA)?1:2;

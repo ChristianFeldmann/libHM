@@ -39,7 +39,7 @@
 #include <vector>
 #include <cstring>
 
-#include "TypeDef.h"
+#include "CommonDef.h"
 #include "libmd5/MD5.h"
 
 //! \ingroup TLibCommon

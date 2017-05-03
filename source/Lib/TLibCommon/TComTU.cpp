@@ -236,7 +236,7 @@ Bool TComTU::useDST(const ComponentID compID)
 Bool TComTU::isNonTransformedResidualRotated(const ComponentID compID)
 {
   // rotation only for 4x4 intra, and is only used for non-transformed blocks (the latter is not checked here)
-  return    getCU()->getSlice()->getSPS()->getUseResidualRotation()
+  return    getCU()->getSlice()->getSPS()->getSpsRangeExtension().getTransformSkipRotationEnabledFlag()
          && mRect[compID].width == 4
          && getCU()->isIntra(GetAbsPartIdxTU());
 }

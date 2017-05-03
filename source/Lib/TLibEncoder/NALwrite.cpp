@@ -122,13 +122,4 @@ Void write(ostream& out, OutputNALUnit& nalu)
   out.write((Char*)&(*outputBuffer.begin()), outputAmount);
 }
 
-/**
- * Write rbsp_trailing_bits to bs causing it to become byte-aligned
- */
-Void writeRBSPTrailingBits(TComOutputBitstream& bs)
-{
-  bs.write( 1, 1 );
-  bs.writeAlignZero();
-}
-
 //! \}

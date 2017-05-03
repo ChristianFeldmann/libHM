@@ -129,4 +129,16 @@ Void SyntaxElementWriter::xWriteFlag( UInt uiCode )
   m_pcBitIf->write( uiCode, 1 );
 }
 
+Void SyntaxElementWriter::xWriteRbspTrailingBits()
+{
+  WRITE_FLAG( 1, "rbsp_stop_one_bit");
+  Int cnt = 0;
+  while (m_pcBitIf->getNumBitsUntilByteAligned())
+  {
+    WRITE_FLAG( 0, "rbsp_alignment_zero_bit");
+    cnt++;
+  }
+  assert(cnt<8);
+}
+
 //! \}

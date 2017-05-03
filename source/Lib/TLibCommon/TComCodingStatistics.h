@@ -34,7 +34,7 @@
 #ifndef __TCOMCODINGSTATISTICS__
 #define __TCOMCODINGSTATISTICS__
 
-#include "TypeDef.h"
+#include "CommonDef.h"
 #include <stdio.h>
 #include <string>
 #include <map>

@@ -33,7 +33,7 @@
 
 /**
  \file     NALread.cpp
- \brief    reading funtionality for NAL units
+ \brief    reading functionality for NAL units
  */
 
 
@@ -46,6 +46,9 @@
 #include "TLibCommon/TComBitStream.h"
 #if RExt__DECODER_DEBUG_BIT_STATISTICS
 #include "TLibCommon/TComCodingStatistics.h"
+#endif
+#if ENC_DEC_TRACE && DEC_NUH_TRACE
+#include "TLibCommon/TComRom.h"
 #endif
 
 using namespace std;
@@ -102,9 +105,30 @@ static Void convertPayloadToRBSP(vector<uint8_t>& nalUnitBuf, TComInputBitstream
   nalUnitBuf.resize(it_write - nalUnitBuf.begin());
 }
 
+#if ENC_DEC_TRACE && DEC_NUH_TRACE
+void xTraceNalUnitHeader(InputNALUnit& nalu)
+{
+  fprintf( g_hTrace, "*********** NAL UNIT (%s) ***********\n", nalUnitTypeToString(nalu.m_nalUnitType) );
+
+  fprintf( g_hTrace, "%8lld  ", g_nSymbolCounter++ );
+  fprintf( g_hTrace, "%-50s u(%d)  : %u\n", "forbidden_zero_bit", 1, 0 ); 
+
+  fprintf( g_hTrace, "%8lld  ", g_nSymbolCounter++ );
+  fprintf( g_hTrace, "%-50s u(%d)  : %u\n", "nal_unit_type", 6, nalu.m_nalUnitType ); 
+
+  fprintf( g_hTrace, "%8lld  ", g_nSymbolCounter++ );
+  fprintf( g_hTrace, "%-50s u(%d)  : %u\n", "nuh_layer_id", 6, nalu.m_nuhLayerId );
+
+  fprintf( g_hTrace, "%8lld  ", g_nSymbolCounter++ );
+  fprintf( g_hTrace, "%-50s u(%d)  : %u\n", "nuh_temporal_id_plus1", 3, nalu.m_temporalId + 1 );
+
+  fflush ( g_hTrace );
+}
+#endif
+
 Void readNalUnitHeader(InputNALUnit& nalu)
 {
-  TComInputBitstream& bs = *nalu.m_Bitstream;
+  TComInputBitstream& bs = nalu.getBitstream();
 
   Bool forbidden_zero_bit = bs.read(1);           // forbidden_zero_bit
   assert(forbidden_zero_bit == 0);
@@ -113,6 +137,10 @@ Void readNalUnitHeader(InputNALUnit& nalu)
   nalu.m_temporalId = bs.read(3) - 1;             // nuh_temporal_id_plus1
 #if RExt__DECODER_DEBUG_BIT_STATISTICS
   TComCodingStatistics::IncrementStatisticEP(STATS__NAL_UNIT_HEADER_BITS, 1+6+6+3, 0);
+#endif
+
+#if ENC_DEC_TRACE && DEC_NUH_TRACE
+  xTraceNalUnitHeader(nalu);
 #endif
 
   // only check these rules for base layer
@@ -144,15 +172,13 @@ Void readNalUnitHeader(InputNALUnit& nalu)
  * create a NALunit structure with given header values and storage for
  * a bitstream
  */
-Void read(InputNALUnit& nalu, vector<uint8_t>& nalUnitBuf)
+Void read(InputNALUnit& nalu)
 {
-  /* perform anti-emulation prevention */
-  TComInputBitstream *pcBitstream = new TComInputBitstream(NULL);
-  convertPayloadToRBSP(nalUnitBuf, pcBitstream, (nalUnitBuf[0] & 64) == 0);
-
-  nalu.m_Bitstream = new TComInputBitstream(&nalUnitBuf);
-  nalu.m_Bitstream->setEmulationPreventionByteLocation(pcBitstream->getEmulationPreventionByteLocation());
-  delete pcBitstream;
+  TComInputBitstream &bitstream = nalu.getBitstream();
+  vector<uint8_t>& nalUnitBuf=bitstream.getFifo();
+  // perform anti-emulation prevention
+  convertPayloadToRBSP(nalUnitBuf, &bitstream, (nalUnitBuf[0] & 64) == 0);
+  bitstream.resetToStart();
   readNalUnitHeader(nalu);
 }
 //! \}
