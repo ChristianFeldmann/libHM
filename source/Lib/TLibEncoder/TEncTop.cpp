@@ -1424,4 +1424,57 @@ Bool TEncTop::SPSNeedsWriting(Int spsId)
   return bChanged;
 }
 
+#if X0038_LAMBDA_FROM_QP_CAPABILITY
+Int TEncCfg::getQPForPicture(const UInt gopIndex, const TComSlice *pSlice) const
+{
+  const Int lumaQpBDOffset = pSlice->getSPS()->getQpBDOffset(CHANNEL_TYPE_LUMA);
+  Int qp;
+
+  if (getCostMode()==COST_LOSSLESS_CODING)
+  {
+    qp=LOSSLESS_AND_MIXED_LOSSLESS_RD_COST_TEST_QP;
+  }
+  else
+  {
+    const SliceType sliceType=pSlice->getSliceType();
+
+    qp = getBaseQP();
+
+    if(sliceType==I_SLICE)
+    {
+      qp += getIntraQPOffset();
+    }
+    else
+    {
+#if SHARP_LUMA_DELTA_QP
+      // Only adjust QP when not lossless
+      if (!(( getMaxDeltaQP() == 0 ) && (!getLumaLevelToDeltaQPMapping().isEnabled()) && (qp == -lumaQpBDOffset ) && (pSlice->getPPS()->getTransquantBypassEnabledFlag())))
+#else
+      if (!(( getMaxDeltaQP() == 0 ) && (qp == -lumaQpBDOffset ) && (pSlice->getPPS()->getTransquantBypassEnabledFlag())))
+#endif
+
+      {
+        const GOPEntry &gopEntry=getGOPEntry(gopIndex);
+        // adjust QP according to the QP offset for the GOP entry.
+        qp +=gopEntry.m_QPOffset;
+
+        // adjust QP according to QPOffsetModel for the GOP entry.
+        Double dqpOffset=qp*gopEntry.m_QPOffsetModelScale+gopEntry.m_QPOffsetModelOffset+0.5;
+        Int qpOffset = (Int)floor(Clip3<Double>(0.0, 3.0, dqpOffset));
+        qp += qpOffset ;
+      }
+    }
+
+    // modify QP if a fractional QP was originally specified, cause dQPs to be 0 or 1.
+    const Int* pdQPs = getdQPs();
+    if ( pdQPs )
+    {
+      qp += pdQPs[ pSlice->getPOC() ];
+    }
+  }
+  qp = Clip3( -lumaQpBDOffset, MAX_QP, qp );
+  return qp;
+}
+#endif
+
 //! \}

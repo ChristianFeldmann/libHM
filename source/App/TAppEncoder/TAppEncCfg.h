@@ -136,6 +136,10 @@ protected:
   // coding quality
   Double    m_fQP;                                            ///< QP value of key-picture (floating point)
   Int       m_iQP;                                            ///< QP value of key-picture (integer)
+#if X0038_LAMBDA_FROM_QP_CAPABILITY
+  Int       m_intraQPOffset;                                  ///< QP offset for intra slice (integer)
+  Bool      m_lambdaFromQPEnable;                             ///< enable flag for QP:lambda fix
+#endif
   std::string m_dQPFileName;                                  ///< QP offset for each slice (initialized from external file)
   Int*      m_aidQP;                                          ///< array of slice QP values
   Int       m_iMaxDeltaQP;                                    ///< max. |delta QP|

@@ -173,6 +173,7 @@ Void TEncSlice::initEncSlice( TComPic* pcPic, const Int pocLast, const Int pocCu
   rpcSlice->setPOC( pocCurr );
 
 #if SHARP_LUMA_DELTA_QP
+  pcPic->setField(isField);
   m_gopID = iGOPid;
 #endif
 
@@ -257,6 +258,9 @@ Void TEncSlice::initEncSlice( TComPic* pcPic, const Int pocLast, const Int pocCu
   // QP setting
   // ------------------------------------------------------------------------------------------------------------------
 
+#if X0038_LAMBDA_FROM_QP_CAPABILITY
+  dQP = m_pcCfg->getQPForPicture(iGOPid, rpcSlice);
+#else
   dQP = m_pcCfg->getQP();
   if(eSliceType!=I_SLICE)
   {
@@ -271,7 +275,7 @@ Void TEncSlice::initEncSlice( TComPic* pcPic, const Int pocLast, const Int pocCu
   }
 
   // modify QP
-  Int* pdQPs = m_pcCfg->getdQPs();
+  const Int* pdQPs = m_pcCfg->getdQPs();
   if ( pdQPs )
   {
     dQP += pdQPs[ rpcSlice->getPOC() ];
@@ -282,11 +286,18 @@ Void TEncSlice::initEncSlice( TComPic* pcPic, const Int pocLast, const Int pocCu
     dQP=LOSSLESS_AND_MIXED_LOSSLESS_RD_COST_TEST_QP;
     m_pcCfg->setDeltaQpRD(0);
   }
+#endif
 
   // ------------------------------------------------------------------------------------------------------------------
   // Lambda computation
   // ------------------------------------------------------------------------------------------------------------------
 
+#if X0038_LAMBDA_FROM_QP_CAPABILITY
+  const Int temporalId=m_pcCfg->getGOPEntry(iGOPid).m_temporalId;
+#if !SHARP_LUMA_DELTA_QP
+  const std::vector<Double> &intraLambdaModifiers=m_pcCfg->getIntraLambdaModifier();
+#endif
+#endif
   Int iQP;
   Double dOrigQP = dQP;
 
@@ -321,15 +332,36 @@ Void TEncSlice::initEncSlice( TComPic* pcPic, const Int pocLast, const Int pocCu
       }
       else
       {
+#if X0038_LAMBDA_FROM_QP_CAPABILITY
+        if(m_pcCfg->getLambdaFromQPEnable())
+        {
+          dQPFactor=0.57;
+        }
+        else
+        {
+#endif
         Double dLambda_scale = 1.0 - Clip3( 0.0, 0.5, 0.05*(Double)(isField ? NumberBFrames/2 : NumberBFrames) );
         
         dQPFactor=0.57*dLambda_scale;
+#if X0038_LAMBDA_FROM_QP_CAPABILITY
+        }
+#endif
       }
     }
-    
+#if X0038_LAMBDA_FROM_QP_CAPABILITY
+    else if( m_pcCfg->getLambdaFromQPEnable() )
+    {
+      dQPFactor=0.57;
+    }
+#endif
+
     dLambda = dQPFactor*pow( 2.0, qp_temp/3.0 );
 
+#if X0038_LAMBDA_FROM_QP_CAPABILITY
+    if(!m_pcCfg->getLambdaFromQPEnable() && depth>0)
+#else
     if ( depth>0 )
+#endif
     {
 #if FULL_NBIT
         dLambda *= Clip3( 2.00, 4.00, (qp_temp_orig / 6.0) ); // (j == B_SLICE && p_cur_frm->layer != 0 )
@@ -344,11 +376,17 @@ Void TEncSlice::initEncSlice( TComPic* pcPic, const Int pocLast, const Int pocCu
       dLambda *= 0.95;
     }
 
-#if W0062_RECALCULATE_QP_TO_ALIGN_WITH_LAMBDA
-    Double lambdaRef = 0.57*pow(2.0, qp_temp/3.0);
-    // QP correction due to modified lambda
-    Double qpOffset = floor((3.0*log(dLambda/lambdaRef)/log(2.0)) +0.5);
-    dQP += qpOffset;
+#if X0038_LAMBDA_FROM_QP_CAPABILITY
+    Double lambdaModifier;
+    if( rpcSlice->getSliceType( ) != I_SLICE || intraLambdaModifiers.empty())
+    {
+      lambdaModifier = m_pcCfg->getLambdaModifier( temporalId );
+    }
+    else
+    {
+      lambdaModifier = intraLambdaModifiers[ (temporalId < intraLambdaModifiers.size()) ? temporalId : (intraLambdaModifiers.size()-1) ];
+    }
+    dLambda *= lambdaModifier;
 #endif
 
     iQP = max( -rpcSlice->getSPS()->getQpBDOffset(CHANNEL_TYPE_LUMA), min( MAX_QP, (Int) floor( dQP + 0.5 ) ) );
@@ -364,8 +402,10 @@ Void TEncSlice::initEncSlice( TComPic* pcPic, const Int pocLast, const Int pocCu
   dQP     = m_vdRdPicQp    [0];
   iQP     = m_viRdPicQp    [0];
 
+#if !X0038_LAMBDA_FROM_QP_CAPABILITY
   const Int temporalId=m_pcCfg->getGOPEntry(iGOPid).m_temporalId;
   const std::vector<Double> &intraLambdaModifiers=m_pcCfg->getIntraLambdaModifier();
+#endif
 
 #if W0038_CQP_ADJ
   if(rpcSlice->getPPS()->getSliceChromaQpFlag())
@@ -388,6 +428,7 @@ Void TEncSlice::initEncSlice( TComPic* pcPic, const Int pocLast, const Int pocCu
   }
 #endif
 
+#if !X0038_LAMBDA_FROM_QP_CAPABILITY
   Double lambdaModifier;
   if( rpcSlice->getSliceType( ) != I_SLICE || intraLambdaModifiers.empty())
   {
@@ -399,6 +440,8 @@ Void TEncSlice::initEncSlice( TComPic* pcPic, const Int pocLast, const Int pocCu
   }
 
   dLambda *= lambdaModifier;
+#endif
+
   setUpLambda(rpcSlice, dLambda, iQP);
 
   if (m_pcCfg->getFastMEForGenBLowDelayEnabled())
@@ -496,13 +539,17 @@ Double TEncSlice::calculateLambda( const TComSlice* slice,
                                    const Int        GOPid, // entry in the GOP table
                                    const Int        depth, // slice GOP hierarchical depth.
                                    const Double     refQP, // initial slice-level QP
-                                         Double    &dQP,   // initial double-precision QP - may be altered if W0062 is enabled.
+                                   const Double     dQP,   // initial double-precision QP
                                          Int       &iQP )  // returned integer QP.
 {
   enum   SliceType eSliceType    = slice->getSliceType();
   const  Bool      isField       = slice->getPic()->isField();
   const  Int       NumberBFrames = ( m_pcCfg->getGOPSize() - 1 );
   const  Int       SHIFT_QP      = 12;
+#if X0038_LAMBDA_FROM_QP_CAPABILITY
+  const Int temporalId=m_pcCfg->getGOPEntry(GOPid).m_temporalId;
+  const std::vector<Double> &intraLambdaModifiers=m_pcCfg->getIntraLambdaModifier();
+#endif
 
 #if FULL_NBIT
   Int    bitdepth_luma_qp_scale = 6 * (slice->getSPS()->getBitDepth(CHANNEL_TYPE_LUMA) - 8);
@@ -520,14 +567,35 @@ Double TEncSlice::calculateLambda( const TComSlice* slice,
     }
     else
     {
-      Double dLambda_scale = 1.0 - Clip3( 0.0, 0.5, 0.05*(Double)(isField ? NumberBFrames/2 : NumberBFrames) );
-      dQPFactor=0.57*dLambda_scale;
+#if X0038_LAMBDA_FROM_QP_CAPABILITY
+      if(m_pcCfg->getLambdaFromQPEnable())
+      {
+        dQPFactor=0.57;
+      }
+      else
+      {
+#endif
+        Double dLambda_scale = 1.0 - Clip3( 0.0, 0.5, 0.05*(Double)(isField ? NumberBFrames/2 : NumberBFrames) );
+        dQPFactor=0.57*dLambda_scale;
+#if X0038_LAMBDA_FROM_QP_CAPABILITY
+      }
+#endif
     }
   }
+#if X0038_LAMBDA_FROM_QP_CAPABILITY
+  else if( m_pcCfg->getLambdaFromQPEnable() )
+  {
+    dQPFactor=0.57;
+  }
+#endif
 
   Double dLambda = dQPFactor*pow( 2.0, qp_temp/3.0 );
 
+#if X0038_LAMBDA_FROM_QP_CAPABILITY
+  if( !(m_pcCfg->getLambdaFromQPEnable()) && depth>0 )
+#else
   if ( depth>0 )
+#endif
   {
 #if FULL_NBIT
       Double qp_temp_ref_orig = refQP - SHIFT_QP;
@@ -544,11 +612,17 @@ Double TEncSlice::calculateLambda( const TComSlice* slice,
     dLambda *= 0.95;
   }
 
-#if W0062_RECALCULATE_QP_TO_ALIGN_WITH_LAMBDA
-  Double lambdaRef = 0.57*pow(2.0, qp_temp/3.0);
-  // QP correction due to modified lambda
-  Double qpOffset = floor((3.0*log(dLambda/lambdaRef)/log(2.0)) +0.5);
-  dQP += qpOffset;
+#if X0038_LAMBDA_FROM_QP_CAPABILITY
+  Double lambdaModifier;
+  if( eSliceType != I_SLICE || intraLambdaModifiers.empty())
+  {
+    lambdaModifier = m_pcCfg->getLambdaModifier( temporalId );
+  }
+  else
+  {
+    lambdaModifier = intraLambdaModifiers[ (temporalId < intraLambdaModifiers.size()) ? temporalId : (intraLambdaModifiers.size()-1) ];
+  }
+  dLambda *= lambdaModifier;
 #endif
 
   iQP = max( -slice->getSPS()->getQpBDOffset(CHANNEL_TYPE_LUMA), min( MAX_QP, (Int) floor( dQP + 0.5 ) ) );

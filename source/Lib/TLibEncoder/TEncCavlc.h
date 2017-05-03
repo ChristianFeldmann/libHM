@@ -132,7 +132,11 @@ public:
   Void codeCoeffNxN      ( TComTU &rTu, TCoeff* pcCoef, const ComponentID compID );
   Void codeTransformSkipFlags ( TComTU &rTu, ComponentID component );
 
+#if FIX_RDOQ_BIT_ESTIMATE
+  Void estBit            ( estBitsSbacStruct* pcEstBitsSbac, Int width, Int height, ChannelType chType, COEFF_SCAN_TYPE scanType );
+#else
   Void estBit            ( estBitsSbacStruct* pcEstBitsSbac, Int width, Int height, ChannelType chType );
+#endif
 
   Void xCodePredWeightTable          ( TComSlice* pcSlice );
 

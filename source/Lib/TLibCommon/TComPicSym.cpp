@@ -192,9 +192,9 @@ Void TComPicSym::prepareForReconstruction()
         m_dpbPerCtuData[i].m_CUMvField[j].create( m_numPartitionsInCtu );
       }
       m_dpbPerCtuData[i].m_pePredMode = new SChar[m_numPartitionsInCtu];
-      memset(m_dpbPerCtuData[i].m_pePredMode, m_numPartitionsInCtu, NUMBER_OF_PREDICTION_MODES);
+      memset(m_dpbPerCtuData[i].m_pePredMode, NUMBER_OF_PREDICTION_MODES, m_numPartitionsInCtu);
       m_dpbPerCtuData[i].m_pePartSize = new SChar[m_numPartitionsInCtu];
-      memset(m_dpbPerCtuData[i].m_pePartSize, m_numPartitionsInCtu, NUMBER_OF_PART_SIZES);
+      memset(m_dpbPerCtuData[i].m_pePartSize, NUMBER_OF_PART_SIZES, m_numPartitionsInCtu);
       m_dpbPerCtuData[i].m_pSlice=NULL;
     }
   }

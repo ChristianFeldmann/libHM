@@ -20,6 +20,7 @@
 \usepackage{longtable}
 \usepackage{array}
 \usepackage{algorithm2e}
+\usepackage{amsmath}
 
 \usepackage[strings]{underscore}
 \usepackage{csquotes}
@@ -190,7 +191,7 @@
 \maketitle
 \begin{abstract}
 This document is a user manual describing usage of reference software
-for the HEVC project. It applies to version 16.12
+for the HEVC project. It applies to version 16.13
 of the software.
 \end{abstract}
 
@@ -320,6 +321,10 @@ from 1 to GOPSize.
 
 \item[]\textbf{QPOffset}: QP offset is added to the QP parameter to set
 the final QP value to use for this frame.
+
+\item[]\textbf{QPOffsetModelOff}: Offset parameter to a linear model to adjust final QP based on QP + QPoffset.
+
+\item[]\textbf{QPOffsetModelScale}: Scale parameter to a linear model to adjust final QP based on QP + QPoffset.
 
 \item[]\textbf{SliceCbQPOffset}: The slice-level Cb QP offset.
 
@@ -455,6 +460,8 @@ Table~\ref{tab:gop-example} could be used.
 Type                &   P  &    B   &      B   &       B \\
 POC                 &   4  &    2   &      1   &       3 \\
 QPOffset            &   1  &    2   &      3   &       3 \\
+QPOffsetModelOff    & 0.0  &  0.0   &    0.0   &     0.0 \\
+QPOffsetModelScale  & 0.0  &  0.0   &    0.0   &     0.0 \\
 SliceCbQPOffset     &   0  &    0   &      0   &       0 \\
 SliceCrQPOffset     &   0  &    0   &      0   &       0 \\
 QPfactor            & 0.5  &  0.5   &    0.5   &     0.5 \\
@@ -1218,6 +1225,42 @@ Enabling this parameter can reduce the visibility of CU boundaries in the coded 
 %\ShortOption{-q} &
 \Default{30.0} &
 Specifies the base value of the quantization parameter. If it is non-integer, the QP is switched once during encoding.
+\\
+
+\Option{IntraQPOffset} &
+%\ShortOption{\None} &
+\Default{0} &
+Specifies a QP offset from the base QP value to be used for intra frames.
+\\
+
+\Option{LambdaFromQpEnable} &
+%\ShortOption{\None} &
+\Default{false} &
+When enabled, the $\lambda$, which is used to convert a cost in bits to a cost in distortion terms, is calculated as:
+
+$\lambda=qpFactor \times 2^{qp+6*(bitDepthLuma-8)-12}$,
+where $qp$ is the slice QP and $qpFactor$ is calculated as follows:
+
+\begin{tabular}{lp{0.45\textwidth}}
+ $= IQF$                            & if $IQF >= 0$ and slice is a periodic intra slice \\
+ $= 0.57 \times \lambda_{scale}$    & if slice is a non-periodic intra slice \\
+ $=$ value from GOP table           & otherwise \\
+\end{tabular}
+
+where $IQF$ is the value specified using the IntraQPFactor option, and where $\lambda_{scale}$ is:
+
+\begin{tabular}{lp{0.45\textwidth}}
+ $1$                            & if LambdaFromQpEnable=true \\
+ $1.0 - max(0,min(0.5,0.05*B))$ & if LambdaFromQpEnable=false \\
+\end{tabular}
+
+where $B$ is the number of B frames.
+
+If LambdaFromQpEnable=false, then the $\lambda$ is also subsequently scaled for non-top-level hiearchical depths, as follows:
+
+$\lambda = \lambda_{base} \times max(2, min(4, (sliceQP-12)/6))$
+
+In addition, independent on the IntraQPFactor, if HadamardME=false, then for an inter slice the final $\lambda$ is scaled by a factor of $0.95$.
 \\
 
 \Option{CbQpOffset (-cbqpofs)}%

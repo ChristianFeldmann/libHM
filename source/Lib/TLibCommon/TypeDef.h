@@ -83,9 +83,11 @@
 #define T0196_SELECTIVE_RDOQ                              1 ///< selective RDOQ
 #define U0040_MODIFIED_WEIGHTEDPREDICTION_WITH_BIPRED_AND_CLIPPING 1
 #define U0033_ALTERNATIVE_TRANSFER_CHARACTERISTICS_SEI    1 ///< Alternative transfer characteristics SEI message (JCTVC-U0033, with syntax naming from V1005)
-#define W0062_RECALCULATE_QP_TO_ALIGN_WITH_LAMBDA         0 ///< This recalculates QP to align with the derived lambda (same relation as for all intra coding is used). Currently disabled by default.
+#define X0038_LAMBDA_FROM_QP_CAPABILITY                   1 ///< This approach derives lambda from QP+QPoffset+QPoffset2. QPoffset2 is derived from QP+QPoffset using a linear model that is clipped between 0 and 3.
+                                                            // To use this capability enable config parameter LambdaFromQpEnable
 #define OPTIONAL_RESET_SAO_ENCODING_AFTER_IRAP            1 ///< Adds command line option to reset SAO parameters after each IRAP.
 #define REDUCED_ENCODER_MEMORY                            1 ///< When 1, the encoder will allocate TComPic memory when required and release it when no longer required.
+#define FIX_RDOQ_BIT_ESTIMATE                             1 ///< Correct RDOQ initialisation of costs for configurations where a TU width!=height; this does not occur in current HEVC profiles but is included for future-proofing (eg JVET).
 
 // ====================================================================================================================
 // Tool Switches

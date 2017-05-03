@@ -157,11 +157,19 @@ public:
   // for RD-optimizatioon
   // -------------------------------------------------------------------------------------------------------------------
 
+#if FIX_RDOQ_BIT_ESTIMATE
+  Void estBit               (estBitsSbacStruct* pcEstBitsSbac, Int width, Int height, ChannelType chType, COEFF_SCAN_TYPE scanType);
+#else
   Void estBit               (estBitsSbacStruct* pcEstBitsSbac, Int width, Int height, ChannelType chType);
+#endif
   Void estCBFBit                     ( estBitsSbacStruct* pcEstBitsSbac );
   Void estSignificantCoeffGroupMapBit( estBitsSbacStruct* pcEstBitsSbac, ChannelType chType );
   Void estSignificantMapBit          ( estBitsSbacStruct* pcEstBitsSbac, Int width, Int height, ChannelType chType );
+#if FIX_RDOQ_BIT_ESTIMATE
+  Void estLastSignificantPositionBit ( estBitsSbacStruct* pcEstBitsSbac, Int width, Int height, ChannelType chType, COEFF_SCAN_TYPE scanType );
+#else
   Void estLastSignificantPositionBit ( estBitsSbacStruct* pcEstBitsSbac, Int width, Int height, ChannelType chType );
+#endif
   Void estSignificantCoefficientsBit ( estBitsSbacStruct* pcEstBitsSbac, ChannelType chType );
 
   Void codeExplicitRdpcmMode            ( TComTU &rTu, const ComponentID compID );
