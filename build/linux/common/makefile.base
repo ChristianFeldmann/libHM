@@ -46,8 +46,8 @@ endif
 #########################################################
 
 # default cpp flags for all configurations
-#CPPFLAGS          = -Wall -fPIC $(DEFS) -I$(CURDIR)/$(INC_DIR) $(USER_INC_DIRS)
-CPPFLAGS          = -fPIC $(DEFS) -I$(CURDIR)/$(INC_DIR) $(USER_INC_DIRS) -Wall -Wshadow -Wno-sign-compare -Werror
+#CPPFLAGS          = -Wall $(DEFS) -I$(CURDIR)/$(INC_DIR) $(USER_INC_DIRS)
+CPPFLAGS          = $(DEFS) -I$(CURDIR)/$(INC_DIR) $(USER_INC_DIRS) -Wall -Wshadow -Wno-sign-compare -Werror
 
 ########## 
 # enforce 32-bit build : 1=yes, 0=no
@@ -60,6 +60,12 @@ endif
 
 ifeq ($(HIGHBITDEPTH), 1)
 CPPFLAGS+="-DRExt__HIGH_BIT_DEPTH_SUPPORT=1"
+endif
+
+ifeq ($(EXTENSION_360_VIDEO), 1)
+  CPPFLAGS+=-DEXTENSION_360_VIDEO=1
+else
+  CPPFLAGS+=-DEXTENSION_360_VIDEO=0
 endif
 
 #

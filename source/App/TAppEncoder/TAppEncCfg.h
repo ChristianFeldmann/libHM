@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2016, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,6 +41,9 @@
 #include "TLibCommon/CommonDef.h"
 
 #include "TLibEncoder/TEncCfg.h"
+#if EXTENSION_360_VIDEO
+#include "TAppEncHelper360/TExt360AppEncCfg.h"
+#endif
 #include <sstream>
 #include <vector>
 //! \ingroup TAppEncoder
@@ -53,6 +56,17 @@
 /// encoder configuration class
 class TAppEncCfg
 {
+#if JVET_E0059_FLOATING_POINT_QP_FIX
+public:
+  template <class T>
+  struct OptionalValue
+  {
+    Bool bPresent;
+    T    value;
+    OptionalValue() : bPresent(false), value() { }
+  };
+#endif
+
 protected:
   // file I/O
   std::string m_inputFileName;                                ///< source file name
@@ -70,6 +84,8 @@ protected:
   UInt      m_temporalSubsampleRatio;                         ///< temporal subsample ratio, 2 means code every two frames
   Int       m_iSourceWidth;                                   ///< source width in pixel
   Int       m_iSourceHeight;                                  ///< source height in pixel (when interlaced = field height)
+  Int       m_inputFileWidth;                                 ///< width of image in input file  (this is equivalent to sourceWidth,  if sourceWidth  is not subsequently altered due to padding)
+  Int       m_inputFileHeight;                                ///< height of image in input file (this is equivalent to sourceHeight, if sourceHeight is not subsequently altered due to padding)
 
   Int       m_iSourceHeightOrg;                               ///< original source height in pixel (when interlaced = frame height)
 
@@ -137,7 +153,11 @@ protected:
   Bool      m_cabacBypassAlignmentEnabledFlag;
 
   // coding quality
+#if JVET_E0059_FLOATING_POINT_QP_FIX
+  OptionalValue<UInt> m_qpIncrementAtSourceFrame;             ///< Optional source frame number at which all subsequent frames are to use an increased internal QP.
+#else
   Double    m_fQP;                                            ///< QP value of key-picture (floating point)
+#endif
   Int       m_iQP;                                            ///< QP value of key-picture (integer)
 #if X0038_LAMBDA_FROM_QP_CAPABILITY
   Int       m_intraQPOffset;                                  ///< QP offset for intra slice (integer)
@@ -395,6 +415,12 @@ protected:
   std::string m_summaryOutFilename;                           ///< filename to use for producing summary output file.
   std::string m_summaryPicFilenameBase;                       ///< Base filename to use for producing summary picture output files. The actual filenames used will have I.txt, P.txt and B.txt appended.
   UInt        m_summaryVerboseness;                           ///< Specifies the level of the verboseness of the text output.
+
+#if EXTENSION_360_VIDEO
+  TExt360AppEncCfg m_ext360;
+  friend class TExt360AppEncCfg;
+  friend class TExt360AppEncTop;
+#endif
 
   // internal member functions
   Void  xCheckParameter ();                                   ///< check validity of configuration values

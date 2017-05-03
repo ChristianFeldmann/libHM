@@ -191,7 +191,7 @@
 \maketitle
 \begin{abstract}
 This document is a user manual describing usage of reference software
-for the HEVC project. It applies to version 16.14
+for the HEVC project. It applies to version 16.15
 of the software.
 \end{abstract}
 
@@ -1229,8 +1229,13 @@ Enabling this parameter can reduce the visibility of CU boundaries in the coded 
 \begin{OptionTableNoShorthand}{Quantization parameters}{tab:quantization}
 \Option{QP (-q)} &
 %\ShortOption{-q} &
-\Default{30.0} &
-Specifies the base value of the quantization parameter. If it is non-integer, the QP is switched once during encoding.
+\Default{30} &
+Specifies the base value of the quantization parameter.
+\\
+
+\Option{QPIncrementFrame (-qpif)} &
+\Default{\NotSet} &
+If a source file frame number is specified, the internal QP will be incremented for all POCs associated with source frames beyond and including that frame. If empty, do not increment.
 \\
 
 \Option{IntraQPOffset} &

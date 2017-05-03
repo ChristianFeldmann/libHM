@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2016, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -2175,10 +2175,12 @@ Void TEncGOP::xCalculateAddPSNR( TComPic* pcPic, TComPicYuv* pcPicD, const Acces
     dPSNR[ch]         = ( uiSSDtemp ? 10.0 * log10( fRefValue / (Double)uiSSDtemp ) : 999.99 );
     MSEyuvframe[ch]   = (Double)uiSSDtemp/(iSize);
   }
+#if EXTENSION_360_VIDEO
+  m_ext360.calculatePSNRs(pcPic);
+#endif
 
 
   /* calculate the size of the access unit, excluding:
-   *  - any AnnexB contributions (start_code_prefix, zero_byte, etc.,)
    *  - SEI NAL units
    */
   UInt numRBSPBytes = 0;
@@ -2192,6 +2194,15 @@ Void TEncGOP::xCalculateAddPSNR( TComPic* pcPic, TComPicYuv* pcPicD, const Acces
     if ((*it)->m_nalUnitType != NAL_UNIT_PREFIX_SEI && (*it)->m_nalUnitType != NAL_UNIT_SUFFIX_SEI)
     {
       numRBSPBytes += numRBSPBytes_nal;
+      // add start code bytes (Annex B)
+      if (it == accessUnit.begin() || (*it)->m_nalUnitType == NAL_UNIT_VPS || (*it)->m_nalUnitType == NAL_UNIT_SPS || (*it)->m_nalUnitType == NAL_UNIT_PPS)
+      {
+        numRBSPBytes += 4;
+      }
+      else
+      {
+        numRBSPBytes += 3;
+      }
     }
   }
 
@@ -2200,20 +2211,33 @@ Void TEncGOP::xCalculateAddPSNR( TComPic* pcPic, TComPicYuv* pcPicD, const Acces
 
   //===== add PSNR =====
   m_gcAnalyzeAll.addResult (dPSNR, (Double)uibits, MSEyuvframe);
+#if EXTENSION_360_VIDEO
+  m_ext360.addResult(m_gcAnalyzeAll);
+#endif
+
   TComSlice*  pcSlice = pcPic->getSlice(0);
   if (pcSlice->isIntra())
   {
     m_gcAnalyzeI.addResult (dPSNR, (Double)uibits, MSEyuvframe);
+#if EXTENSION_360_VIDEO
+    m_ext360.addResult(m_gcAnalyzeI);
+#endif
     *PSNR_Y = dPSNR[COMPONENT_Y];
   }
   if (pcSlice->isInterP())
   {
     m_gcAnalyzeP.addResult (dPSNR, (Double)uibits, MSEyuvframe);
+#if EXTENSION_360_VIDEO
+    m_ext360.addResult(m_gcAnalyzeP);
+#endif
     *PSNR_Y = dPSNR[COMPONENT_Y];
   }
   if (pcSlice->isInterB())
   {
     m_gcAnalyzeB.addResult (dPSNR, (Double)uibits, MSEyuvframe);
+#if EXTENSION_360_VIDEO
+    m_ext360.addResult(m_gcAnalyzeB);
+#endif
     *PSNR_Y = dPSNR[COMPONENT_Y];
   }
 
@@ -2245,6 +2269,9 @@ Void TEncGOP::xCalculateAddPSNR( TComPic* pcPic, TComPicYuv* pcPicD, const Acces
   {
     printf(" [Y MSE %6.4lf  U MSE %6.4lf  V MSE %6.4lf]", MSEyuvframe[COMPONENT_Y], MSEyuvframe[COMPONENT_Cb], MSEyuvframe[COMPONENT_Cr] );
   }
+#if EXTENSION_360_VIDEO
+  m_ext360.printPerPOCInfo();
+#endif
   printf(" [ET %5.0f ]", dEncTime );
 
   // printf(" [WP %d]", pcSlice->getUseWeightedPrediction());

@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2016, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -62,6 +62,7 @@ enum ExtendedProfileName // this is used for determining profile strings, where 
   NONE = 0,
   MAIN = 1,
   MAIN10 = 2,
+  MAIN10_STILL_PICTURE=10002,
   MAINSTILLPICTURE = 3,
   MAINREXT = 4,
   HIGHTHROUGHPUTREXT = 5, // Placeholder profile for development
@@ -105,6 +106,9 @@ TAppEncCfg::TAppEncCfg()
 : m_inputColourSpaceConvert(IPCOLOURSPACE_UNCHANGED)
 , m_snrInternalColourSpace(false)
 , m_outputInternalColourSpace(false)
+#if EXTENSION_360_VIDEO
+, m_ext360(*this)
+#endif
 {
   m_aidQP = NULL;
   m_startOfCodedInterval = NULL;
@@ -206,6 +210,7 @@ strToProfile[] =
   {"main",                 Profile::MAIN               },
   {"main10",               Profile::MAIN10             },
   {"main-still-picture",   Profile::MAINSTILLPICTURE   },
+  {"main10-still-picture", Profile::MAIN10             },
   {"main-RExt",            Profile::MAINREXT           },
   {"high-throughput-RExt", Profile::HIGHTHROUGHPUTREXT }
 };
@@ -220,6 +225,8 @@ strToExtendedProfile[] =
     {"none",                      NONE             },
     {"main",                      MAIN             },
     {"main10",                    MAIN10           },
+    {"main10_still_picture",      MAIN10_STILL_PICTURE },
+    {"main10-still-picture",      MAIN10_STILL_PICTURE },
     {"main_still_picture",        MAINSTILLPICTURE },
     {"main-still-picture",        MAINSTILLPICTURE },
     {"main_RExt",                 MAINREXT         },
@@ -517,6 +524,24 @@ istream& SMultiValueInput<T>::readValues(std::istream &in)
   return in;
 }
 
+#if JVET_E0059_FLOATING_POINT_QP_FIX
+template <class T>
+static inline istream& operator >> (std::istream &in, TAppEncCfg::OptionalValue<T> &value)
+{
+  in >> std::ws;
+  if (in.eof())
+  {
+    value.bPresent=false;
+  }
+  else
+  {
+    in >> value.value;
+    value.bPresent=true;
+  }
+  return in;
+}
+#endif
+
 static Void
 automaticallySelectRExtProfile(const Bool bUsingGeneralRExtTools,
                                const Bool bUsingChromaQPAdjustment,
@@ -781,7 +806,12 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
   ("IQPFactor,-IQF",                                  m_dIntraQpFactor,                                  -1.0, "Intra QP Factor for Lambda Computation. If negative, the default will scale lambda based on GOP size (unless LambdaFromQpEnable then IntraQPOffset is used instead)")
 
   /* Quantization parameters */
+#if JVET_E0059_FLOATING_POINT_QP_FIX
+  ("QP,q",                                            m_iQP,                                               30, "Qp value")
+  ("QPIncrementFrame,-qpif",                          m_qpIncrementAtSourceFrame,       OptionalValue<UInt>(), "If a source file frame number is specified, the internal QP will be incremented for all POCs associated with source frames >= frame number. If empty, do not increment.")
+#else
   ("QP,q",                                            m_fQP,                                             30.0, "Qp value, if value is float, QP is switched once during encoding")
+#endif
 #if X0038_LAMBDA_FROM_QP_CAPABILITY
   ("IntraQPOffset",                                   m_intraQPOffset,                                      0, "Qp offset value for intra slice, typically determined based on GOP size")
   ("LambdaFromQpEnable",                              m_lambdaFromQPEnable,                             false, "Enable flag for derivation of lambda from QP")
@@ -1062,6 +1092,11 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
   ("SEIXSDMetricType",                                m_xsdMetricType,                      0u, "Value for the xsd_metric_type indicates the type of the objective quality metric. PSNR is the only type currently supported")
   ;
 
+#if EXTENSION_360_VIDEO
+  TExt360AppEncCfg::TExt360AppEncCfgContext ext360CfgContext;
+  m_ext360.addOptions(opts, ext360CfgContext);
+#endif
+
   for(Int i=1; i<MAX_GOP+1; i++)
   {
     std::ostringstream cOSS;
@@ -1096,6 +1131,8 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
   /*
    * Set any derived parameters
    */
+  m_inputFileWidth  = m_iSourceWidth;
+  m_inputFileHeight = m_iSourceHeight;
 
   m_framesToBeEncoded = ( m_framesToBeEncoded + m_temporalSubsampleRatio - 1 ) / m_temporalSubsampleRatio;
   m_adIntraLambdaModifier = cfg_adIntraLambdaModifier.values;
@@ -1194,6 +1231,10 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
   m_InputChromaFormatIDC = numberToChromaFormat(tmpInputChromaFormat);
   m_chromaFormatIDC      = ((tmpChromaFormat == 0) ? (m_InputChromaFormatIDC) : (numberToChromaFormat(tmpChromaFormat)));
 
+#if EXTENSION_360_VIDEO
+  m_ext360.processOptions(ext360CfgContext);
+#endif
+
   assert(tmpWeightedPredictionMethod>=0 && tmpWeightedPredictionMethod<=WP_PER_PICTURE_WITH_HISTOGRAM_AND_PER_COMPONENT_AND_CLIPPING_AND_EXTENSION);
   if (!(tmpWeightedPredictionMethod>=0 && tmpWeightedPredictionMethod<=WP_PER_PICTURE_WITH_HISTOGRAM_AND_PER_COMPONENT_AND_CLIPPING_AND_EXTENSION))
   {
@@ -1215,7 +1256,12 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
   }
   m_motionEstimationSearchMethod=MESearchMethod(tmpMotionEstimationSearchMethod);
 
-  if (extendedProfile >= 1000 && extendedProfile <= 12316)
+  if (extendedProfile == MAIN10_STILL_PICTURE)
+  {
+    m_profile = Profile::MAIN10;
+    m_onePictureOnlyConstraintFlag = true;
+  }
+  else if (extendedProfile >= 1000 && extendedProfile <= 12316)
   {
     m_profile = Profile::MAINREXT;
     if (m_bitDepthConstraint != 0 || tmpConstraintChromaFormat != 0)
@@ -1237,6 +1283,7 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
   else
   {
     m_profile = Profile::Name(extendedProfile);
+    m_onePictureOnlyConstraintFlag = false;
   }
 
   if (m_profile == Profile::HIGHTHROUGHPUTREXT )
@@ -1401,6 +1448,23 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
   m_aidQP = new Int[ m_framesToBeEncoded + m_iGOPSize + 1 ];
   ::memset( m_aidQP, 0, sizeof(Int)*( m_framesToBeEncoded + m_iGOPSize + 1 ) );
 
+#if JVET_E0059_FLOATING_POINT_QP_FIX
+  if (m_qpIncrementAtSourceFrame.bPresent)
+  {
+    UInt switchingPOC=0;
+    if (m_qpIncrementAtSourceFrame.value > m_FrameSkip)
+    {
+      // if switch source frame (ssf) = 10, and frame skip (fs)=2 and temporal subsample ratio (tsr) =1, then
+      //    for this simulation switch at POC 8 (=10-2).
+      // if ssf=10, fs=2, tsr=2, then for this simulation, switch at POC 4 (=(10-2)/2): POC0=Src2, POC1=Src4, POC2=Src6, POC3=Src8, POC4=Src10
+      switchingPOC = (m_qpIncrementAtSourceFrame.value - m_FrameSkip) / m_temporalSubsampleRatio;
+    }
+    for(UInt i=switchingPOC; i<( m_framesToBeEncoded + m_iGOPSize + 1 ); i++)
+    {
+      m_aidQP[i]=1;
+    }
+  }
+#else
   // handling of floating-point QP values
   // if QP is not integer, sequence is split into two sections having QP and QP+1
   m_iQP = (Int)( m_fQP );
@@ -1414,6 +1478,7 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
       m_aidQP[i] = 1;
     }
   }
+#endif
 
   for(UInt ch=0; ch<MAX_NUM_CHANNEL_TYPE; ch++)
   {
@@ -2368,6 +2433,10 @@ Void TAppEncCfg::xCheckParameter()
 
   xConfirmPara(m_preferredTransferCharacteristics > 255, "transfer_characteristics_idc should not be greater than 255.");
 
+#if EXTENSION_360_VIDEO
+  check_failed |= m_ext360.verifyParameters();
+#endif
+
 #undef xConfirmPara
   if (check_failed)
   {
@@ -2455,7 +2524,18 @@ Void TAppEncCfg::xPrintParameter()
   printf("Motion search range                    : %d\n", m_iSearchRange );
   printf("Intra period                           : %d\n", m_iIntraPeriod );
   printf("Decoding refresh type                  : %d\n", m_iDecodingRefreshType );
+#if JVET_E0059_FLOATING_POINT_QP_FIX
+  if (m_qpIncrementAtSourceFrame.bPresent)
+  {
+    printf("QP                                     : %d (incrementing internal QP at source frame %d)\n", m_iQP, m_qpIncrementAtSourceFrame.value );
+  }
+  else
+  {
+    printf("QP                                     : %d\n", m_iQP );
+  }
+#else
   printf("QP                                     : %5.2f\n", m_fQP );
+#endif
   printf("Max dQP signaling depth                : %d\n", m_iMaxCuDQPDepth);
 
   printf("Cb QP Offset                           : %d\n", m_cbQpOffset   );
@@ -2571,6 +2651,10 @@ Void TAppEncCfg::xPrintParameter()
 
   printf(" SignBitHidingFlag:%d ", m_signDataHidingEnabledFlag);
   printf("RecalQP:%d", m_recalculateQPAccordingToLambda ? 1 : 0 );
+
+#if EXTENSION_360_VIDEO
+  m_ext360.outputConfigurationSummary();
+#endif
 
   printf("\n\n");
 

@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2016, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -36,6 +36,7 @@
 */
 
 #include "TDecSlice.h"
+#include "TDecConformance.h"
 
 //! \ingroup TLibDecoder
 //! \{
@@ -60,10 +61,11 @@ Void TDecSlice::destroy()
 {
 }
 
-Void TDecSlice::init(TDecEntropy* pcEntropyDecoder, TDecCu* pcCuDecoder)
+Void TDecSlice::init(TDecEntropy* pcEntropyDecoder, TDecCu* pcCuDecoder, TDecConformanceCheck *pDecConformanceCheck)
 {
-  m_pcEntropyDecoder  = pcEntropyDecoder;
-  m_pcCuDecoder       = pcCuDecoder;
+  m_pcEntropyDecoder     = pcEntropyDecoder;
+  m_pcCuDecoder          = pcCuDecoder;
+  m_pDecConformanceCheck = pDecConformanceCheck;
 }
 
 Void TDecSlice::decompressSlice(TComInputBitstream** ppcSubstreams, TComPic* pcPic, TDecSbac* pcSbacDecoder)
@@ -168,6 +170,10 @@ Void TDecSlice::decompressSlice(TComInputBitstream** ppcSubstreams, TComPic* pcP
     g_bJustDoIt = g_bEncDecTraceEnable;
 #endif
 
+#if DECODER_PARTIAL_CONFORMANCE_CHECK != 0
+    const UInt numRemainingBitsPriorToCtu=ppcSubstreams[uiSubStrm]->getNumBitsLeft();
+#endif
+
     if ( pcSlice->getSPS()->getUseSAO() )
     {
       SAOBlkParam& saoblkParam = (pcPic->getPicSym()->getSAOBlkParam())[ctuRsAddr];
@@ -206,6 +212,15 @@ Void TDecSlice::decompressSlice(TComInputBitstream** ppcSubstreams, TComPic* pcP
     }
 
     m_pcCuDecoder->decodeCtu     ( pCtu, isLastCtuOfSliceSegment );
+
+#if DECODER_PARTIAL_CONFORMANCE_CHECK != 0
+    const UInt numRemainingBitsPostCtu=ppcSubstreams[uiSubStrm]->getNumBitsLeft(); // NOTE: Does not account for changes in buffered bits in CABAC decoder, although it's probably good enough.
+    if (TDecConformanceCheck::doChecking() && m_pDecConformanceCheck)
+    {
+      m_pDecConformanceCheck->checkCtuDecoding(numRemainingBitsPriorToCtu-numRemainingBitsPostCtu);
+    }
+#endif
+
     m_pcCuDecoder->decompressCtu ( pCtu );
 
 #if ENC_DEC_TRACE

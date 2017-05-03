@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2016, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -84,9 +84,17 @@
                                                             // To use this capability enable config parameter LambdaFromQpEnable
 #define JCTVC_Y0038_PARAMS                                1
 
+#define JVET_E0059_FLOATING_POINT_QP_FIX                  1 ///< Replace floating point QP with a source-file frame number.
+
+#ifndef EXTENSION_360_VIDEO
+#define EXTENSION_360_VIDEO                               0   ///< extension for 360/spherical video coding support; this macro should be controlled by makefile, as it would be used to control whether the library is built and linked
+#endif
+
 // ====================================================================================================================
 // Tool Switches
 // ====================================================================================================================
+
+// Please also refer to "TDecConformance.h" for DECODER_PARTIAL_CONFORMANCE_CHECK
 
 #define REDUCED_ENCODER_MEMORY                            1 ///< When 1, the encoder will allocate TComPic memory when required and release it when no longer required.
 
@@ -574,6 +582,7 @@ namespace Level
   {
     MAIN = 0,
     HIGH = 1,
+    NUMBER_OF_TIERS = 2
   };
 
   enum Name

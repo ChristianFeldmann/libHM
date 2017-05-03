@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2016, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -185,9 +185,9 @@ Bool TVideoIOYuv::isFail()
  * This function correctly handles cases where the input file is not
  * seekable, by consuming bytes.
  */
-Void TVideoIOYuv::skipFrames(UInt numFrames, UInt width, UInt height, ChromaFormat format)
+Void TVideoIOYuv::skipFrames(Int numFrames, UInt width, UInt height, ChromaFormat format)
 {
-  if (!numFrames)
+  if (numFrames==0)
   {
     return;
   }
@@ -731,7 +731,10 @@ Bool TVideoIOYuv::read ( TComPicYuv*  pPicYuvUser, TComPicYuv* pPicYuvTrueOrg, c
     }
   }
 
-  ColourSpaceConvert(*pPicYuvTrueOrg, *pPicYuvUser, ipcsc, true);
+  if(pPicYuvUser)
+  {
+    ColourSpaceConvert(*pPicYuvTrueOrg, *pPicYuvUser, ipcsc, true);
+  }
 
   return true;
 }

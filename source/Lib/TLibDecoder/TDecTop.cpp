@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2016, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -37,6 +37,7 @@
 
 #include "NALread.h"
 #include "TDecTop.h"
+#include "TDecConformance.h"
 
 //! \ingroup TLibDecoder
 //! \{
@@ -127,7 +128,7 @@ Void TDecTop::init()
   // initialize ROM
   initROM();
   m_cGopDecoder.init( &m_cEntropyDecoder, &m_cSbacDecoder, &m_cBinCABAC, &m_cCavlcDecoder, &m_cSliceDecoder, &m_cLoopFilter, &m_cSAO);
-  m_cSliceDecoder.init( &m_cEntropyDecoder, &m_cCuDecoder );
+  m_cSliceDecoder.init( &m_cEntropyDecoder, &m_cCuDecoder, &m_conformanceCheck );
   m_cEntropyDecoder.init(&m_cPrediction);
 }
 
@@ -599,11 +600,16 @@ Bool TDecTop::xDecodeSlice(InputNALUnit &nalu, Int &iSkipFrame, Int iPOCLastDisp
   // actual decoding starts here
   xActivateParameterSets();
 
-  m_bFirstSliceInSequence = false;
-  m_bFirstSliceInBitstream  = false;
-
 
   TComSlice* pcSlice = m_pcPic->getPicSym()->getSlice(m_uiSliceIdx);
+
+  if (TDecConformanceCheck::doChecking())
+  {
+    m_conformanceCheck.checkSliceActivation(*pcSlice, nalu, *m_pcPic, m_bFirstSliceInBitstream, m_bFirstSliceInSequence, m_bFirstSliceInPicture);
+  }
+
+  m_bFirstSliceInSequence = false;
+  m_bFirstSliceInBitstream  = false;
 
   // When decoding the slice header, the stored start and end addresses were actually RS addresses, not TS addresses.
   // Now, having set up the maps, convert them to the correct form.

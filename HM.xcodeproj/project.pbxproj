@@ -135,6 +135,8 @@
 		71AD603911EBC28500F5F1FE /* libTLibCommon.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 6767959411AD61BB00421804 /* libTLibCommon.a */; };
 		71AD603A11EBC28D00F5F1FE /* libTLibEncoder.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 6767961911AD626F00421804 /* libTLibEncoder.a */; };
 		71AD603B11EBC29600F5F1FE /* libTLibVideoIO.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 6767964B11AD629200421804 /* libTLibVideoIO.a */; };
+		71B190541E55F8D4007BA0C2 /* TDecConformance.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 71B190521E55F8D4007BA0C2 /* TDecConformance.cpp */; };
+		71B190551E55F8D4007BA0C2 /* TDecConformance.h in Headers */ = {isa = PBXBuildFile; fileRef = 71B190531E55F8D4007BA0C2 /* TDecConformance.h */; };
 		DB7795C213F1226500C92469 /* TEncPic.cpp in Sources */ = {isa = PBXBuildFile; fileRef = DB7795BE13F1226500C92469 /* TEncPic.cpp */; };
 		DB7795C313F1226500C92469 /* TEncPic.h in Headers */ = {isa = PBXBuildFile; fileRef = DB7795BF13F1226500C92469 /* TEncPic.h */; };
 		DB7795C413F1226500C92469 /* TEncPreanalyzer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = DB7795C013F1226500C92469 /* TEncPreanalyzer.cpp */; };
@@ -348,6 +350,8 @@
 		719E0DAA1A927238000361D4 /* SEIEncoder.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = SEIEncoder.h; path = source/Lib/TLibEncoder/SEIEncoder.h; sourceTree = "<group>"; };
 		719E0DAD1A927294000361D4 /* SEIwrite.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = SEIwrite.cpp; path = source/Lib/TLibEncoder/SEIwrite.cpp; sourceTree = "<group>"; };
 		719E0DAE1A927294000361D4 /* SEIwrite.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = SEIwrite.h; path = source/Lib/TLibEncoder/SEIwrite.h; sourceTree = "<group>"; };
+		71B190521E55F8D4007BA0C2 /* TDecConformance.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = TDecConformance.cpp; path = source/Lib/TLibDecoder/TDecConformance.cpp; sourceTree = "<group>"; };
+		71B190531E55F8D4007BA0C2 /* TDecConformance.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = TDecConformance.h; path = source/Lib/TLibDecoder/TDecConformance.h; sourceTree = "<group>"; };
 		DB7795BE13F1226500C92469 /* TEncPic.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = TEncPic.cpp; path = source/Lib/TLibEncoder/TEncPic.cpp; sourceTree = "<group>"; };
 		DB7795BF13F1226500C92469 /* TEncPic.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = TEncPic.h; path = source/Lib/TLibEncoder/TEncPic.h; sourceTree = "<group>"; };
 		DB7795C013F1226500C92469 /* TEncPreanalyzer.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = TEncPreanalyzer.cpp; path = source/Lib/TLibEncoder/TEncPreanalyzer.cpp; sourceTree = "<group>"; };
@@ -555,6 +559,8 @@
 				671E0D5811B6ADD300F3747B /* TDecBinCoderCABAC.h */,
 				676795F811AD623900421804 /* TDecCAVLC.cpp */,
 				676795F911AD623900421804 /* TDecCAVLC.h */,
+				71B190521E55F8D4007BA0C2 /* TDecConformance.cpp */,
+				71B190531E55F8D4007BA0C2 /* TDecConformance.h */,
 				676795FA11AD623900421804 /* TDecCu.cpp */,
 				676795FB11AD623900421804 /* TDecCu.h */,
 				676795FC11AD623900421804 /* TDecEntropy.cpp */,
@@ -709,6 +715,7 @@
 				DB7795C513F1226500C92469 /* TEncPreanalyzer.h in Headers */,
 				DBC9C94114477F6400A77A93 /* TComSampleAdaptiveOffset.h in Headers */,
 				DBC9C94C1447847400A77A93 /* TComRdCostWeightPrediction.h in Headers */,
+				71B190551E55F8D4007BA0C2 /* TDecConformance.h in Headers */,
 				DBC9C94E1447847400A77A93 /* TComWeightPrediction.h in Headers */,
 				61601BB715A74998008F8892 /* Debug.h in Headers */,
 				61601BB915A74998008F8892 /* TComChromaFormat.h in Headers */,
@@ -963,6 +970,7 @@
 				676795EA11AD61FC00421804 /* TComTrQuant.cpp in Sources */,
 				676795EC11AD61FC00421804 /* TComYuv.cpp in Sources */,
 				671E0D4911B6AD8C00F3747B /* ContextModel.cpp in Sources */,
+				71B190541E55F8D4007BA0C2 /* TDecConformance.cpp in Sources */,
 				671E0D4B11B6AD8C00F3747B /* ContextModel3DBuffer.cpp in Sources */,
 				671E0D5011B6AD8C00F3747B /* TComCABACTables.cpp in Sources */,
 				65EA1B89135744C400988950 /* libmd5.c in Sources */,
@@ -1114,7 +1122,7 @@
 				GCC_WARN_ABOUT_RETURN_TYPE = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				HEADER_SEARCH_PATHS = source/Lib;
-				MACOSX_DEPLOYMENT_TARGET = 10.7;
+				MACOSX_DEPLOYMENT_TARGET = 10.9;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
 			};
@@ -1130,7 +1138,7 @@
 				GCC_WARN_NON_VIRTUAL_DESTRUCTOR = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				HEADER_SEARCH_PATHS = source/Lib;
-				MACOSX_DEPLOYMENT_TARGET = 10.7;
+				MACOSX_DEPLOYMENT_TARGET = 10.9;
 				SDKROOT = macosx;
 			};
 			name = Release;

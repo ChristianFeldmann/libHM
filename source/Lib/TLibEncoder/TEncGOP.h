@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2016, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -54,6 +54,9 @@
 #include "TEncSbac.h"
 #include "SEIwrite.h"
 #include "SEIEncoder.h"
+#if EXTENSION_360_VIDEO
+#include "TAppEncHelper360/TExt360EncGop.h"
+#endif
 
 #include "TEncAnalyze.h"
 #include "TEncRateCtrl.h"
@@ -89,6 +92,14 @@ private:
   TEncAnalyze             m_gcAnalyzeB;
 
   TEncAnalyze             m_gcAnalyzeAll_in;
+
+#if EXTENSION_360_VIDEO
+  TExt360EncGop           m_ext360;
+public:
+  TExt360EncGop &getExt360Data() { return m_ext360; }
+private:
+#endif
+
   //  Data
   Bool                    m_bLongtermTestPictureHasBeenCoded;
   Bool                    m_bLongtermTestPictureHasBeenCoded2;
@@ -158,6 +169,11 @@ public:
   TEncSlice*  getSliceEncoder()   { return m_pcSliceEncoder; }
   NalUnitType getNalUnitType( Int pocCurr, Int lastIdr, Bool isField );
   Void arrangeLongtermPicturesInRPS(TComSlice *, TComList<TComPic*>& );
+
+  TEncAnalyze& getAnalyzeAllData() { return m_gcAnalyzeAll; }
+  TEncAnalyze& getAnalyzeIData()   { return m_gcAnalyzeI; }
+  TEncAnalyze& getAnalyzePData()   { return m_gcAnalyzeP; }
+  TEncAnalyze& getAnalyzeBData()   { return m_gcAnalyzeB; }
 
 protected:
   TEncRateCtrl* getRateCtrl()       { return m_pcRateCtrl;  }
