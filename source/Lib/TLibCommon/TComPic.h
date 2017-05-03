@@ -126,9 +126,6 @@ public:
   UInt          getMinCUWidth() const        { return m_apcPicSym->getMinCUWidth();         }
   UInt          getMinCUHeight() const       { return m_apcPicSym->getMinCUHeight();        }
 
-  UInt          getParPelX(UChar uhPartIdx) const { return getParPelX(uhPartIdx); }
-  UInt          getParPelY(UChar uhPartIdx) const { return getParPelX(uhPartIdx); }
-
   Int           getStride(const ComponentID id) const          { return m_apcPicYuv[PIC_YUV_REC]->getStride(id); }
   Int           getComponentScaleX(const ComponentID id) const    { return m_apcPicYuv[PIC_YUV_REC]->getComponentScaleX(id); }
   Int           getComponentScaleY(const ComponentID id) const    { return m_apcPicYuv[PIC_YUV_REC]->getComponentScaleY(id); }
