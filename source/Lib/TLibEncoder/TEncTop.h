@@ -86,8 +86,6 @@ private:
   TEncCavlc               m_cCavlcCoder;                  ///< CAVLC encoder
   TEncSbac                m_cSbacCoder;                   ///< SBAC encoder
   TEncBinCABAC            m_cBinCoderCABAC;               ///< bin coder CABAC
-  TEncSbac*               m_pcSbacCoders;                 ///< SBAC encoders (to encode substreams )
-  TEncBinCABAC*           m_pcBinCoderCABACs;             ///< bin coders CABAC (one per substream)
 
   // processing unit
   TEncGOP                 m_cGOPEncoder;                  ///< GOP encoder
@@ -97,7 +95,6 @@ private:
   TComSPS                 m_cSPS;                         ///< SPS
   TComPPS                 m_cPPS;                         ///< PPS
   // RD cost computation
-  TComBitCounter          m_cBitCounter;                  ///< bit counter for RD optimization
   TComRdCost              m_cRdCost;                      ///< RD cost computation class
   TEncSbac***             m_pppcRDSbacCoder;              ///< temporal storage for RD computation
   TEncSbac                m_cRDGoOnSbacCoder;             ///< going on SBAC model for RD stage
@@ -108,13 +105,6 @@ private:
   TEncBinCABAC***         m_pppcBinCoderCABAC;            ///< temporal CABAC state storage for RD computation
   TEncBinCABAC            m_cRDGoOnBinCoderCABAC;         ///< going on bin coder CABAC for RD stage
 #endif
-  Int                     m_iNumSubstreams;                ///< # of top-level elements allocated.
-  TComBitCounter*         m_pcBitCounters;                 ///< bit counters for RD optimization per substream
-  TComRdCost*             m_pcRdCosts;                     ///< RD cost computation class per substream
-  TEncSbac****            m_ppppcRDSbacCoders;             ///< temporal storage for RD computation per substream
-  TEncSbac*               m_pcRDGoOnSbacCoders;            ///< going on SBAC model for RD stage per substream
-  TEncBinCABAC****        m_ppppcBinCodersCABAC;           ///< temporal CABAC state storage for RD computation per substream
-  TEncBinCABAC*           m_pcRDGoOnBinCodersCABAC;        ///< going on bin coder CABAC for RD stage per substream
 
   // quality control
   TEncPreanalyzer         m_cPreanalyzer;                 ///< image characteristics analyzer for TM5-step3-like adaptive QP
@@ -139,8 +129,6 @@ public:
   Void      init            (Bool isFieldCoding);
   Void      deletePicBuffer ();
 
-  Void      createWPPCoders(Int iNumSubstreams);
-
   // -------------------------------------------------------------------------------------------------------------------
   // member access functions
   // -------------------------------------------------------------------------------------------------------------------
@@ -158,17 +146,10 @@ public:
   TEncCavlc*              getCavlcCoder         () { return  &m_cCavlcCoder;          }
   TEncSbac*               getSbacCoder          () { return  &m_cSbacCoder;           }
   TEncBinCABAC*           getBinCABAC           () { return  &m_cBinCoderCABAC;       }
-  TEncSbac*               getSbacCoders     () { return  m_pcSbacCoders;      }
-  TEncBinCABAC*           getBinCABACs          () { return  m_pcBinCoderCABACs;      }
 
-  TComBitCounter*         getBitCounter         () { return  &m_cBitCounter;          }
   TComRdCost*             getRdCost             () { return  &m_cRdCost;              }
   TEncSbac***             getRDSbacCoder        () { return  m_pppcRDSbacCoder;       }
   TEncSbac*               getRDGoOnSbacCoder    () { return  &m_cRDGoOnSbacCoder;     }
-  TComBitCounter*         getBitCounters        () { return  m_pcBitCounters;         }
-  TComRdCost*             getRdCosts            () { return  m_pcRdCosts;             }
-  TEncSbac****            getRDSbacCoders       () { return  m_ppppcRDSbacCoders;     }
-  TEncSbac*               getRDGoOnSbacCoders   () { return  m_pcRDGoOnSbacCoders;   }
   TEncRateCtrl*           getRateCtrl           () { return &m_cRateCtrl;             }
   TComSPS*                getSPS                () { return  &m_cSPS;                 }
   TComPPS*                getPPS                () { return  &m_cPPS;                 }

@@ -64,7 +64,7 @@ typedef enum PRED_BUF_E
   NUM_PRED_BUF=2
 } PRED_BUF;
 
-static const UInt MAX_INTRA_FILTER_DEPTHS=5; // NOTE: RExt - new definition
+static const UInt MAX_INTRA_FILTER_DEPTHS=5;
 
 class TComPrediction : public TComWeightPrediction
 {

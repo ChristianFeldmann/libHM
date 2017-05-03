@@ -61,7 +61,7 @@ TEncTop::TEncTop()
 #if ENC_DEC_TRACE
   if (g_hTrace == NULL)
   {
-    g_hTrace = fopen( "TraceEnc_RExt.txt", "wb" );
+    g_hTrace = fopen( "TraceEnc.txt", "wb" );
   }
   g_bJustDoIt = g_bEncDecTraceDisable;
   g_nSymbolCounter = 0;
@@ -72,15 +72,6 @@ TEncTop::TEncTop()
 #if FAST_BIT_EST
   ContextModel::buildNextStateTable();
 #endif
-
-  m_pcSbacCoders           = NULL;
-  m_pcBinCoderCABACs       = NULL;
-  m_ppppcRDSbacCoders      = NULL;
-  m_ppppcBinCodersCABAC    = NULL;
-  m_pcRDGoOnSbacCoders     = NULL;
-  m_pcRDGoOnBinCodersCABAC = NULL;
-  m_pcBitCounters          = NULL;
-  m_pcRdCosts              = NULL;
 }
 
 TEncTop::~TEncTop()
@@ -155,53 +146,6 @@ Void TEncTop::create ()
   }
 }
 
-/**
- - Allocate coders required for wavefront for the nominated number of substreams.
- .
- \param iNumSubstreams Determines how much information to allocate.
- */
-Void TEncTop::createWPPCoders(Int iNumSubstreams)
-{
-  if (m_pcSbacCoders != NULL)
-  {
-    return; // already generated.
-  }
-
-  m_iNumSubstreams         = iNumSubstreams;
-  m_pcSbacCoders           = new TEncSbac       [iNumSubstreams];
-  m_pcBinCoderCABACs       = new TEncBinCABAC   [iNumSubstreams];
-  m_pcRDGoOnSbacCoders     = new TEncSbac       [iNumSubstreams];
-  m_pcRDGoOnBinCodersCABAC = new TEncBinCABAC   [iNumSubstreams];
-  m_pcBitCounters          = new TComBitCounter [iNumSubstreams];
-  m_pcRdCosts              = new TComRdCost     [iNumSubstreams];
-
-  for ( UInt ui = 0 ; ui < iNumSubstreams; ui++ )
-  {
-    m_pcRDGoOnSbacCoders[ui].init( &m_pcRDGoOnBinCodersCABAC[ui] );
-    m_pcSbacCoders[ui].init( &m_pcBinCoderCABACs[ui] );
-  }
-  m_ppppcRDSbacCoders      = new TEncSbac***    [iNumSubstreams];
-  m_ppppcBinCodersCABAC    = new TEncBinCABAC***[iNumSubstreams];
-  for ( UInt ui = 0 ; ui < iNumSubstreams ; ui++ )
-  {
-    m_ppppcRDSbacCoders[ui]  = new TEncSbac** [g_uiMaxCUDepth+1];
-    m_ppppcBinCodersCABAC[ui]= new TEncBinCABAC** [g_uiMaxCUDepth+1];
-
-    for ( Int iDepth = 0; iDepth < g_uiMaxCUDepth+1; iDepth++ )
-    {
-      m_ppppcRDSbacCoders[ui][iDepth]  = new TEncSbac*     [CI_NUM];
-      m_ppppcBinCodersCABAC[ui][iDepth]= new TEncBinCABAC* [CI_NUM];
-
-      for (Int iCIIdx = 0; iCIIdx < CI_NUM; iCIIdx ++ )
-      {
-        m_ppppcRDSbacCoders  [ui][iDepth][iCIIdx] = new TEncSbac;
-        m_ppppcBinCodersCABAC[ui][iDepth][iCIIdx] = new TEncBinCABAC;
-        m_ppppcRDSbacCoders  [ui][iDepth][iCIIdx]->init( m_ppppcBinCodersCABAC[ui][iDepth][iCIIdx] );
-      }
-    }
-  }
-}
-
 Void TEncTop::destroy ()
 {
   // destroy processing unit classes
@@ -233,34 +177,6 @@ Void TEncTop::destroy ()
 
   delete [] m_pppcRDSbacCoder;
   delete [] m_pppcBinCoderCABAC;
-
-  for ( UInt ui = 0; ui < m_iNumSubstreams; ui++ )
-  {
-    for ( iDepth = 0; iDepth < g_uiMaxCUDepth+1; iDepth++ )
-    {
-      for (Int iCIIdx = 0; iCIIdx < CI_NUM; iCIIdx ++ )
-      {
-        delete m_ppppcRDSbacCoders  [ui][iDepth][iCIIdx];
-        delete m_ppppcBinCodersCABAC[ui][iDepth][iCIIdx];
-      }
-    }
-
-    for ( iDepth = 0; iDepth < g_uiMaxCUDepth+1; iDepth++ )
-    {
-      delete [] m_ppppcRDSbacCoders  [ui][iDepth];
-      delete [] m_ppppcBinCodersCABAC[ui][iDepth];
-    }
-    delete[] m_ppppcRDSbacCoders  [ui];
-    delete[] m_ppppcBinCodersCABAC[ui];
-  }
-  delete[] m_ppppcRDSbacCoders;
-  delete[] m_ppppcBinCodersCABAC;
-  delete[] m_pcSbacCoders;
-  delete[] m_pcBinCoderCABACs;
-  delete[] m_pcRDGoOnSbacCoders;
-  delete[] m_pcRDGoOnBinCodersCABAC;
-  delete[] m_pcBitCounters;
-  delete[] m_pcRdCosts;
 
   // destroy ROM
   destroyROM();
@@ -793,19 +709,6 @@ Void TEncTop::xInitPPS()
   {
     m_cPPS.setDependentSliceSegmentsEnabledFlag( true );
   }
-
-  if( m_cPPS.getDependentSliceSegmentsEnabledFlag() )
-  {
-    Int NumCtx = m_cPPS.getEntropyCodingSyncEnabledFlag()?2:1;
-    m_cSliceEncoder.initCtxMem( NumCtx );
-    for ( UInt st = 0; st < NumCtx; st++ )
-    {
-      TEncSbac* ctx = NULL;
-      ctx = new TEncSbac;
-      ctx->init( &m_cBinCoderCABAC );
-      m_cSliceEncoder.setCtxMem( ctx, st );
-    }
-  }
 }
 
 //Function for initializing m_RPSList, a list of TComReferencePictureSet, based on the GOPEntry objects read from the config file.
@@ -1084,6 +987,10 @@ Void  TEncTop::xInitPPSforTiles()
   if (m_iWaveFrontSynchro )
   {
     m_cPPS.setNumSubstreams(m_iWaveFrontSubstreams * (m_iNumColumnsMinus1+1));
+  }
+  else
+  {
+    m_cPPS.setNumSubstreams((m_iNumRowsMinus1+1) * (m_iNumColumnsMinus1+1));
   }
 }
 

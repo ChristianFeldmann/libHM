@@ -58,7 +58,7 @@ using namespace std;
 
 /// list template
 template< class C >
-class TComList : public std::list< C > // NOTE: RExt - should not inherit from STL classes
+class TComList : public std::list< C > // NOTE: should not inherit from STL classes
 {
 public:
   typedef typename std::list<C>::iterator TComIterator;

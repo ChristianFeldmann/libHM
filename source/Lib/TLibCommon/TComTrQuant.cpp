@@ -153,7 +153,7 @@ TComTrQuant::~TComTrQuant()
 #if ADAPTIVE_QP_SELECTION
 Void TComTrQuant::storeSliceQpNext(TComSlice* pcSlice)
 {
-  // NOTE: RExt - does this work with negative QPs or when some blocks are transquant-bypass enabled?
+  // NOTE: does this work with negative QPs or when some blocks are transquant-bypass enabled?
 
   Int qpBase = pcSlice->getSliceQpBase();
   Int sliceQpused = pcSlice->getSliceQp();
@@ -355,7 +355,7 @@ Void xITr(Int bitDepth, TCoeff *coeff, Pel *block, UInt uiStride, UInt uiTrSize,
         iSum += iT[k*uiTrSize+i]*coeff[k*uiTrSize+j];
       }
 
-      //NOTE: RExt - Clipping here is not in the standard, but is used to protect the "Pel" data type into which the inverse-transformed samples will be copied
+      // Clipping here is not in the standard, but is used to protect the "Pel" data type into which the inverse-transformed samples will be copied
       tmp[i*uiTrSize+j] = Clip3<TCoeff>(clipMinimum, clipMaximum, (iSum + add_1st)>>shift_1st);
     }
   }
@@ -927,7 +927,7 @@ Void xITrMxN(Int bitDepth, TCoeff *coeff, TCoeff *block, Int iWidth, Int iHeight
 
   switch (iWidth)
   {
-    //NOTE: RExt - Clipping here is not in the standard, but is used to protect the "Pel" data type into which the inverse-transformed samples will be copied
+    // Clipping here is not in the standard, but is used to protect the "Pel" data type into which the inverse-transformed samples will be copied
     case 4:
       {
         if ((iHeight == 4) && useDST)    // Check for DCT or DST
@@ -988,7 +988,7 @@ Void TComTrQuant::signBitHidingHDQ( const ComponentID compID, TCoeff* pQCoef, TC
 
     for(n = firstNZPosInCG; n <=lastNZPosInCG; n++ )
     {
-      absSum += Int(pQCoef[ codingParameters.scan[ n + subPos ]]); //NOTE: RExt - only one bit is actually required!
+      absSum += Int(pQCoef[ codingParameters.scan[ n + subPos ]]);
     }
 
     if(lastNZPosInCG>=0 && lastCG==-1)
@@ -1150,7 +1150,7 @@ Void TComTrQuant::xQuant(       TComTU       &rTu,
     }
 
     const Int iQBits = QUANT_SHIFT + cQP.per + iTransformShift;
-    // NOTE: RExt - QBits will be OK for any internal bit depth as the reduction in transform shift is balanced by an increase in Qp_per due to QpBDOffset
+    // QBits will be OK for any internal bit depth as the reduction in transform shift is balanced by an increase in Qp_per due to QpBDOffset
 
 #if ADAPTIVE_QP_SELECTION
     Int iQBitsC = MAX_INT;
@@ -1838,7 +1838,7 @@ Void TComTrQuant::xIT( const ComponentID compID, Bool useDST, TCoeff* plCoef, Pe
 #if MATRIX_MULT
   if( iWidth == iHeight )
   {
-#if RExt__O0043_BEST_EFFORT_DECODING
+#if O0043_BEST_EFFORT_DECODING
     xITr(g_bitDepthInStream[toChannelType(compID)], plCoef, pResidual, uiStride, (UInt)iWidth, useDST, g_maxTrDynamicRange[toChannelType(compID)]);
 #else
     xITr(g_bitDepth[toChannelType(compID)], plCoef, pResidual, uiStride, (UInt)iWidth, useDST, g_maxTrDynamicRange[toChannelType(compID)]);
@@ -1852,7 +1852,7 @@ Void TComTrQuant::xIT( const ComponentID compID, Bool useDST, TCoeff* plCoef, Pe
 
   memcpy(coeff, plCoef, (iWidth * iHeight * sizeof(TCoeff)));
 
-#if RExt__O0043_BEST_EFFORT_DECODING
+#if O0043_BEST_EFFORT_DECODING
   xITrMxN( g_bitDepthInStream[toChannelType(compID)], coeff, block, iWidth, iHeight, useDST, g_maxTrDynamicRange[toChannelType(compID)] );
 #else
   xITrMxN( g_bitDepth[toChannelType(compID)], coeff, block, iWidth, iHeight, useDST, g_maxTrDynamicRange[toChannelType(compID)] );
@@ -2107,11 +2107,7 @@ Void TComTrQuant::xRateDistOptQuant                 (       TComTU       &rTu,
         piArlDstCoeff[uiBlkPos]   = (TCoeff)(( lLevelDouble + iAddC) >> iQBitsC );
       }
 #endif
-#if RExt__BACKWARDS_COMPATIBILITY_HM_TICKET_1298
-      const UInt uiMaxAbsLevel  = UInt((lLevelDouble + (Intermediate_Int(1) << (iQBits - 1))) >> iQBits);
-#else
       const UInt uiMaxAbsLevel  = std::min<UInt>(UInt(entropyCodingMaximum), UInt((lLevelDouble + (Intermediate_Int(1) << (iQBits - 1))) >> iQBits));
-#endif
 
       const Double dErr         = Double( lLevelDouble );
       pdCostCoeff0[ iScanPos ]  = dErr * dErr * errorScale;
@@ -2418,7 +2414,7 @@ Void TComTrQuant::xRateDistOptQuant                 (       TComTU       &rTu,
 
       for(n = firstNZPosInCG; n <=lastNZPosInCG; n++ )
       {
-        absSum += Int(piDstCoeff[ codingParameters.scan[ n + subPos ]]); //NOTE: RExt - only one bit is actually required!
+        absSum += Int(piDstCoeff[ codingParameters.scan[ n + subPos ]]);
       }
 
       if(lastNZPosInCG>=0 && lastCG==-1)
@@ -3164,7 +3160,7 @@ Void TComTrQuant::transformSkipQuantOneSample(TComTU &rTu, const ComponentID com
   */
 
   const Int iQBits = QUANT_SHIFT + cQP.per + iTransformShift;
-  // NOTE: RExt - QBits will be OK for any internal bit depth as the reduction in transform shift is balanced by an increase in Qp_per due to QpBDOffset
+  // QBits will be OK for any internal bit depth as the reduction in transform shift is balanced by an increase in Qp_per due to QpBDOffset
 
   const Int iAdd = ( bUseHalfRoundingPoint ? 256 : (pcCU->getSlice()->getSliceType() == I_SLICE ? 171 : 85) ) << (iQBits - 9);
 

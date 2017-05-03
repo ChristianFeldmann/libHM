@@ -49,7 +49,7 @@
 //! \ingroup TLibDecoder
 //! \{
 
-#if RExt__ENVIRONMENT_VARIABLE_DEBUG_AND_TEST
+#if ENVIRONMENT_VARIABLE_DEBUG_AND_TEST
 #include "../TLibCommon/Debug.h"
 #endif
 
@@ -159,66 +159,6 @@ Void TDecSbac::resetEntropy(TComSlice* pSlice)
   m_ChromaQpAdjFlagSCModel.initBuffer             ( sliceType, qp, (UChar*)INIT_CHROMA_QP_ADJ_FLAG );
   m_ChromaQpAdjIdcSCModel.initBuffer              ( sliceType, qp, (UChar*)INIT_CHROMA_QP_ADJ_IDC );
 
-  m_uiLastDQpNonZero  = 0;
-
-  // new structure
-  m_uiLastQp          = qp;
-
-  for (UInt statisticIndex = 0; statisticIndex < RExt__GOLOMB_RICE_ADAPTATION_STATISTICS_SETS ; statisticIndex++)
-  {
-    m_golombRiceAdaptationStatistics[statisticIndex] = 0;
-  }
-
-  m_pcTDecBinIf->start();
-}
-
-/** The function does the following: Read out terminate bit. Flush CABAC. Byte-align for next tile.
- *  Intialize CABAC states. Start CABAC.
- */
-Void TDecSbac::updateContextTables( SliceType eSliceType, Int iQp )
-{
-  UInt uiBit;
-  m_pcTDecBinIf->decodeBinTrm(uiBit);
-  assert(uiBit == 1); // end_of_sub_stream_one_bit must be equal to 1
-  m_pcTDecBinIf->finish();
-
-#if RExt__DECODER_DEBUG_BIT_STATISTICS
-  TComCodingStatistics::IncrementStatisticEP(STATS__TRAILING_BITS, m_pcBitstream->readOutTrailingBits(),0);
-#else
-  m_pcBitstream->readOutTrailingBits();
-#endif
-  m_cCUSplitFlagSCModel.initBuffer                ( eSliceType, iQp, (UChar*)INIT_SPLIT_FLAG );
-  m_cCUSkipFlagSCModel.initBuffer                 ( eSliceType, iQp, (UChar*)INIT_SKIP_FLAG );
-  m_cCUMergeFlagExtSCModel.initBuffer             ( eSliceType, iQp, (UChar*)INIT_MERGE_FLAG_EXT );
-  m_cCUMergeIdxExtSCModel.initBuffer              ( eSliceType, iQp, (UChar*)INIT_MERGE_IDX_EXT );
-  m_cCUPartSizeSCModel.initBuffer                 ( eSliceType, iQp, (UChar*)INIT_PART_SIZE );
-  m_cCUPredModeSCModel.initBuffer                 ( eSliceType, iQp, (UChar*)INIT_PRED_MODE );
-  m_cCUIntraPredSCModel.initBuffer                ( eSliceType, iQp, (UChar*)INIT_INTRA_PRED_MODE );
-  m_cCUChromaPredSCModel.initBuffer               ( eSliceType, iQp, (UChar*)INIT_CHROMA_PRED_MODE );
-  m_cCUInterDirSCModel.initBuffer                 ( eSliceType, iQp, (UChar*)INIT_INTER_DIR );
-  m_cCUMvdSCModel.initBuffer                      ( eSliceType, iQp, (UChar*)INIT_MVD );
-  m_cCURefPicSCModel.initBuffer                   ( eSliceType, iQp, (UChar*)INIT_REF_PIC );
-  m_cCUDeltaQpSCModel.initBuffer                  ( eSliceType, iQp, (UChar*)INIT_DQP );
-  m_cCUQtCbfSCModel.initBuffer                    ( eSliceType, iQp, (UChar*)INIT_QT_CBF );
-  m_cCUQtRootCbfSCModel.initBuffer                ( eSliceType, iQp, (UChar*)INIT_QT_ROOT_CBF );
-  m_cCUSigCoeffGroupSCModel.initBuffer            ( eSliceType, iQp, (UChar*)INIT_SIG_CG_FLAG );
-  m_cCUSigSCModel.initBuffer                      ( eSliceType, iQp, (UChar*)INIT_SIG_FLAG );
-  m_cCuCtxLastX.initBuffer                        ( eSliceType, iQp, (UChar*)INIT_LAST );
-  m_cCuCtxLastY.initBuffer                        ( eSliceType, iQp, (UChar*)INIT_LAST );
-  m_cCUOneSCModel.initBuffer                      ( eSliceType, iQp, (UChar*)INIT_ONE_FLAG );
-  m_cCUAbsSCModel.initBuffer                      ( eSliceType, iQp, (UChar*)INIT_ABS_FLAG );
-  m_cMVPIdxSCModel.initBuffer                     ( eSliceType, iQp, (UChar*)INIT_MVP_IDX );
-  m_cSaoMergeSCModel.initBuffer                   ( eSliceType, iQp, (UChar*)INIT_SAO_MERGE_FLAG );
-  m_cSaoTypeIdxSCModel.initBuffer                 ( eSliceType, iQp, (UChar*)INIT_SAO_TYPE_IDX );
-  m_cCUTransSubdivFlagSCModel.initBuffer          ( eSliceType, iQp, (UChar*)INIT_TRANS_SUBDIV_FLAG );
-  m_cTransformSkipSCModel.initBuffer              ( eSliceType, iQp, (UChar*)INIT_TRANSFORMSKIP_FLAG );
-  m_CUTransquantBypassFlagSCModel.initBuffer      ( eSliceType, iQp, (UChar*)INIT_CU_TRANSQUANT_BYPASS_FLAG );
-  m_explicitRdpcmFlagSCModel.initBuffer           ( eSliceType, iQp, (UChar*)INIT_EXPLICIT_RDPCM_FLAG );
-  m_explicitRdpcmDirSCModel.initBuffer            ( eSliceType, iQp, (UChar*)INIT_EXPLICIT_RDPCM_DIR );
-  m_cCrossComponentPredictionSCModel.initBuffer   ( eSliceType, iQp, (UChar*)INIT_CROSS_COMPONENT_PREDICTION );
-  m_ChromaQpAdjFlagSCModel.initBuffer             ( eSliceType, iQp, (UChar*)INIT_CHROMA_QP_ADJ_FLAG );
-  m_ChromaQpAdjIdcSCModel.initBuffer              ( eSliceType, iQp, (UChar*)INIT_CHROMA_QP_ADJ_IDC );
-
   for (UInt statisticIndex = 0; statisticIndex < RExt__GOLOMB_RICE_ADAPTATION_STATISTICS_SETS ; statisticIndex++)
   {
     m_golombRiceAdaptationStatistics[statisticIndex] = 0;
@@ -233,9 +173,35 @@ Void TDecSbac::parseTerminatingBit( UInt& ruiBit )
   if ( ruiBit == 1 )
   {
     m_pcTDecBinIf->finish();
+
+#if RExt__DECODER_DEBUG_BIT_STATISTICS
+    TComCodingStatistics::IncrementStatisticEP(STATS__TRAILING_BITS, m_pcBitstream->readOutTrailingBits(),0);
+#else
+    m_pcBitstream->readOutTrailingBits();
+#endif
   }
 }
 
+Void TDecSbac::parseRemainingBytes( Bool noTrailingBytesExpected )
+{
+  if (noTrailingBytesExpected)
+  {
+    const UInt numberOfRemainingSubstreamBytes=m_pcBitstream->getNumBitsLeft();
+    assert (numberOfRemainingSubstreamBytes == 0);
+  }
+  else
+  {
+    while (m_pcBitstream->getNumBitsLeft())
+    {
+      UInt trailingNullByte=m_pcBitstream->readByte();
+      if (trailingNullByte!=0)
+      {
+        printf("Trailing byte should be 0, but has value %02x\n", trailingNullByte);
+        assert(trailingNullByte==0);
+      }
+    }
+  }
+}
 
 #if RExt__DECODER_DEBUG_BIT_STATISTICS
 Void TDecSbac::xReadUnaryMaxSymbol( UInt& ruiSymbol, ContextModel* pcSCModel, Int iOffset, UInt uiMaxSymbol, const class TComCodingStatisticsClassType &whichStat )
@@ -497,7 +463,7 @@ Void TDecSbac::parseMergeFlag ( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDept
   DTRACE_CABAC_T( "\tMergeFlag: " );
   DTRACE_CABAC_V( uiSymbol );
   DTRACE_CABAC_T( "\tAddress: " );
-  DTRACE_CABAC_V( pcCU->getAddr() );
+  DTRACE_CABAC_V( pcCU->getCtuRsAddr() );
   DTRACE_CABAC_T( "\tuiAbsPartIdx: " );
   DTRACE_CABAC_V( uiAbsPartIdx );
   DTRACE_CABAC_T( "\n" );
@@ -1038,7 +1004,7 @@ Void TDecSbac::parseQtCbf( TComTU &rTu, const ComponentID compID, const Bool low
   const Bool canQuadSplit     = (width >= (MIN_TU_SIZE * 2)) && (height >= (MIN_TU_SIZE * 2));
   const UInt coveredPartIdxes = rTu.GetAbsPartIdxNumParts(compID);
 
-  //NOTE: RExt - since the CBF for chroma is coded at the highest level possible, if sub-TUs are
+  //             Since the CBF for chroma is coded at the highest level possible, if sub-TUs are
   //             to be coded for a 4x8 chroma TU, their CBFs must be coded at the highest 4x8 level
   //             (i.e. where luma TUs are 8x8 rather than 4x4)
   //    ___ ___
@@ -1152,11 +1118,11 @@ Void TDecSbac::parseTransformSkipFlags (TComTU &rTu, ComponentID component)
   DTRACE_CABAC_T( "\tsymbol=" )
   DTRACE_CABAC_V( useTransformSkip )
   DTRACE_CABAC_T( "\tAddr=" )
-  DTRACE_CABAC_V( pcCU->getAddr() )
+  DTRACE_CABAC_V( pcCU->getCtuRsAddr() )
   DTRACE_CABAC_T( "\tetype=" )
   DTRACE_CABAC_V( component )
   DTRACE_CABAC_T( "\tuiAbsPartIdx=" )
-  DTRACE_CABAC_V( uiAbsPartIdx )
+  DTRACE_CABAC_V( rTu.GetAbsPartIdxTU() )
   DTRACE_CABAC_T( "\n" )
 
   pcCU->setTransformSkipPartRange( useTransformSkip, component, uiAbsPartIdx, rTu.GetAbsPartIdxNumParts(component));
@@ -1277,7 +1243,7 @@ Void TDecSbac::parseCoeffNxN(  TComTU &rTu, ComponentID compID )
   DTRACE_CABAC_T( "\ttoCU-Y=" )
   DTRACE_CABAC_V( pcCU->getCUPelY() )
   DTRACE_CABAC_T( "\tCU-addr=" )
-  DTRACE_CABAC_V(  pcCU->getAddr() )
+  DTRACE_CABAC_V(  pcCU->getCtuRsAddr() )
   DTRACE_CABAC_T( "\tinCU-X=" )
 //  DTRACE_CABAC_V( g_auiRasterToPelX[ g_auiZscanToRaster[uiAbsPartIdx] ] )
   DTRACE_CABAC_V( g_auiRasterToPelX[ g_auiZscanToRaster[rTu.GetAbsPartIdxTU(compID)] ] )
@@ -1624,7 +1590,7 @@ Void TDecSbac::parseCoeffNxN(  TComTU &rTu, ComponentID compID )
     }
   }
 
-#if RExt__ENVIRONMENT_VARIABLE_DEBUG_AND_TEST
+#if ENVIRONMENT_VARIABLE_DEBUG_AND_TEST
   printSBACCoeffData(uiPosLastX, uiPosLastY, uiWidth, uiHeight, compID, uiAbsPartIdx, codingParameters.scanType, pcCoef);
 #endif
 
@@ -1782,14 +1748,14 @@ Void TDecSbac::parseSAOBlkParam (SAOBlkParam& saoBlkParam
 
       if(ctbParam.modeIdc == SAO_MODE_NEW)
       {
-#if RExt__O0043_BEST_EFFORT_DECODING
+#if O0043_BEST_EFFORT_DECODING
         Int bitDepthOrig = g_bitDepthInStream[toChannelType(compIdx)];
         Int forceBitDepthAdjust = bitDepthOrig - g_bitDepth[toChannelType(compIdx)];
 #endif
         Int offset[4];
         for(Int i=0; i< 4; i++)
         {
-#if RExt__O0043_BEST_EFFORT_DECODING
+#if O0043_BEST_EFFORT_DECODING
           Int saoMaxOffsetQVal = (1<<(min(bitDepthOrig, MAX_SAO_TRUNCATED_BITDEPTH)-5))-1;
           parseSaoMaxUvlc(uiSymbol, saoMaxOffsetQVal); //sao_offset_abs
 #else
@@ -1807,7 +1773,7 @@ Void TDecSbac::parseSAOBlkParam (SAOBlkParam& saoBlkParam
               parseSaoSign(uiSymbol); //sao_offset_sign
               if(uiSymbol)
               {
-#if RExt__O0043_BEST_EFFORT_DECODING
+#if O0043_BEST_EFFORT_DECODING
                 offset[i] >>= forceBitDepthAdjust;
 #endif
                 offset[i] = -offset[i];
@@ -1852,29 +1818,26 @@ Void TDecSbac::parseSAOBlkParam (SAOBlkParam& saoBlkParam
  .
  \param pSrc Contexts to be copied.
  */
-Void TDecSbac::xCopyContextsFrom( TDecSbac* pSrc )
+Void TDecSbac::xCopyContextsFrom( const TDecSbac* pSrc )
 {
   memcpy(m_contextModels, pSrc->m_contextModels, m_numContextModels*sizeof(m_contextModels[0]));
   memcpy(m_golombRiceAdaptationStatistics, pSrc->m_golombRiceAdaptationStatistics, (sizeof(UInt) * RExt__GOLOMB_RICE_ADAPTATION_STATISTICS_SETS));
 }
 
-Void TDecSbac::xCopyFrom( TDecSbac* pSrc )
+Void TDecSbac::xCopyFrom( const TDecSbac* pSrc )
 {
   m_pcTDecBinIf->copyState( pSrc->m_pcTDecBinIf );
-
-  m_uiLastQp           = pSrc->m_uiLastQp;
   xCopyContextsFrom( pSrc );
-
 }
 
-Void TDecSbac::load ( TDecSbac* pScr )
+Void TDecSbac::load ( const TDecSbac* pSrc )
 {
-  xCopyFrom(pScr);
+  xCopyFrom(pSrc);
 }
 
-Void TDecSbac::loadContexts ( TDecSbac* pScr )
+Void TDecSbac::loadContexts ( const TDecSbac* pSrc )
 {
-  xCopyContextsFrom(pScr);
+  xCopyContextsFrom(pSrc);
 }
 
 /** Performs CABAC decoding of the explicit RDPCM mode

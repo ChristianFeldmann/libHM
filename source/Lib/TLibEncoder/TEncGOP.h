@@ -100,7 +100,6 @@ private:
 
   //--Adaptive Loop filter
   TEncSampleAdaptiveOffset*  m_pcSAO;
-  TComBitCounter*         m_pcBitCounter;
   TEncRateCtrl*           m_pcRateCtrl;
   // indicate sequence first
   Bool                    m_bSeqFirst;
@@ -108,10 +107,8 @@ private:
   // clean decoding refresh
   Bool                    m_bRefreshPending;
   Int                     m_pocCRA;
-#if FIX1172
   NalUnitType             m_associatedIRAPType;
   Int                     m_associatedIRAPPOC;
-#endif
 
   std::vector<Int> m_vRVM_RP;
   UInt                    m_lastBPSEI;
@@ -142,7 +139,7 @@ public:
   TComList<TComPic*>*   getListPic()      { return m_pcListPic; }
 
   Void  printOutSummary      ( UInt uiNumAllPicCoded, Bool isField, const Bool printMSEBasedSNR, const Bool printSequenceMSE );
-  Void  preLoopFilterPicAll  ( TComPic* pcPic, UInt64& ruiDist, UInt64& ruiBits );
+  Void  preLoopFilterPicAll  ( TComPic* pcPic, UInt64& ruiDist );
 
   TEncSlice*  getSliceEncoder()   { return m_pcSliceEncoder; }
   NalUnitType getNalUnitType( Int pocCurr, Int lastIdr, Bool isField );
@@ -189,22 +186,6 @@ protected:
   }
   Void dblMetric( TComPic* pcPic, UInt uiNumSlices );
 };// END CLASS DEFINITION TEncGOP
-
-// ====================================================================================================================
-// Enumeration
-// ====================================================================================================================
-enum PROCESSING_STATE
-{
-  EXECUTE_INLOOPFILTER,
-  ENCODE_SLICE
-};
-
-enum SCALING_LIST_PARAMETER
-{
-  SCALING_LIST_OFF,
-  SCALING_LIST_DEFAULT,
-  SCALING_LIST_FILE_READ
-};
 
 //! \}
 

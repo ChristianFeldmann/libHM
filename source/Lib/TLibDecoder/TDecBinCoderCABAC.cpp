@@ -94,9 +94,9 @@ TDecBinCABAC::finish()
  \param pcTDecBinIf The source CABAC engine.
  */
 Void
-TDecBinCABAC::copyState( TDecBinIf* pcTDecBinIf )
+TDecBinCABAC::copyState( const TDecBinIf* pcTDecBinIf )
 {
-  TDecBinCABAC* pcTDecBinCABAC = pcTDecBinIf->getTDecBinCABAC();
+  const TDecBinCABAC* pcTDecBinCABAC = pcTDecBinIf->getTDecBinCABAC();
   m_uiRange   = pcTDecBinCABAC->m_uiRange;
   m_uiValue   = pcTDecBinCABAC->m_uiValue;
   m_bitsNeeded= pcTDecBinCABAC->m_bitsNeeded;

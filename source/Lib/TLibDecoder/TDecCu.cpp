@@ -121,7 +121,7 @@ Void TDecCu::destroy()
 /** \param    pcCU        pointer of CU data
  \param    ruiIsLast   last data?
  */
-Void TDecCu::decodeCtu( TComDataCU* pCtu, UInt& ruiIsLast )
+Void TDecCu::decodeCtu( TComDataCU* pCtu, Bool& isLastCtuOfSliceSegment )
 {
   if ( pCtu->getSlice()->getPPS()->getUseDQP() )
   {
@@ -134,7 +134,7 @@ Void TDecCu::decodeCtu( TComDataCU* pCtu, UInt& ruiIsLast )
   }
 
   // start from the top level CU
-  xDecodeCU( pCtu, 0, 0, ruiIsLast);
+  xDecodeCU( pCtu, 0, 0, isLastCtuOfSliceSegment);
 }
 
 /** \param    pcCU        pointer of CU data
@@ -156,33 +156,18 @@ Void TDecCu::decompressCtu( TComDataCU* pCtu )
  */
 Bool TDecCu::xDecodeSliceEnd( TComDataCU* pcCU, UInt uiAbsPartIdx )
 {
-  UInt uiIsLast;
-  TComPic* pcPic = pcCU->getPic();
-  TComSlice * pcSlice = pcPic->getSlice(pcPic->getCurrSliceIdx());
+  UInt uiIsLastCtuOfSliceSegment;
 
   if (pcCU->isLastSubCUOfCtu(uiAbsPartIdx))
   {
-    m_pcEntropyDecoder->decodeTerminatingBit( uiIsLast );
+    m_pcEntropyDecoder->decodeTerminatingBit( uiIsLastCtuOfSliceSegment );
   }
   else
   {
-    uiIsLast=0;
+    uiIsLastCtuOfSliceSegment=0;
   }
 
-  if(uiIsLast > 0)
-  {
-    if(pcSlice->isNextSliceSegment()&&!pcSlice->isNextSlice())
-    {
-      pcSlice->setSliceSegmentCurEndCtuTsAddr( pcPic->getPicSym()->getCtuRsToTsAddrMap(pcCU->getCtuRsAddr())+1 );
-    }
-    else
-    {
-      pcSlice->setSliceCurEndCtuTsAddr( pcPic->getPicSym()->getCtuRsToTsAddrMap(pcCU->getCtuRsAddr())+1 );
-      pcSlice->setSliceSegmentCurEndCtuTsAddr( pcPic->getPicSym()->getCtuRsToTsAddrMap(pcCU->getCtuRsAddr())+1 );
-    }
-  }
-
-  return uiIsLast>0;
+  return uiIsLastCtuOfSliceSegment>0;
 }
 
 /** decode CU block recursively
@@ -192,7 +177,7 @@ Bool TDecCu::xDecodeSliceEnd( TComDataCU* pcCU, UInt uiAbsPartIdx )
  * \returns Void
  */
 
-Void TDecCu::xDecodeCU( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, UInt& ruiIsLast)
+Void TDecCu::xDecodeCU( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, Bool &isLastCtuOfSliceSegment)
 {
   TComPic* pcPic = pcCU->getPic();
   UInt uiCurNumParts    = pcPic->getNumPartitionsInCtu() >> (uiDepth<<1);
@@ -233,9 +218,9 @@ Void TDecCu::xDecodeCU( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, UInt&
       uiLPelX   = pcCU->getCUPelX() + g_auiRasterToPelX[ g_auiZscanToRaster[uiIdx] ];
       uiTPelY   = pcCU->getCUPelY() + g_auiRasterToPelY[ g_auiZscanToRaster[uiIdx] ];
 
-      if ( !ruiIsLast && ( uiLPelX < pcCU->getSlice()->getSPS()->getPicWidthInLumaSamples() ) && ( uiTPelY < pcCU->getSlice()->getSPS()->getPicHeightInLumaSamples() ) )
+      if ( !isLastCtuOfSliceSegment && ( uiLPelX < pcCU->getSlice()->getSPS()->getPicWidthInLumaSamples() ) && ( uiTPelY < pcCU->getSlice()->getSPS()->getPicHeightInLumaSamples() ) )
       {
-        xDecodeCU( pcCU, uiIdx, uiDepth+1, ruiIsLast );
+        xDecodeCU( pcCU, uiIdx, uiDepth+1, isLastCtuOfSliceSegment );
       }
       else
       {
@@ -305,7 +290,7 @@ Void TDecCu::xDecodeCU( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, UInt&
         pcCU->getCUMvField( RefPicList( uiRefListIdx ) )->setAllMvField( cMvFieldNeighbours[ 2*uiMergeIndex + uiRefListIdx ], SIZE_2Nx2N, uiAbsPartIdx, uiDepth );
       }
     }
-    xFinishDecodeCU( pcCU, uiAbsPartIdx, uiDepth, ruiIsLast );
+    xFinishDecodeCU( pcCU, uiAbsPartIdx, uiDepth, isLastCtuOfSliceSegment );
     return;
   }
 
@@ -318,7 +303,7 @@ Void TDecCu::xDecodeCU( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, UInt&
 
     if(pcCU->getIPCMFlag(uiAbsPartIdx))
     {
-      xFinishDecodeCU( pcCU, uiAbsPartIdx, uiDepth, ruiIsLast );
+      xFinishDecodeCU( pcCU, uiAbsPartIdx, uiDepth, isLastCtuOfSliceSegment );
       return;
     }
   }
@@ -332,10 +317,10 @@ Void TDecCu::xDecodeCU( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, UInt&
   m_pcEntropyDecoder->decodeCoeff( pcCU, uiAbsPartIdx, uiDepth, bCodeDQP, isChromaQpAdjCoded );
   setIsChromaQpAdjCoded( isChromaQpAdjCoded );
   setdQPFlag( bCodeDQP );
-  xFinishDecodeCU( pcCU, uiAbsPartIdx, uiDepth, ruiIsLast );
+  xFinishDecodeCU( pcCU, uiAbsPartIdx, uiDepth, isLastCtuOfSliceSegment );
 }
 
-Void TDecCu::xFinishDecodeCU( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, UInt& ruiIsLast)
+Void TDecCu::xFinishDecodeCU( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, Bool &isLastCtuOfSliceSegment)
 {
   if(  pcCU->getSlice()->getPPS()->getUseDQP())
   {
@@ -347,7 +332,7 @@ Void TDecCu::xFinishDecodeCU( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth,
     pcCU->setChromaQpAdjSubParts( pcCU->getCodedChromaQpAdj(), uiAbsPartIdx, uiDepth ); // set QP
   }
 
-  ruiIsLast = xDecodeSliceEnd( pcCU, uiAbsPartIdx );
+  isLastCtuOfSliceSegment = xDecodeSliceEnd( pcCU, uiAbsPartIdx );
 }
 
 Void TDecCu::xDecompressCU( TComDataCU* pCtu, UInt uiAbsPartIdx,  UInt uiDepth )
@@ -576,7 +561,7 @@ TDecCu::xIntraRecBlk(       TComYuv*    pcRecoYuv,
     ss << "###: " << "CompID: " << compID << " pred mode (ch/fin): " << uiChPredMode << "/" << uiChFinalMode << " absPartIdx: " << rTu.GetAbsPartIdxTU() << std::endl;
 #endif
 
-#if RExt__O0043_BEST_EFFORT_DECODING
+#if O0043_BEST_EFFORT_DECODING
   const Int bitDepthDelta = g_bitDepthInStream[toChannelType(compID)] - g_bitDepth[toChannelType(compID)];
 #endif
   const Int clipbd = g_bitDepth[toChannelType(compID)];
@@ -608,7 +593,7 @@ TDecCu::xIntraRecBlk(       TComYuv*    pcRecoYuv,
       if (bDebugResi)
         ss << pResi[ uiX ] << ", ";
 #endif
-#if RExt__O0043_BEST_EFFORT_DECODING
+#if O0043_BEST_EFFORT_DECODING
       pReco    [ uiX ] = ClipBD( rightShiftEvenRounding<Pel>(pPred[ uiX ] + pResi[ uiX ], bitDepthDelta), clipbd );
 #else
       pReco    [ uiX ] = ClipBD( pPred[ uiX ] + pResi[ uiX ], clipbd );
@@ -727,7 +712,6 @@ Void TDecCu::xDecodeInterTexture ( TComDataCU* pcCU, UInt uiDepth )
     const ComponentID compID=ComponentID(ch);
     DEBUG_STRING_OUTPUT(std::cout, debug_reorder_data_inter_token[compID])
 
-    // NOTE RExt - setQPForQuant was called here, but it has now been placed at the lowest level of decoding.
     m_pcTrQuant->invRecurTransformNxN ( compID, m_ppcYuvResi[uiDepth], tuRecur );
   }
 

@@ -144,10 +144,10 @@ public:
       {
         const ComponentID compID = ComponentID(componentIndex);
 
-        if (getNumPic() == 0) MSEBasedSNR[compID] = 0 * dScale; //NOTE: RExt - this is the same calculation that will be evaluated for any other statistic when there are no frames (it should result in NaN). We use it here so all the output is consistent.
+        if (getNumPic() == 0) MSEBasedSNR[compID] = 0 * dScale; // this is the same calculation that will be evaluated for any other statistic when there are no frames (it should result in NaN). We use it here so all the output is consistent.
         else
         {
-          //NOTE: RExt - this is not the true maximum value for any bitDepth other than 8. It comes from the original HM PSNR calculation
+          //NOTE: this is not the true maximum value for any bitDepth other than 8. It comes from the original HM PSNR calculation
           const UInt maxval = 255 << (g_bitDepth[toChannelType(compID)] - 8);
           const Double MSE = m_MSEyuvframe[compID];
 

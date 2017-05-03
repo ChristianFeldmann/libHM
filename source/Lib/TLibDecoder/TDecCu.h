@@ -84,15 +84,15 @@ public:
   Void  destroy                 ();
 
   /// decode Ctu information
-  Void  decodeCtu               ( TComDataCU* pCtu, UInt& ruiIsLast );
+  Void  decodeCtu               ( TComDataCU* pCtu, Bool &isLastCtuOfSliceSegment );
 
   /// reconstruct Ctu information
   Void  decompressCtu           ( TComDataCU* pCtu );
 
 protected:
 
-  Void xDecodeCU                ( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, UInt &ruiIsLast);
-  Void xFinishDecodeCU          ( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, UInt &ruiIsLast);
+  Void xDecodeCU                ( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, Bool &isLastCtuOfSliceSegment);
+  Void xFinishDecodeCU          ( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, Bool &isLastCtuOfSliceSegment);
   Bool xDecodeSliceEnd          ( TComDataCU* pcCU, UInt uiAbsPartIdx );
   Void xDecompressCU            ( TComDataCU* pCtu, UInt uiAbsPartIdx, UInt uiDepth );
 

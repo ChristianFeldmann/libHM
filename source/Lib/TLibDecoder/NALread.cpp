@@ -95,7 +95,7 @@ static Void convertPayloadToRBSP(vector<uint8_t>& nalUnitBuf, TComInputBitstream
 
     if (n > 0)
     {
-      printf("\nDetected %d instances of cabac_zero_word", n/2);
+      printf("\nDetected %d instances of cabac_zero_word\n", n/2);
     }
   }
 

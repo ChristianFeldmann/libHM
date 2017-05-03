@@ -186,7 +186,7 @@
 \maketitle
 \begin{abstract}
 This document is a user manual describing usage of reference software
-for the HEVC project. It applies to version 16.1
+for the HEVC project. It applies to version 16.2
 of the software.
 \end{abstract}
 
@@ -674,6 +674,12 @@ When 1, the Mean Square Error (MSE) values of each frame will also be output alo
 %\ShortOption{\None} &
 \Default{false} &
 When 1, the Mean Square Error (MSE) values of the entire sequence will also be output alongside the default PSNR values.
+\\
+
+\Option{CabacZeroWordPaddingEnabled} &
+%\ShortOption{\None} &
+\Default{false} &
+When 1, CABAC zero word padding will be enabled. This is currently not the default value for the setting.
 \\
 
 \Option{ConformanceWindowMode} &

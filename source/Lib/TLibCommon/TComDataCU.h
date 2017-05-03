@@ -56,7 +56,7 @@
 
 class TComTU; // forward declaration
 
-static const UInt NUM_MOST_PROBABLE_MODES=3; // NOTE: RExt - new definition
+static const UInt NUM_MOST_PROBABLE_MODES=3;
 
 // ====================================================================================================================
 // Class definition
@@ -403,9 +403,7 @@ public:
   Bool          CUIsFromSameSlice           ( const TComDataCU *pCU /* Can be NULL */) const { return ( pCU!=NULL && pCU->getSlice()->getSliceCurStartCtuTsAddr() == getSlice()->getSliceCurStartCtuTsAddr() ); }
   Bool          CUIsFromSameTile            ( const TComDataCU *pCU /* Can be NULL */) const;
   Bool          CUIsFromSameSliceAndTile    ( const TComDataCU *pCU /* Can be NULL */) const;
-#if FIX_1323
   Bool          CUIsFromSameSliceTileAndWavefrontRow( const TComDataCU *pCU /* Can be NULL */) const;
-#endif
   Bool          isLastSubCUOfCtu(const UInt absPartIdx);
 
 

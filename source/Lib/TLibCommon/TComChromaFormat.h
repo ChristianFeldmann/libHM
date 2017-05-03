@@ -156,16 +156,15 @@ static inline Bool filterIntraReferenceSamples (const ChannelType chType, const 
 
 static inline Bool TUCompRectHasAssociatedTransformSkipFlag(const TComRectangle &rectSamples, const UInt transformSkipLog2MaxSize)
 {
-  return (rectSamples.width <= (1<<transformSkipLog2MaxSize)); // NOTE: RExt - Only width is checked. Allows Nx2N (for 4:2:2) and NxN only.
+  return (rectSamples.width <= (1<<transformSkipLog2MaxSize));
 }
 
 
 //------------------------------------------------
 
-// NOTE: RExt - Represents scaling through forward transform, although this is not exact for 422 with TransformSkip enabled.
 static inline Int getTransformShift(const ChannelType type, const UInt uiLog2TrSize)
 {
-#if RExt__O0043_BEST_EFFORT_DECODING
+#if O0043_BEST_EFFORT_DECODING
   return g_maxTrDynamicRange[type] - g_bitDepthInStream[type] - uiLog2TrSize;
 #else
   return g_maxTrDynamicRange[type] - g_bitDepth[type] - uiLog2TrSize;

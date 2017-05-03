@@ -84,7 +84,6 @@ protected:
   Void sei_read_uvlc(std::ostream *pOS,                UInt& ruiCode, const Char *pSymbolName);
   Void sei_read_svlc(std::ostream *pOS,                Int&  ruiCode, const Char *pSymbolName);
   Void sei_read_flag(std::ostream *pOS,                UInt& ruiCode, const Char *pSymbolName);
-  Void xParseByteAlign();
 };
 
 

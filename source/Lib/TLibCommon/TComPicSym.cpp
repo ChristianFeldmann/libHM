@@ -199,10 +199,10 @@ Void TComPicSym::initTiles(TComPPS *pps)
 {
   //set NumColumnsMinus1 and NumRowsMinus1
   setNumTileColumnsMinus1( pps->getNumTileColumnsMinus1() );
-  setNumTileRowsMinus1(    pps->getTileNumRowsMinus1()    );
+  setNumTileRowsMinus1(    pps->getNumTileRowsMinus1()    );
 
   const Int numCols = pps->getNumTileColumnsMinus1() + 1;
-  const Int numRows = pps->getTileNumRowsMinus1() + 1;
+  const Int numRows = pps->getNumTileRowsMinus1() + 1;
   const Int numTiles = numRows * numCols;
 
   // allocate memory for tile parameters
@@ -252,7 +252,7 @@ Void TComPicSym::initTiles(TComPPS *pps)
   Int minWidth  = 1;
   Int minHeight = 1;
   const Int profileIdc = pps->getSPS()->getPTL()->getGeneralPTL()->getProfileIdc();
-  if (  profileIdc == Profile::MAIN || profileIdc == Profile::MAIN10) //TODO: RExt - add more profiles...
+  if (  profileIdc == Profile::MAIN || profileIdc == Profile::MAIN10) //TODO: add more profiles to the tile-size check...
   {
     if (pps->getTilesEnabledFlag())
     {

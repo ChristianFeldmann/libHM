@@ -87,12 +87,9 @@ private:
   TEncCfg*                m_pcEncCfg;
   TEncSearch*             m_pcPredSearch;
   TComTrQuant*            m_pcTrQuant;
-  TComBitCounter*         m_pcBitCounter;
   TComRdCost*             m_pcRdCost;
 
   TEncEntropy*            m_pcEntropyCoder;
-  TEncCavlc*              m_pcCavlcCoder;
-  TEncSbac*               m_pcSbacCoder;
   TEncBinCABAC*           m_pcBinCABAC;
 
   // SBAC RD
@@ -115,8 +112,6 @@ public:
 
   /// CTU encoding function
   Void  encodeCtu           ( TComDataCU*  pCtu );
-
-  Void setBitCounter        ( TComBitCounter* pcBitCounter ) { m_pcBitCounter = pcBitCounter; }
 
   Int   updateCtuDataISlice ( TComDataCU* pCtu, Int width, Int height );
 

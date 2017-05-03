@@ -57,8 +57,6 @@ static Void calcAndPrintHashStatus(TComPicYuv& pic, const SEIDecodedPictureHash*
 TDecGop::TDecGop()
 {
   m_dDecTime = 0;
-  m_pcSbacDecoders = NULL;
-  m_pcBinCABACs = NULL;
 }
 
 TDecGop::~TDecGop()
@@ -114,33 +112,17 @@ Void TDecGop::decompressSlice(TComInputBitstream* pcBitstream, TComPic* pcPic)
   m_pcSbacDecoder->init( (TDecBinIf*)m_pcBinCABAC );
   m_pcEntropyDecoder->setEntropyDecoder (m_pcSbacDecoder);
 
-  UInt uiNumSubstreams = pcSlice->getPPS()->getEntropyCodingSyncEnabledFlag() ? pcSlice->getNumEntryPointOffsets()+1 : pcSlice->getPPS()->getNumSubstreams();
+  const UInt uiNumSubstreams = pcSlice->getNumberOfSubstreamSizes()+1;
+//  const UInt uiNumSubstreams = pcSlice->getPPS()->getEntropyCodingSyncEnabledFlag() ? pcSlice->getNumberOfSubstreamSizes()+1 : pcSlice->getPPS()->getNumSubstreams();
 
   // init each couple {EntropyDecoder, Substream}
-  UInt *puiSubstreamSizes = pcSlice->getSubstreamSizes();
   ppcSubstreams    = new TComInputBitstream*[uiNumSubstreams];
-  m_pcSbacDecoders = new TDecSbac[uiNumSubstreams];
-  m_pcBinCABACs    = new TDecBinCABAC[uiNumSubstreams];
   for ( UInt ui = 0 ; ui < uiNumSubstreams ; ui++ )
   {
-    m_pcSbacDecoders[ui].init(&m_pcBinCABACs[ui]);
-    ppcSubstreams[ui] = pcBitstream->extractSubstream(ui+1 < uiNumSubstreams ? puiSubstreamSizes[ui] : pcBitstream->getNumBitsLeft());
+    ppcSubstreams[ui] = pcBitstream->extractSubstream(ui+1 < uiNumSubstreams ? (pcSlice->getSubstreamSize(ui)<<3) : pcBitstream->getNumBitsLeft());
   }
 
-  for ( UInt ui = 0 ; ui+1 < uiNumSubstreams; ui++ )
-  {
-    m_pcEntropyDecoder->setEntropyDecoder ( &m_pcSbacDecoders[uiNumSubstreams - 1 - ui] );
-    m_pcEntropyDecoder->setBitstream      (  ppcSubstreams   [uiNumSubstreams - 1 - ui] );
-    m_pcEntropyDecoder->resetEntropy      (pcSlice);
-  }
-
-  m_pcEntropyDecoder->setEntropyDecoder ( m_pcSbacDecoder  );
-  m_pcEntropyDecoder->setBitstream      ( ppcSubstreams[0] );
-  m_pcEntropyDecoder->resetEntropy      (pcSlice);
-
-  m_pcSbacDecoders[0].load(m_pcSbacDecoder);
-  m_pcSliceDecoder->decompressSlice( ppcSubstreams, pcPic, m_pcSbacDecoder, m_pcSbacDecoders);
-  m_pcEntropyDecoder->setBitstream(  ppcSubstreams[uiNumSubstreams-1] );
+  m_pcSliceDecoder->decompressSlice( ppcSubstreams, pcPic, m_pcSbacDecoder);
   // deallocate all created substreams, including internal buffers.
   for (UInt ui = 0; ui < uiNumSubstreams; ui++)
   {
@@ -148,8 +130,6 @@ Void TDecGop::decompressSlice(TComInputBitstream* pcBitstream, TComPic* pcPic)
     delete ppcSubstreams[ui];
   }
   delete[] ppcSubstreams;
-  delete[] m_pcSbacDecoders; m_pcSbacDecoders = NULL;
-  delete[] m_pcBinCABACs; m_pcBinCABACs = NULL;
 
   m_dDecTime += (Double)(clock()-iBeforeTime) / CLOCKS_PER_SEC;
 }
@@ -209,11 +189,7 @@ Void TDecGop::filterPicture(TComPic* pcPic)
 
   printf("\n");
 
-#if SETTING_PIC_OUTPUT_MARK
   pcPic->setOutputMark(pcPic->getSlice(0)->getPicOutputFlag() ? true : false);
-#else
-  pcPic->setOutputMark(true);
-#endif
   pcPic->setReconMark(true);
 }
 

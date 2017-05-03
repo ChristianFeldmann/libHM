@@ -69,10 +69,10 @@ public:
   Void  init                      ( TDecBinIf* p )    { m_pcTDecBinIf = p; }
   Void  uninit                    (              )    { m_pcTDecBinIf = 0; }
 
-  Void load                          ( TDecSbac* pScr );
-  Void loadContexts                  ( TDecSbac* pScr );
-  Void xCopyFrom           ( TDecSbac* pSrc );
-  Void xCopyContextsFrom       ( TDecSbac* pSrc );
+  Void load                       ( const TDecSbac* pSrc );
+  Void loadContexts               ( const TDecSbac* pSrc );
+  Void xCopyFrom                  ( const TDecSbac* pSrc );
+  Void xCopyContextsFrom          ( const TDecSbac* pSrc );
 
   Void  resetEntropy (TComSlice* pSlice );
   Void  setBitstream              ( TComInputBitstream* p  ) { m_pcBitstream = p; m_pcTDecBinIf->init( p ); }
@@ -82,6 +82,7 @@ public:
 
   Void  parseSliceHeader          ( TComSlice* /*pcSlice*/, ParameterSetManagerDecoder* /*parameterSetManager*/) {}
   Void  parseTerminatingBit       ( UInt& ruiBit );
+  Void  parseRemainingBytes       ( Bool noTrailingBytesExpected);
   Void  parseMVPIdx               ( Int& riMVPIdx          );
   Void  parseSaoMaxUvlc           ( UInt& val, UInt maxSymbol );
   Void  parseSaoMerge             ( UInt&  ruiVal   );
@@ -138,16 +139,11 @@ public:
   Void parseCoeffNxN      ( class TComTU &rTu, ComponentID compID  );
   Void parseTransformSkipFlags ( class TComTU &rTu, ComponentID component );
 
-  Void updateContextTables( SliceType eSliceType, Int iQp );
-
   Void  parseScalingList ( TComScalingList* /*scalingList*/ ) {}
 
   Void  parseExplicitRdpcmMode( TComTU &rTu, ComponentID compID );
 
 private:
-  UInt m_uiLastDQpNonZero;
-  UInt m_uiLastQp;
-
   ContextModel         m_contextModels[MAX_NUM_CTX_MOD];
   Int                  m_numContextModels;
   ContextModel3DBuffer m_cCUSplitFlagSCModel;

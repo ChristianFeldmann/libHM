@@ -72,6 +72,7 @@ public:
   virtual Void parseSliceHeader          ( TComSlice* pcSlice, ParameterSetManagerDecoder *parameterSetManager)       = 0;
 
   virtual Void parseTerminatingBit       ( UInt& ruilsLast )                                     = 0;
+  virtual Void parseRemainingBytes( Bool noTrailingBytesExpected ) = 0;
 
   virtual Void parseMVPIdx        ( Int& riMVPIdx ) = 0;
 
@@ -106,8 +107,6 @@ public:
 
   virtual Void parseTransformSkipFlags ( class TComTU &rTu, ComponentID component ) = 0;
 
-  virtual Void updateContextTables( SliceType eSliceType, Int iQp ) = 0;
-
   virtual Void parseExplicitRdpcmMode ( TComTU &rTu, ComponentID compID ) = 0;
 
   virtual ~TDecEntropyIf() {}
@@ -141,6 +140,7 @@ public:
   Void    decodeSliceHeader           ( TComSlice* pcSlice, ParameterSetManagerDecoder *parameterSetManager)  { m_pcEntropyDecoderIf->parseSliceHeader(pcSlice, parameterSetManager);         }
 
   Void    decodeTerminatingBit        ( UInt& ruiIsLast )       { m_pcEntropyDecoderIf->parseTerminatingBit(ruiIsLast);     }
+  Void    decodeRemainingBytes( Bool noTrailingBytesExpected ) { m_pcEntropyDecoderIf->parseRemainingBytes(noTrailingBytesExpected); }
 
   TDecEntropyIf* getEntropyDecoder() { return m_pcEntropyDecoderIf; }
 
@@ -162,9 +162,6 @@ public:
 
   Void decodeQP                ( TComDataCU* pcCU, UInt uiAbsPartIdx );
   Void decodeChromaQpAdjustment( TComDataCU* pcCU, UInt uiAbsPartIdx );
-
-  Void updateContextTables    ( SliceType eSliceType, Int iQp ) { m_pcEntropyDecoderIf->updateContextTables( eSliceType, iQp ); }
-
 
 private:
 

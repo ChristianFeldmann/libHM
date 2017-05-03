@@ -194,8 +194,8 @@ Void TComInterpolationFilter::filter(Int bitDepth, Pel const *src, Int srcStride
   Pel maxVal;
   Int headRoom = std::max<Int>(2, (IF_INTERNAL_PREC - bitDepth));
   Int shift    = IF_FILTER_PREC;
-  //NOTE: RExt - with the current settings (IF_INTERNAL_PREC = 14 and IF_FILTER_PREC = 6), though headroom can be
-  //             negative for bit depths greater than 14, shift will remain non-negative for bit depths of 8->20
+  // with the current settings (IF_INTERNAL_PREC = 14 and IF_FILTER_PREC = 6), though headroom can be
+  // negative for bit depths greater than 14, shift will remain non-negative for bit depths of 8->20
   assert(shift >= 0);
 
   if ( isLast )

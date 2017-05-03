@@ -50,9 +50,6 @@ TComRdCost::TComRdCost()
 
 TComRdCost::~TComRdCost()
 {
-#if !FIX203
-  xUninit();
-#endif
 }
 
 // Calculate RD functions
@@ -84,12 +81,9 @@ Double TComRdCost::calcRdCost( UInt uiBits, Distortion uiDistortion, Bool bFlag,
       break;
   }
 
-  if (bFlag) //NOTE: RExt - this "bFlag" is never true
+  if (bFlag) //NOTE: this "bFlag" is never true
   {
     // Intra8x8, Intra4x4 Block only...
-#if SEQUENCE_LEVEL_LOSSLESS
-    dRdCost = (Double)(uiBits);
-#else
     if (m_costMode != COST_STANDARD_LOSSY)
     {
       dRdCost = (Double(uiDistortion) / dLambda) + Double(uiBits); // all lossless costs would have uiDistortion=0, and therefore this cost function can be used.
@@ -98,7 +92,6 @@ Double TComRdCost::calcRdCost( UInt uiBits, Distortion uiDistortion, Bool bFlag,
     {
       dRdCost = (((Double)uiDistortion) + ((Double)uiBits * dLambda));
     }
-#endif
   }
   else
   {
@@ -110,23 +103,19 @@ Double TComRdCost::calcRdCost( UInt uiBits, Distortion uiDistortion, Bool bFlag,
       }
       else
       {
-        dRdCost = floor(Double(uiDistortion) + (floor((Double(uiBits) * dLambda) + 0.5) / 65536.0)); // NOTE: RExt - Integer casts removed from here. This version should be identical to HM for 8- and 10-bit test conditions
+        dRdCost = floor(Double(uiDistortion) + (floor((Double(uiBits) * dLambda) + 0.5) / 65536.0));
       }
     }
     else
     {
-#if SEQUENCE_LEVEL_LOSSLESS
-      dRdCost = (Double)(uiBits);
-#else
       if (m_costMode != COST_STANDARD_LOSSY)
       {
         dRdCost = (Double(uiDistortion) / dLambda) + Double(uiBits); // all lossless costs would have uiDistortion=0, and therefore this cost function can be used.
       }
       else
       {
-        dRdCost = floor(Double(uiDistortion) + (Double(uiBits) * dLambda) + 0.5); // NOTE: RExt - Integer casts removed from here. This version should be identical to HM for 8- and 10-bit test conditions
+        dRdCost = floor(Double(uiDistortion) + (Double(uiBits) * dLambda) + 0.5);
       }
-#endif
     }
   }
 
@@ -161,12 +150,9 @@ Double TComRdCost::calcRdCost64( UInt64 uiBits, UInt64 uiDistortion, Bool bFlag,
       break;
   }
 
-  if (bFlag) //NOTE: RExt - this "bFlag" is never true
+  if (bFlag) //NOTE: this "bFlag" is never true
   {
     // Intra8x8, Intra4x4 Block only...
-#if SEQUENCE_LEVEL_LOSSLESS
-    dRdCost = (Double)(uiBits);
-#else
     if (m_costMode != COST_STANDARD_LOSSY)
     {
       dRdCost = (Double(uiDistortion) / dLambda) + Double(uiBits); // all lossless costs would have uiDistortion=0, and therefore this cost function can be used.
@@ -175,7 +161,6 @@ Double TComRdCost::calcRdCost64( UInt64 uiBits, UInt64 uiDistortion, Bool bFlag,
     {
       dRdCost = (((Double)(Int64)uiDistortion) + ((Double)(Int64)uiBits * dLambda));
     }
-#endif
   }
   else
   {
@@ -187,23 +172,19 @@ Double TComRdCost::calcRdCost64( UInt64 uiBits, UInt64 uiDistortion, Bool bFlag,
       }
       else
       {
-        dRdCost = floor(Double(uiDistortion) + (floor((Double(uiBits) * dLambda) + 0.5) / 65536.0)); // NOTE: RExt - Integer casts removed from here. This version should be identical to HM for 8- and 10-bit test conditions
+        dRdCost = floor(Double(uiDistortion) + (floor((Double(uiBits) * dLambda) + 0.5) / 65536.0));
       }
     }
     else
     {
-#if SEQUENCE_LEVEL_LOSSLESS
-      dRdCost = (Double)(uiBits);
-#else
       if (m_costMode != COST_STANDARD_LOSSY)
       {
         dRdCost = (Double(uiDistortion) / dLambda) + Double(uiBits); // all lossless costs would have uiDistortion=0, and therefore this cost function can be used.
       }
       else
       {
-        dRdCost = floor(Double(uiDistortion) + (Double(uiBits) * dLambda) + 0.5); // NOTE: RExt - Integer casts removed from here. This version should be identical to HM for 8- and 10-bit test conditions
+        dRdCost = floor(Double(uiDistortion) + (Double(uiBits) * dLambda) + 0.5);
       }
-#endif
     }
   }
 
@@ -218,9 +199,9 @@ Void TComRdCost::setLambda( Double dLambda )
   m_dLambdaMotionSAD[0] = 65536.0 * m_sqrtLambda;
   m_dLambdaMotionSSE[0] = 65536.0 * m_dLambda;
 #if FULL_NBIT
-  dLambda = 0.57 * pow(2.0, ((RExt__LOSSLESS_AND_MIXED_LOSSLESS_RD_COST_TEST_QP_PRIME - 12) / 3.0));
+  dLambda = 0.57 * pow(2.0, ((LOSSLESS_AND_MIXED_LOSSLESS_RD_COST_TEST_QP_PRIME - 12) / 3.0));
 #else
-  dLambda = 0.57 * pow(2.0, ((RExt__LOSSLESS_AND_MIXED_LOSSLESS_RD_COST_TEST_QP_PRIME - 12 - 6 * (g_bitDepth[CHANNEL_TYPE_LUMA] - 8)) / 3.0));
+  dLambda = 0.57 * pow(2.0, ((LOSSLESS_AND_MIXED_LOSSLESS_RD_COST_TEST_QP_PRIME - 12 - 6 * (g_bitDepth[CHANNEL_TYPE_LUMA] - 8)) / 3.0));
 #endif
   m_dLambdaMotionSAD[1] = 65536.0 * sqrt(dLambda);
   m_dLambdaMotionSSE[1] = 65536.0 * dLambda;
@@ -228,9 +209,9 @@ Void TComRdCost::setLambda( Double dLambda )
   m_uiLambdaMotionSAD[0] = (UInt)floor(65536.0 * m_sqrtLambda);
   m_uiLambdaMotionSSE[0] = (UInt)floor(65536.0 * m_dLambda   );
 #if FULL_NBIT
-  dLambda = 0.57 * pow(2.0, ((RExt__LOSSLESS_AND_MIXED_LOSSLESS_RD_COST_TEST_QP_PRIME - 12) / 3.0));
+  dLambda = 0.57 * pow(2.0, ((LOSSLESS_AND_MIXED_LOSSLESS_RD_COST_TEST_QP_PRIME - 12) / 3.0));
 #else
-  dLambda = 0.57 * pow(2.0, ((RExt__LOSSLESS_AND_MIXED_LOSSLESS_RD_COST_TEST_QP_PRIME - 12 - 6 * (g_bitDepth[CHANNEL_TYPE_LUMA] - 8)) / 3.0));
+  dLambda = 0.57 * pow(2.0, ((LOSSLESS_AND_MIXED_LOSSLESS_RD_COST_TEST_QP_PRIME - 12 - 6 * (g_bitDepth[CHANNEL_TYPE_LUMA] - 8)) / 3.0));
 #endif
   m_uiLambdaMotionSAD[1] = (UInt)floor(65536.0 * sqrt(dLambda));
   m_uiLambdaMotionSSE[1] = (UInt)floor(65536.0 * dLambda   );
@@ -286,57 +267,13 @@ Void TComRdCost::init()
 
   m_costMode                   = COST_STANDARD_LOSSY;
 
-#if !FIX203
-  m_puiComponentCostOriginP    = NULL;
-  m_puiComponentCost           = NULL;
-  m_puiVerCost                 = NULL;
-  m_puiHorCost                 = NULL;
-#endif
 #if RExt__HIGH_BIT_DEPTH_SUPPORT
   m_dCost                      = 0;
 #else
   m_uiCost                     = 0;
 #endif
   m_iCostScale                 = 0;
-#if !FIX203
-  m_iSearchLimit               = 0xdeaddead;
-#endif
 }
-
-#if !FIX203
-Void TComRdCost::initRateDistortionModel( Int iSubPelSearchLimit )
-{
-  // make it larger
-  iSubPelSearchLimit += 4;
-  iSubPelSearchLimit *= 8;
-
-  if( m_iSearchLimit != iSubPelSearchLimit )
-  {
-    xUninit();
-
-    m_iSearchLimit = iSubPelSearchLimit;
-
-    m_puiComponentCostOriginP = new UInt[ 4 * iSubPelSearchLimit ];
-    iSubPelSearchLimit *= 2;
-
-    m_puiComponentCost = m_puiComponentCostOriginP + iSubPelSearchLimit;
-
-    for( Int n = -iSubPelSearchLimit; n < iSubPelSearchLimit; n++)
-    {
-      m_puiComponentCost[n] = xGetComponentBits( n );
-    }
-  }
-}
-
-Void TComRdCost::xUninit()
-{
-  if( NULL != m_puiComponentCostOriginP )
-  {
-    delete [] m_puiComponentCostOriginP;
-    m_puiComponentCostOriginP = NULL;
-  }
-}
-#endif
 
 UInt TComRdCost::xGetComponentBits( Int iVal )
 {

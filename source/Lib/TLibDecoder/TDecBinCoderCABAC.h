@@ -74,8 +74,9 @@ public:
 
   Void  xReadPCMCode      ( UInt uiLength, UInt& ruiCode );
 
-  Void  copyState         ( TDecBinIf* pcTDecBinIf );
-  TDecBinCABAC* getTDecBinCABAC()  { return this; }
+  Void  copyState         ( const TDecBinIf* pcTDecBinIf );
+  TDecBinCABAC* getTDecBinCABAC()             { return this; }
+  const TDecBinCABAC* getTDecBinCABAC() const { return this; }
 
 private:
   TComInputBitstream* m_pcTComBitstream;

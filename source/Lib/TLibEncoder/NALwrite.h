@@ -83,8 +83,6 @@ inline NALUnitEBSP::NALUnitEBSP(OutputNALUnit& nalu)
   write(m_nalUnitData, nalu);
 }
 
-Void copyNaluData(OutputNALUnit& naluDest, const OutputNALUnit& naluSrc);
-
 //! \}
 
 #endif

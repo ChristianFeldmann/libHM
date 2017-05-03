@@ -52,13 +52,11 @@ using namespace std;
 
 TComOutputBitstream::TComOutputBitstream()
 {
-  m_fifo = new vector<uint8_t>;
   clear();
 }
 
 TComOutputBitstream::~TComOutputBitstream()
 {
-  delete m_fifo;
 }
 
 TComInputBitstream::TComInputBitstream(std::vector<uint8_t>* buf)
@@ -80,17 +78,17 @@ TComInputBitstream::~TComInputBitstream()
 
 Char* TComOutputBitstream::getByteStream() const
 {
-  return (Char*) &m_fifo->front();
+  return (Char*) &m_fifo.front();
 }
 
 UInt TComOutputBitstream::getByteStreamLength()
 {
-  return UInt(m_fifo->size());
+  return UInt(m_fifo.size());
 }
 
 Void TComOutputBitstream::clear()
 {
-  m_fifo->clear();
+  m_fifo.clear();
   m_held_bits = 0;
   m_num_held_bits = 0;
 }
@@ -129,10 +127,10 @@ Void TComOutputBitstream::write   ( UInt uiBits, UInt uiNumberOfBits )
 
   switch (num_total_bits >> 3)
   {
-  case 4: m_fifo->push_back(write_bits >> 24);
-  case 3: m_fifo->push_back(write_bits >> 16);
-  case 2: m_fifo->push_back(write_bits >> 8);
-  case 1: m_fifo->push_back(write_bits);
+  case 4: m_fifo.push_back(write_bits >> 24);
+  case 3: m_fifo.push_back(write_bits >> 16);
+  case 2: m_fifo.push_back(write_bits >> 8);
+  case 1: m_fifo.push_back(write_bits);
   }
 
   m_held_bits = next_held_bits;
@@ -152,7 +150,7 @@ Void TComOutputBitstream::writeAlignZero()
   {
     return;
   }
-  m_fifo->push_back(m_held_bits);
+  m_fifo.push_back(m_held_bits);
   m_held_bits = 0;
   m_num_held_bits = 0;
 }
@@ -310,8 +308,8 @@ Void TComOutputBitstream::insertAt(const TComOutputBitstream& src, UInt pos)
   UInt src_bits = src.getNumberOfWrittenBits();
   assert(0 == src_bits % 8);
 
-  vector<uint8_t>::iterator at = this->m_fifo->begin() + pos;
-  this->m_fifo->insert(at, src.m_fifo->begin(), src.m_fifo->end());
+  vector<uint8_t>::iterator at = m_fifo.begin() + pos;
+  m_fifo.insert(at, src.m_fifo.begin(), src.m_fifo.end());
 }
 
 UInt TComInputBitstream::readOutTrailingBits ()
@@ -326,17 +324,17 @@ UInt TComInputBitstream::readOutTrailingBits ()
   }
   return count;
 }
-
-TComOutputBitstream& TComOutputBitstream::operator= (const TComOutputBitstream& src)
-{
-  vector<uint8_t>::iterator at = this->m_fifo->begin();
-  this->m_fifo->insert(at, src.m_fifo->begin(), src.m_fifo->end());
-
-  this->m_num_held_bits             = src.m_num_held_bits;
-  this->m_held_bits                 = src.m_held_bits;
-
-  return *this;
-}
+//
+//TComOutputBitstream& TComOutputBitstream::operator= (const TComOutputBitstream& src)
+//{
+//  vector<uint8_t>::iterator at = m_fifo.begin();
+//  m_fifo.insert(at, src.m_fifo.begin(), src.m_fifo.end());
+//
+//  m_num_held_bits             = src.m_num_held_bits;
+//  m_held_bits                 = src.m_held_bits;
+//
+//  return *this;
+//}
 
 /**
  - extract substream from the current bitstream

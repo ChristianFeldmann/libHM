@@ -55,7 +55,7 @@ class TComTrQuant;
 // Constants
 // ====================================================================================================================
 
-static const UInt REF_PIC_LIST_NUM_IDX=32; // NOTE: RExt - new definition
+static const UInt REF_PIC_LIST_NUM_IDX=32;
 
 // ====================================================================================================================
 // Class definition
@@ -579,7 +579,7 @@ private:
 
 public:
   TComVUI()
-    :m_aspectRatioInfoPresentFlag(false) //TODO: RExt - This initialiser list contains magic numbers
+    :m_aspectRatioInfoPresentFlag(false) //TODO: This initialiser list contains magic numbers
     ,m_aspectRatioIdc(0)
     ,m_sarWidth(0)
     ,m_sarHeight(0)
@@ -786,14 +786,14 @@ private:
   static const Int   m_winUnitY[MAX_CHROMA_FORMAT_IDC+1];
   TComPTL     m_pcPTL;
 
-#if RExt__O0043_BEST_EFFORT_DECODING
+#if O0043_BEST_EFFORT_DECODING
   UInt        m_forceDecodeBitDepth; // 0 = do not force the decoder's bit depth, other = force the decoder's bit depth to this value (best effort decoding)
 #endif
 
 public:
   TComSPS();
   virtual ~TComSPS();
-#if RExt__O0043_BEST_EFFORT_DECODING
+#if O0043_BEST_EFFORT_DECODING
   Void setForceDecodeBitDepth(UInt bitDepth) { m_forceDecodeBitDepth = bitDepth; }
   UInt getForceDecodeBitDepth()        const { return m_forceDecodeBitDepth;     }
 #endif
@@ -1112,7 +1112,7 @@ public:
   Void     setTileColumnWidth        (const std::vector<Int>& columnWidth ) { m_tileColumnWidth = columnWidth; }
   UInt     getTileColumnWidth        (UInt columnIdx) const                 { return  m_tileColumnWidth[columnIdx]; }
   Void     setNumTileRowsMinus1      (Int i)                                { m_numTileRowsMinus1 = i; }
-  Int      getTileNumRowsMinus1      () const                               { return m_numTileRowsMinus1; }
+  Int      getNumTileRowsMinus1      () const                               { return m_numTileRowsMinus1; }
   Void     setTileRowHeight          (const std::vector<Int>& rowHeight)    { m_tileRowHeight = rowHeight;  }
   UInt     getTileRowHeight          (UInt rowIdx) const                    { return m_tileRowHeight[rowIdx]; }
 
@@ -1231,11 +1231,9 @@ private:
 #endif
   UInt        m_colFromL0Flag;  // collocated picture from List0 flag
 
-#if SETTING_NO_OUT_PIC_PRIOR
   Bool        m_noOutputPriorPicsFlag;
   Bool        m_noRaslOutputFlag;
   Bool        m_handleCraAsBlaFlag;
-#endif
 
   UInt        m_colRefIdx;
   UInt        m_maxNumMergeCand;
@@ -1264,18 +1262,12 @@ private:
   WPScalingParam  m_weightPredTable[NUM_REF_PIC_LIST_01][MAX_NUM_REF][MAX_NUM_COMPONENT]; // [REF_PIC_LIST_0 or REF_PIC_LIST_1][refIdx][0:Y, 1:U, 2:V]
   WPACDCParam    m_weightACDCParam[MAX_NUM_COMPONENT];
 
-  std::vector<UInt> m_tileByteLocation;
+  std::vector<UInt> m_substreamSizes;
 
-  UInt        *m_uiTileByteLocation;
-  UInt        m_uiTileCount;
-  UInt        m_uiTileOffstForMultES;
-
-  UInt*       m_puiSubstreamSizes;
   TComScalingList*     m_scalingList;                 //!< pointer of quantization matrix
   Bool        m_cabacInitFlag;
 
   Bool       m_bLMvdL1Zero;
-  Int         m_numEntryPointOffsets;
   Bool       m_temporalLayerNonReferenceFlag;
   Bool       m_LFCrossSliceBoundaryFlag;
 
@@ -1431,7 +1423,6 @@ public:
   Void setMaxNumMergeCand               (UInt val )          { m_maxNumMergeCand = val;                 }
   UInt getMaxNumMergeCand               ()                   { return m_maxNumMergeCand;                }
 
-#if SETTING_NO_OUT_PIC_PRIOR
   Void setNoOutputPriorPicsFlag         ( Bool val )         { m_noOutputPriorPicsFlag = val;           }
   Bool getNoOutputPriorPicsFlag         ()                   { return m_noOutputPriorPicsFlag;          }
 
@@ -1440,7 +1431,6 @@ public:
 
   Void setHandleCraAsBlaFlag            ( Bool val )         { m_handleCraAsBlaFlag = val;              }
   Bool getHandleCraAsBlaFlag            ()                   { return m_handleCraAsBlaFlag;             }
-#endif
 
   Void setSliceMode                     ( SliceConstraint mode ) { m_sliceMode = mode;                  }
   SliceConstraint getSliceMode          () const            { return m_sliceMode;                       }
@@ -1461,10 +1451,6 @@ public:
   UInt getSliceSegmentCurStartCtuTsAddr () const            { return m_sliceSegmentCurStartCtuTsAddr;      } // CTU Tile-scan address (as opposed to raster-scan)
   Void setSliceSegmentCurEndCtuTsAddr   ( UInt ctuTsAddr )  { m_sliceSegmentCurEndCtuTsAddr = ctuTsAddr;   } // CTU Tile-scan address (as opposed to raster-scan)
   UInt getSliceSegmentCurEndCtuTsAddr   () const            { return m_sliceSegmentCurEndCtuTsAddr;        } // CTU Tile-scan address (as opposed to raster-scan)
-  Void setNextSlice                     ( Bool b )          { m_nextSlice = b;                           }
-  Bool isNextSlice                      ()                  { return m_nextSlice;                        }
-  Void setNextSliceSegment              ( Bool b )          { m_nextSliceSegment = b;                    }
-  Bool isNextSliceSegment               ()                  { return m_nextSliceSegment;                 }
   Void setSliceBits                     ( UInt uiVal )      { m_sliceBits = uiVal;                      }
   UInt getSliceBits                     ()                  { return m_sliceBits;                       }
   Void setSliceSegmentBits              ( UInt uiVal )      { m_sliceSegmentBits = uiVal;            }
@@ -1481,24 +1467,18 @@ public:
   Void  setWpAcDcParam  ( WPACDCParam wp[MAX_NUM_COMPONENT] ) { memcpy(m_weightACDCParam, wp, sizeof(WPACDCParam)*MAX_NUM_COMPONENT); }
   Void  getWpAcDcParam  ( WPACDCParam *&wp );
   Void  initWpAcDcParam ();
-  Void setTileLocationCount             ( UInt cnt )               { return m_tileByteLocation.resize(cnt);    }
-  UInt getTileLocationCount             ()                         { return (UInt) m_tileByteLocation.size();  }
-  Void setTileLocation                  ( Int idx, UInt location ) { assert (idx<m_tileByteLocation.size());
-                                                                     m_tileByteLocation[idx] = location;       }
-  Void addTileLocation                  ( UInt location )          { m_tileByteLocation.push_back(location);   }
-  UInt getTileLocation                  ( Int idx )                { return m_tileByteLocation[idx];           }
-  Void setTileOffstForMultES            (UInt uiOffset )      { m_uiTileOffstForMultES = uiOffset;        }
-  UInt getTileOffstForMultES            ()                    { return m_uiTileOffstForMultES;            }
-  Void allocSubstreamSizes              ( UInt uiNumSubstreams );
-  UInt* getSubstreamSizes               ()                  { return m_puiSubstreamSizes; }
+
+  Void clearSubstreamSizes       ( )                        { return m_substreamSizes.clear();        }
+  UInt getNumberOfSubstreamSizes ( )                        { return (UInt) m_substreamSizes.size();  }
+  Void addSubstreamSize          ( UInt size )              { m_substreamSizes.push_back(size);       }
+  UInt getSubstreamSize          ( Int idx )                { assert(idx<getNumberOfSubstreamSizes()); return m_substreamSizes[idx]; }
+
   Void  setScalingList              ( TComScalingList* scalingList ) { m_scalingList = scalingList; }
   TComScalingList*   getScalingList ()                               { return m_scalingList; }
   Void  setDefaultScalingList       ();
   Bool  checkDefaultScalingList     ();
   Void      setCabacInitFlag  ( Bool val ) { m_cabacInitFlag = val;      }  //!< set CABAC initial flag
   Bool      getCabacInitFlag  ()           { return m_cabacInitFlag;     }  //!< get CABAC initial flag
-  Void      setNumEntryPointOffsets(Int val)  { m_numEntryPointOffsets = val;     }
-  Int       getNumEntryPointOffsets()         { return m_numEntryPointOffsets;    }
   Bool      getTemporalLayerNonReferenceFlag()       { return m_temporalLayerNonReferenceFlag;}
   Void      setTemporalLayerNonReferenceFlag(Bool x) { m_temporalLayerNonReferenceFlag = x;}
   Void      setLFCrossSliceBoundaryFlag     ( Bool   val )    { m_LFCrossSliceBoundaryFlag = val; }

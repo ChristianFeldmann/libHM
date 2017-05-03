@@ -73,6 +73,9 @@ Void TEncBinCABAC::start()
   m_bitsLeft         = 23;
   m_numBufferedBytes = 0;
   m_bufferedByte     = 0xff;
+#if FAST_BIT_EST
+  m_fracBits         = 0;
+#endif
 }
 
 Void TEncBinCABAC::finish()
@@ -142,9 +145,9 @@ Void TEncBinCABAC::xWritePCMCode(UInt uiCode, UInt uiLength)
   m_pcTComBitIf->write(uiCode, uiLength);
 }
 
-Void TEncBinCABAC::copyState( TEncBinIf* pcTEncBinIf )
+Void TEncBinCABAC::copyState( const TEncBinIf* pcTEncBinIf )
 {
-  TEncBinCABAC* pcTEncBinCABAC = pcTEncBinIf->getTEncBinCABAC();
+  const TEncBinCABAC* pcTEncBinCABAC = pcTEncBinIf->getTEncBinCABAC();
   m_uiLow           = pcTEncBinCABAC->m_uiLow;
   m_uiRange         = pcTEncBinCABAC->m_uiRange;
   m_bitsLeft        = pcTEncBinCABAC->m_bitsLeft;

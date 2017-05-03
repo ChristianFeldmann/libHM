@@ -540,7 +540,7 @@ const UChar g_chroma422IntraAngleMappingTable[NUM_INTRA_MODE] =
 // ====================================================================================================================
 
 Int g_bitDepth   [MAX_NUM_CHANNEL_TYPE] = {8, 8};
-#if RExt__O0043_BEST_EFFORT_DECODING
+#if O0043_BEST_EFFORT_DECODING
 Int g_bitDepthInStream   [MAX_NUM_CHANNEL_TYPE] = {8, 8}; // In the encoder, this is the same as g_bitDepth. In the decoder, this can vary from g_bitDepth if the decoder is forced to use 'best-effort decoding' at a particular bit-depth.
 #endif
 Int g_PCMBitDepth[MAX_NUM_CHANNEL_TYPE] = {8, 8};    // PCM bit-depth
@@ -552,7 +552,7 @@ Int g_PCMBitDepth[MAX_NUM_CHANNEL_TYPE] = {8, 8};    // PCM bit-depth
 Char  g_aucConvertToBit  [ MAX_CU_SIZE+1 ];
 
 #if ENC_DEC_TRACE
-FILE*  g_hTrace = stdout; // Set to NULL to open up a file. Set to stdout to use the current output
+FILE*  g_hTrace = NULL; // Set to NULL to open up a file. Set to stdout to use the current output
 const Bool g_bEncDecTraceEnable  = true;
 const Bool g_bEncDecTraceDisable = false;
 Bool   g_HLSTraceEnable = true;

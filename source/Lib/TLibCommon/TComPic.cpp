@@ -142,18 +142,28 @@ UInt TComPic::getSubstreamForCtuAddr(const UInt ctuAddr, const Bool bAddressInRa
 
   if (pcSlice->getPPS()->getNumSubstreams() > 1) // wavefronts, and possibly tiles being used.
   {
-    const TComPicSym &picSym            = *(getPicSym());
-    const UInt ctuRsAddr                = bAddressInRaster?ctuAddr : picSym.getCtuTsToRsAddrMap(ctuAddr);
-    const UInt frameWidthInCtus         = picSym.getFrameWidthInCtus();
-    const UInt tileIndex                = picSym.getTileIdxMap(ctuRsAddr);
-    const UInt numTileColumns           = (picSym.getNumTileColumnsMinus1()+1);
-    const TComTile *pTile               = picSym.getTComTile(tileIndex);
-    const UInt firstCtuRsAddrOfTile     = pTile->getFirstCtuRsAddr();
-    const UInt tileYInCtus              = firstCtuRsAddrOfTile / frameWidthInCtus;
-    // independent tiles => substreams are "per tile"
-    const UInt ctuLine                  = ctuRsAddr / frameWidthInCtus;
-    const UInt startingSubstreamForTile =(tileYInCtus*numTileColumns) + (pTile->getTileHeightInCtus()*(tileIndex%numTileColumns));
-    subStrm = startingSubstreamForTile + (ctuLine - tileYInCtus);
+    if (pcSlice->getPPS()->getEntropyCodingSyncEnabledFlag())
+    {
+      const TComPicSym &picSym            = *(getPicSym());
+      const UInt ctuRsAddr                = bAddressInRaster?ctuAddr : picSym.getCtuTsToRsAddrMap(ctuAddr);
+      const UInt frameWidthInCtus         = picSym.getFrameWidthInCtus();
+      const UInt tileIndex                = picSym.getTileIdxMap(ctuRsAddr);
+      const UInt numTileColumns           = (picSym.getNumTileColumnsMinus1()+1);
+      const TComTile *pTile               = picSym.getTComTile(tileIndex);
+      const UInt firstCtuRsAddrOfTile     = pTile->getFirstCtuRsAddr();
+      const UInt tileYInCtus              = firstCtuRsAddrOfTile / frameWidthInCtus;
+      // independent tiles => substreams are "per tile"
+      const UInt ctuLine                  = ctuRsAddr / frameWidthInCtus;
+      const UInt startingSubstreamForTile =(tileYInCtus*numTileColumns) + (pTile->getTileHeightInCtus()*(tileIndex%numTileColumns));
+      subStrm = startingSubstreamForTile + (ctuLine - tileYInCtus);
+    }
+    else
+    {
+      const TComPicSym &picSym            = *(getPicSym());
+      const UInt ctuRsAddr                = bAddressInRaster?ctuAddr : picSym.getCtuTsToRsAddrMap(ctuAddr);
+      const UInt tileIndex                = picSym.getTileIdxMap(ctuRsAddr);
+      subStrm=tileIndex;
+    }
   }
   else
   {

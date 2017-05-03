@@ -66,7 +66,6 @@ public:
 
 protected:
   TComSlice*    m_pcSlice;
-  UInt          m_uiCoeffCost;
 
   Void codeShortTermRefPicSet              ( TComSPS* pcSPS, TComReferencePictureSet* pcRPS, Bool calledFromSliceHeader, Int idx );
   Bool findMatchingLTRP ( TComSlice* pcSlice, UInt *ltrpsIndex, Int ltrpPOC, Bool usedFlag );
@@ -79,9 +78,7 @@ public:
   Void  setBitstream          ( TComBitIf* p )  { m_pcBitIf = p;  }
   Void  setSlice              ( TComSlice* p )  { m_pcSlice = p;  }
   Void  resetBits             ()                { m_pcBitIf->resetBits(); }
-  Void  resetCoeffCost        ()                { m_uiCoeffCost = 0;  }
   UInt  getNumberOfWrittenBits()                { return  m_pcBitIf->getNumberOfWrittenBits();  }
-  UInt  getCoeffCost          ()                { return  m_uiCoeffCost;  }
   Void  codeVPS                 ( TComVPS* pcVPS );
   Void  codeVUI                 ( TComVUI *pcVUI, TComSPS* pcSPS );
   Void  codeSPS                 ( TComSPS* pcSPS );
@@ -132,8 +129,6 @@ public:
   Void estBit            ( estBitsSbacStruct* pcEstBitsSbac, Int width, Int height, ChannelType chType );
 
   Void xCodePredWeightTable          ( TComSlice* pcSlice );
-  Void updateContextTables           ( SliceType eSliceType, Int iQp, Bool bExecuteFinish=true ) { return;   }
-  Void updateContextTables           ( SliceType eSliceType, Int iQp  )                          { return;   }
 
   Void codeScalingList  ( TComScalingList* scalingList );
   Void xCodeScalingList ( TComScalingList* scalingList, UInt sizeId, UInt listId);

@@ -65,11 +65,8 @@ private:
   TDecEntropy*    m_pcEntropyDecoder;
   TDecCu*         m_pcCuDecoder;
 
-  TDecSbac*       m_pcBufferSbacDecoders;   ///< line to store temporary contexts, one per column of tiles.
-  TDecBinCABAC*   m_pcBufferBinCABACs;
-  TDecSbac*       m_pcBufferLowLatSbacDecoders;   ///< dependent tiles: line to store temporary contexts, one per column of tiles.
-  TDecBinCABAC*   m_pcBufferLowLatBinCABACs;
-  std::vector<TDecSbac*> CTXMem;
+  TDecSbac        m_lastSliceSegmentEndContextState;    ///< context storage for state at the end of the previous slice-segment (used for dependent slices only).
+  TDecSbac        m_entropyCodingSyncContextState;      ///< context storate for state of contexts at the wavefront/WPP/entropy-coding-sync second CTU of tile-row
 
 public:
   TDecSlice();
@@ -79,10 +76,7 @@ public:
   Void  create            ();
   Void  destroy           ();
 
-  Void  decompressSlice   ( TComInputBitstream** ppcSubstreams,   TComPic* pcPic, TDecSbac* pcSbacDecoder, TDecSbac* pcSbacDecoders );
-  Void      initCtxMem(  UInt i );
-  Void      setCtxMem( TDecSbac* sb, Int b )   { CTXMem[b] = sb; }
-  Int       getCtxMemSize( )                   { return (Int)CTXMem.size(); }
+  Void  decompressSlice   ( TComInputBitstream** ppcSubstreams,   TComPic* pcPic, TDecSbac* pcSbacDecoder );
 };
 
 

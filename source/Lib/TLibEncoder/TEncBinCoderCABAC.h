@@ -55,7 +55,7 @@ public:
 
   Void  start             ();
   Void  finish            ();
-  Void  copyState         ( TEncBinIf* pcTEncBinIf );
+  Void  copyState         ( const TEncBinIf* pcTEncBinIf );
   Void  flush            ();
 
   Void  resetBac          ();
@@ -74,6 +74,7 @@ public:
   Void  encodeAlignedBinsEP( UInt  binValues, Int numBins             );
 
   TEncBinCABAC* getTEncBinCABAC()  { return this; }
+  const TEncBinCABAC* getTEncBinCABAC() const { return this; }
 
   Void  setBinsCoded              ( UInt uiVal )  { m_uiBinsCoded = uiVal;               }
   UInt  getBinsCoded              ()              { return m_uiBinsCoded;                }

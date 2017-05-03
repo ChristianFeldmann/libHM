@@ -79,13 +79,11 @@ private:
 
   // coding tools
   TEncEntropy*            m_pcEntropyCoder;                     ///< entropy encoder
-  TEncCavlc*              m_pcCavlcCoder;                       ///< CAVLC encoder
   TEncSbac*               m_pcSbacCoder;                        ///< SBAC encoder
   TEncBinCABAC*           m_pcBinCABAC;                         ///< Bin encoder CABAC
   TComTrQuant*            m_pcTrQuant;                          ///< transform & quantization
 
   // RD optimization
-  TComBitCounter*         m_pcBitCounter;                       ///< bit counter
   TComRdCost*             m_pcRdCost;                           ///< RD cost computation
   TEncSbac***             m_pppcRDSbacCoder;                    ///< storage for SBAC-based RD optimization
   TEncSbac*               m_pcRDGoOnSbacCoder;                  ///< go-on SBAC encoder
@@ -95,13 +93,10 @@ private:
   Double*                 m_pdRdPicLambda;                      ///< array of lambda candidates
   Double*                 m_pdRdPicQp;                          ///< array of picture QP candidates (double-type for lambda)
   Int*                    m_piRdPicQp;                          ///< array of picture QP candidates (Int-type)
-  TEncBinCABAC*           m_pcBufferBinCoderCABACs;             ///< line of bin coder CABAC
-  TEncSbac*               m_pcBufferSbacCoders;                 ///< line to store temporary contexts
-  TEncBinCABAC*           m_pcBufferLowLatBinCoderCABACs;       ///< dependent tiles: line of bin coder CABAC
-  TEncSbac*               m_pcBufferLowLatSbacCoders;           ///< dependent tiles: line to store temporary contexts
   TEncRateCtrl*           m_pcRateCtrl;                         ///< Rate control manager
   UInt                    m_uiSliceIdx;
-  std::vector<TEncSbac*> CTXMem;
+  TEncSbac                m_lastSliceSegmentEndContextState;    ///< context storage for state at the end of the previous slice-segment (used for dependent slices only).
+  TEncSbac                m_entropyCodingSyncContextState;      ///< context storate for state of contexts at the wavefront/WPP/entropy-coding-sync second CTU of tile-row
 
   Void     setUpLambda(TComSlice* slice, const Double dLambda, Int iQP);
   Void     calculateBoundingCtuTsAddrForSlice(UInt &startCtuTSAddrSlice, UInt &boundingCtuTSAddrSlice, Bool &haveReachedTileBoundary, TComPic* pcPic, const Bool encodingSlice, const Int sliceMode, const Int sliceArgument, const UInt uiSliceCurEndCtuTSAddr);
@@ -122,18 +117,15 @@ public:
   Void    precompressSlice    ( TComPic* pcPic                                     );      ///< precompress slice for multi-loop opt.
   Void    compressSlice       ( TComPic* pcPic                                     );      ///< analysis stage of slice
   Void    calCostSliceI       ( TComPic* pcPic );
-  Void    encodeSlice         ( TComPic* pcPic, TComOutputBitstream* pcSubstreams  );
+  Void    encodeSlice         ( TComPic* pcPic, TComOutputBitstream* pcSubstreams, UInt &numBinsCoded );
 
   // misc. functions
   Void    setSearchRange      ( TComSlice* pcSlice  );                                  ///< set ME range adaptively
-  UInt64  getTotalBits        ()  { return m_uiPicTotalBits; }
 
   TEncCu*        getCUEncoder() { return m_pcCuEncoder; }                        ///< CU encoder
   Void    xDetermineStartAndBoundingCtuTsAddr  ( UInt& startCtuTsAddr, UInt& boundingCtuTsAddr, TComPic* pcPic, const Bool encodingSlice );
   UInt    getSliceIdx()         { return m_uiSliceIdx;                    }
   Void    setSliceIdx(UInt i)   { m_uiSliceIdx = i;                       }
-  Void      initCtxMem( UInt i );
-  Void      setCtxMem( TEncSbac* sb, Int b )   { CTXMem[b] = sb; }
 
 private:
   Double  xGetQPValueAccordingToLambda ( Double lambda );

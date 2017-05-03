@@ -106,7 +106,7 @@ Distortion TComRdCostWeightPrediction::xGetSSEw( DistParam* pcDtParam )
   const Int             iStrideCur      = pcDtParam->iStrideCur;
   const ComponentID     compIdx         = pcDtParam->compIdx;
 
-  assert( pcDtParam->iSubShift == 0 ); // NOTE: RExt - what is this protecting?
+  assert( pcDtParam->iSubShift == 0 ); // NOTE: what is this protecting?
 
   assert(compIdx<MAX_NUM_COMPONENT);
   const WPScalingParam &wpCur           = pcDtParam->wpCur[compIdx];

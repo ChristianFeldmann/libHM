@@ -76,8 +76,9 @@ public:
 
   virtual ~TDecBinIf() {}
 
-  virtual Void  copyState         ( TDecBinIf* pcTDecBinIf )                  = 0;
-  virtual TDecBinCABAC*   getTDecBinCABAC   ()  { return 0; }
+  virtual Void  copyState         ( const TDecBinIf* pcTDecBinIf )            = 0;
+  virtual TDecBinCABAC*   getTDecBinCABAC   ()             { return 0; }
+  virtual const TDecBinCABAC*   getTDecBinCABAC   () const { return 0; }
 };
 
 //! \}

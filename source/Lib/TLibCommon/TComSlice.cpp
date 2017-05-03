@@ -47,8 +47,15 @@
 
 TComSlice::TComSlice()
 : m_iPPSId                        ( -1 )
+, m_PicOutputFlag                 ( true )
 , m_iPOC                          ( 0 )
 , m_iLastIDR                      ( 0 )
+, m_iAssociatedIRAP               ( 0 )
+, m_iAssociatedIRAPType           ( NAL_UNIT_INVALID )
+, m_pcRPS                         ( 0 )
+, m_LocalRPS                      ( )
+, m_iBDidx                        ( 0 )
+, m_RefPicListModification        ( )
 , m_eNalUnitType                  ( NAL_UNIT_CODED_SLICE_IDR_W_RADL )
 , m_eSliceType                    ( I_SLICE )
 , m_iSliceQp                      ( 0 )
@@ -65,16 +72,19 @@ TComSlice::TComSlice()
 , m_iSliceQpDelta                 ( 0 )
 , m_iDepth                        ( 0 )
 , m_bRefenced                     ( false )
+, m_pcVPS                         ( NULL )
 , m_pcSPS                         ( NULL )
 , m_pcPPS                         ( NULL )
 , m_pcPic                         ( NULL )
+#if ADAPTIVE_QP_SELECTION
+, m_pcTrQuant                     ( NULL )
+#endif
 , m_colFromL0Flag                 ( 1 )
-#if SETTING_NO_OUT_PIC_PRIOR
 , m_noOutputPriorPicsFlag         ( false )
 , m_noRaslOutputFlag              ( false )
-, m_handleCraAsBlaFlag              ( false )
-#endif
+, m_handleCraAsBlaFlag            ( false )
 , m_colRefIdx                     ( 0 )
+, m_maxNumMergeCand               ( 0 )
 , m_uiTLayer                      ( 0 )
 , m_bTLayerSwitchingFlag          ( false )
 , m_sliceMode                     ( NO_SLICES )
@@ -91,12 +101,12 @@ TComSlice::TComSlice()
 , m_sliceBits                     ( 0 )
 , m_sliceSegmentBits              ( 0 )
 , m_bFinalized                    ( false )
-, m_uiTileOffstForMultES          ( 0 )
-, m_puiSubstreamSizes             ( NULL )
+, m_substreamSizes                ( )
+, m_scalingList                   ( NULL )
 , m_cabacInitFlag                 ( false )
 , m_bLMvdL1Zero                   ( false )
-, m_numEntryPointOffsets          ( 0 )
 , m_temporalLayerNonReferenceFlag ( false )
+, m_LFCrossSliceBoundaryFlag      ( false )
 , m_enableTMVPFlag                ( true )
 {
   for(UInt i=0; i<NUM_REF_PIC_LIST_01; i++)
@@ -137,8 +147,6 @@ TComSlice::TComSlice()
 
 TComSlice::~TComSlice()
 {
-  delete[] m_puiSubstreamSizes;
-  m_puiSubstreamSizes = NULL;
 }
 
 
@@ -161,9 +169,8 @@ Void TComSlice::initSlice()
 
   m_bFinalized=false;
 
-  m_tileByteLocation.clear();
+  m_substreamSizes.clear();
   m_cabacInitFlag        = false;
-  m_numEntryPointOffsets = 0;
   m_enableTMVPFlag = true;
 }
 
@@ -177,17 +184,6 @@ Bool TComSlice::getRapPicFlag()
       || getNalUnitType() == NAL_UNIT_CODED_SLICE_CRA;
 }
 
-
-/**
- - allocate table to contain substream sizes to be written to the slice header.
- .
- \param uiNumSubstreams Number of substreams -- the allocation will be this value - 1.
- */
-Void  TComSlice::allocSubstreamSizes(UInt uiNumSubstreams)
-{
-  delete[] m_puiSubstreamSizes;
-  m_puiSubstreamSizes = new UInt[uiNumSubstreams > 0 ? uiNumSubstreams-1 : 0];
-}
 
 Void  TComSlice::sortPicList        (TComList<TComPic*>& rcListPic)
 {
@@ -593,9 +589,6 @@ Void TComSlice::checkCRA(TComReferencePictureSet *pReferencePictureSet, Int& poc
 Void TComSlice::decodingRefreshMarking(Int& pocCRA, Bool& bRefreshPending, TComList<TComPic*>& rcListPic)
 {
   TComPic* rpcPic;
-#if !FIX1172
-  setAssociatedIRAPPOC(pocCRA);
-#endif
   Int      pocCurr = getPOC();
 
   if ( getNalUnitType() == NAL_UNIT_CODED_SLICE_BLA_W_LP
@@ -771,7 +764,6 @@ Void TComSlice::copySliceInfo(TComSlice *pSrc)
   }
 
   m_cabacInitFlag                = pSrc->m_cabacInitFlag;
-  m_numEntryPointOffsets  = pSrc->m_numEntryPointOffsets;
 
   m_bLMvdL1Zero = pSrc->m_bLMvdL1Zero;
   m_LFCrossSliceBoundaryFlag = pSrc->m_LFCrossSliceBoundaryFlag;
@@ -912,11 +904,7 @@ Void TComSlice::checkLeadingPictureRestrictions(TComList<TComPic*>& rcListPic)
     // Any picture that has PicOutputFlag equal to 1 that precedes an IRAP picture
     // in decoding order shall precede the IRAP picture in output order.
     // (Note that any picture following in output order would be present in the DPB)
-#if SETTING_NO_OUT_PIC_PRIOR
     if(rpcPic->getSlice(0)->getPicOutputFlag() == 1 && !this->getNoOutputPriorPicsFlag())
-#else
-    if(rpcPic->getSlice(0)->getPicOutputFlag() == 1)
-#endif
     {
       if(nalUnitType == NAL_UNIT_CODED_SLICE_BLA_N_LP    ||
          nalUnitType == NAL_UNIT_CODED_SLICE_BLA_W_LP    ||
@@ -1521,7 +1509,7 @@ Void  TComSlice::initWpScaling()
         const Int offsetScalingFactor = bUseHighPrecisionPredictionWeighting ? 1 : (1 << (g_bitDepth[toChannelType(ComponentID(yuv))]-8));
 
         pwp->w      = pwp->iWeight;
-        pwp->o      = pwp->iOffset * offsetScalingFactor; //NOTE: RExt - This value of the ".o" variable is never used - .o is set immediately before it gets used
+        pwp->o      = pwp->iOffset * offsetScalingFactor; //NOTE: This value of the ".o" variable is never used - .o is set immediately before it gets used
         pwp->shift  = pwp->uiLog2WeightDenom;
         pwp->round  = (pwp->uiLog2WeightDenom>=1) ? (1 << (pwp->uiLog2WeightDenom-1)) : (0);
       }

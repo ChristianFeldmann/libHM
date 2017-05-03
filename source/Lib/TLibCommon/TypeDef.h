@@ -83,27 +83,13 @@
 // ====================================================================================================================
 
 #define HARMONIZE_GOP_FIRST_FIELD_COUPLE                  1
-#define FIX_FIELD_DEPTH                                   1
 #define EFFICIENT_FIELD_IRAP                              1
 #define ALLOW_RECOVERY_POINT_AS_RAP                       1
 #define BUGFIX_INTRAPERIOD                                1
 
 #define SAO_ENCODE_ALLOW_USE_PREDEBLOCK                   1
 
-#define SAO_SGN_FUNC                                      1
-
-#define TILE_SIZE_CHECK 1
-
-#define FIX1172                                           1 ///< fix ticket #1172
-
-#define SETTING_PIC_OUTPUT_MARK                           1
-#define SETTING_NO_OUT_PIC_PRIOR                          1
-#define FIX_EMPTY_PAYLOAD_NAL                             1
-#define FIX_WRITING_OUTPUT                                1
-#define FIX_OUTPUT_EOS                                    1
-#define FIX_OUTPUT_ORDER_BEHAVIOR                         1
-
-#define FIX_POC_CRA_NORASL_OUTPUT                         1
+#define TILE_SIZE_CHECK                                   1
 
 #define MAX_NUM_PICS_IN_SOP                            1024
 
@@ -127,9 +113,6 @@
 #define CU_DQP_EG_k                                       0 ///< expgolomb order
 
 #define SBH_THRESHOLD                                     4  ///< I0156: value of the fixed SBH controlling threshold
-
-//NOTE: RExt - There is a command-line-controlled alternative mechanism in RExt - this macro is kept (for now) for backwards-compatibility reasons
-#define SEQUENCE_LEVEL_LOSSLESS                           0  ///< H0530: used only for sequence or frame-level lossless coding
 
 #define DISABLING_CLIP_FOR_BIPREDME                       1  ///< Ticket #175
 
@@ -184,8 +167,6 @@
 
 #define FAST_UDI_MAX_RDMODE_NUM                          35          ///< maximum number of RD comparison in fast-UDI estimation loop
 
-#define ZERO_MVD_EST                                      0           ///< Zero Mvd Estimation in normal mode
-
 #define NUM_INTRA_MODE                                   36
 
 #define WRITE_BACK                                        1           ///< Enable/disable the encoder to replace the deltaPOC and Used by current from the config file with the values derived by the refIdc parameter.
@@ -206,7 +187,6 @@
 #define INVALID_MODE_IDX                                 (NUM_INTRA_MODE+1)    // value used to indicate an invalid intra mode
 #define STOPCHROMASEARCH_MODE_IDX                        (INVALID_MODE_IDX+1)  // value used to signal the end of a chroma mode search
 
-#define MDCS_MODE                       MDCS_BOTH_DIRECTIONS        ///< Name taken from definition of MDCSMode enumeration below
 #define MDCS_ANGLE_LIMIT                                  4         ///< (default 4) 0 = Horizontal/vertical only, 1 = Horizontal/vertical +/- 1, 2 = Horizontal/vertical +/- 2 etc...
 #define MDCS_MAXIMUM_WIDTH                                8         ///< (default 8) (measured in pixels) TUs with width greater than this can only use diagonal scan
 #define MDCS_MAXIMUM_HEIGHT                               8         ///< (default 8) (measured in pixels) TUs with height greater than this can only use diagonal scan
@@ -230,28 +210,29 @@
 
 #define CABAC_INIT_PRESENT_FLAG                           1
 
-#define LUMA_INTERPOLATION_FILTER_SUB_SAMPLE_POSITIONS    4 // NOTE: RExt - new definition
-#define CHROMA_INTERPOLATION_FILTER_SUB_SAMPLE_POSITIONS  8 // NOTE: RExt - new definition
+#define LUMA_INTERPOLATION_FILTER_SUB_SAMPLE_POSITIONS    4
+#define CHROMA_INTERPOLATION_FILTER_SUB_SAMPLE_POSITIONS  8
 
 #define MAX_NUM_LONG_TERM_REF_PICS                       33
 
-#define FIX_1323                                          1
+#define DECODER_CHECK_SUBSTREAM_AND_SLICE_TRAILING_BYTES  1
 
-// ====================================================================================================================
-// RExt control settings
-// ====================================================================================================================
+#define RD_TEST_SAO_DISABLE_AT_PICTURE_LEVEL              0 ///< 1 = tests whether SAO should be disabled at the picture level,  0 (default) = does not apply this additional test
 
-//------------------------------------------------
-// Enable environment variables
-//------------------------------------------------
+#define O0043_BEST_EFFORT_DECODING                        0 ///< 0 (default) = disable code related to best effort decoding, 1 = enable code relating to best effort decoding [ decode-side only ].
 
-#define RExt__ENVIRONMENT_VARIABLE_DEBUG_AND_TEST                              0 ///< When enabled, allows control of RExt modifications via environment variables
-#define RExt__PRINT_MACRO_VALUES                                               1 ///< When enabled, the encoder prints out a list of the non-environment-variable controlled macros and their values on startup
+// Cost mode support
 
-//------------------------------------------------
-// Processing controls
-//------------------------------------------------
+#define LOSSLESS_AND_MIXED_LOSSLESS_RD_COST_TEST_QP       0 ///< QP to use for lossless coding.
+#define LOSSLESS_AND_MIXED_LOSSLESS_RD_COST_TEST_QP_PRIME 4 ///< QP' to use for mixed_lossy_lossless coding.
 
+// Debug support
+
+#define ENVIRONMENT_VARIABLE_DEBUG_AND_TEST               0 ///< When enabled, allows control of debug modifications via environment variables
+
+#define PRINT_MACRO_VALUES                                1 ///< When enabled, the encoder prints out a list of the non-environment-variable controlled macros and their values on startup
+
+// TODO: rename this macro to DECODER_DEBUG_BIT_STATISTICS (may currently cause merge issues with other branches)
 // This can be enabled by the makefile
 #ifndef RExt__DECODER_DEBUG_BIT_STATISTICS
 #define RExt__DECODER_DEBUG_BIT_STATISTICS                                     0 ///< 0 (default) = decoder reports as normal, 1 = decoder produces bit usage statistics (will impact decoder run time by up to ~10%)
@@ -262,17 +243,13 @@
 #define RExt__HIGH_BIT_DEPTH_SUPPORT                                           0 ///< 0 (default) use data type definitions for 8-10 bit video, 1 = use larger data types to allow for up to 16-bit video (originally developed as part of N0188)
 #endif
 
-#define RExt__O0043_BEST_EFFORT_DECODING                                       0 ///< 0 (default) = disable code related to best effort decoding, 1 = enable code relating to best effort decoding [ decode-side only ].
+#define RExt__GOLOMB_RICE_ADAPTATION_STATISTICS_SETS                           4
+#define RExt__GOLOMB_RICE_INCREMENT_DIVISOR                                    4
 
-//------------------------------------------------
-// Backwards-compatibility
-//------------------------------------------------
+#define RExt__PREDICTION_WEIGHTING_ANALYSIS_DC_PRECISION                       0 ///< Additional fixed bit precision used during encoder-side weighting prediction analysis. Currently only used when high_precision_prediction_weighting_flag is set, for backwards compatibility reasons.
 
-// NOTE: RExt - Compatibility defaults chosen so that simulations run with the common test conditions do not differ with HM.
-#define RExt__BACKWARDS_COMPATIBILITY_HM_TICKET_1149                           1 ///< Maintain backwards compatibility with HM for ticket 1149 (allow the encoder to test not using SAO at all)
-#define RExt__BACKWARDS_COMPATIBILITY_HM_TICKET_1298                           0 ///< Maintain backwards compatibility with HM for ticket 1298 (output value clipping missing from HM RDOQ)
-#define RExt__BACKWARDS_COMPATIBILITY_RBSP_EMULATION_PREVENTION                0 ///< Maintain backwards compatibility with (use same algorithm as) HM for RBSP emulation prevention
-#define RExt__BACKWARDS_COMPATIBILITY_MOTION_ESTIMATION_R0105                  1 ///< Maintain backwards compatibility with HM when coding version 1 profile due to changes in motion estimation introduced in JCTVC-R0105.
+#define MAX_TIMECODE_SEI_SETS                                                  3 ///< Maximum number of time sets
+
 
 //------------------------------------------------
 // Derived macros
@@ -292,15 +269,6 @@
 # define DISTORTION_PRECISION_ADJUSTMENT(x) (x)
 #endif
 
-#define RExt__LOSSLESS_AND_MIXED_LOSSLESS_RD_COST_TEST_QP                      0 ///< QP to use for lossless coding.
-#define RExt__LOSSLESS_AND_MIXED_LOSSLESS_RD_COST_TEST_QP_PRIME                4 ///< QP' to use for mixed_lossy_lossless coding.
-
-#define RExt__GOLOMB_RICE_ADAPTATION_STATISTICS_SETS                           4
-#define RExt__GOLOMB_RICE_INCREMENT_DIVISOR                                    4
-
-#define RExt__PREDICTION_WEIGHTING_ANALYSIS_DC_PRECISION                       0 ///< Additional fixed bit precision used during encoder-side weighting prediction analysis. Currently only used when high_precision_prediction_weighting_flag is set, for backwards compatibility reasons.
-
-#define MAX_TIMECODE_SEI_SETS                                                  3 ///< Maximum number of time sets
 
 //------------------------------------------------
 // Error checks
@@ -574,6 +542,13 @@ enum SignificanceMapContextType
   CONTEXT_NUMBER_OF_TYPES = 4
 };
 
+enum ScalingListMode
+{
+  SCALING_LIST_OFF,
+  SCALING_LIST_DEFAULT,
+  SCALING_LIST_FILE_READ
+};
+
 enum ScalingListSize
 {
   SCALING_LIST_4x4 = 0,
@@ -581,16 +556,6 @@ enum ScalingListSize
   SCALING_LIST_16x16,
   SCALING_LIST_32x32,
   SCALING_LIST_SIZE_NUM
-};
-
-///MDCS modes
-enum MDCSMode
-{
-  MDCS_DISABLED        = 0,
-  MDCS_HORIZONTAL_ONLY = 1,
-  MDCS_VERTICAL_ONLY   = 2,
-  MDCS_BOTH_DIRECTIONS = 3,
-  MDCS_NUMBER_OF_MODES = 4
 };
 
 // Slice / Slice segment encoding modes
@@ -644,16 +609,7 @@ enum SAOEOClasses
 };
 
 #define NUM_SAO_BO_CLASSES_LOG2  5
-enum SAOBOClasses
-{
-  //SAO_CLASS_BO_BAND0 = 0,
-  //SAO_CLASS_BO_BAND1,
-  //SAO_CLASS_BO_BAND2,
-  //...
-  //SAO_CLASS_BO_BAND31,
-
-  NUM_SAO_BO_CLASSES = (1<<NUM_SAO_BO_CLASSES_LOG2),
-};
+#define NUM_SAO_BO_CLASSES       (1<<NUM_SAO_BO_CLASSES_LOG2)
 
 namespace Profile
 {
@@ -678,7 +634,7 @@ namespace Level
 
   enum Name
   {
-    //NOTE: RExt - code = (level * 30)
+    // code = (level * 30)
     NONE     = 0,
     LEVEL1   = 30,
     LEVEL2   = 60,

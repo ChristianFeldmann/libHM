@@ -81,6 +81,7 @@ public:
   Void  parseHrdParameters  (TComHRD *hrd, Bool cprms_present_flag, UInt tempLevelHigh);
   Void  parseSliceHeader    ( TComSlice* pcSlice, ParameterSetManagerDecoder *parameterSetManager);
   Void  parseTerminatingBit ( UInt& ruiBit );
+  Void  parseRemainingBytes ( Bool noTrailingBytesExpected );
 
   Void parseMVPIdx          ( Int& riMVPIdx );
 
@@ -109,8 +110,6 @@ public:
   Void parseTransformSkipFlags ( class TComTU &rTu, ComponentID component );
 
   Void parseIPCMInfo        ( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth);
-
-  Void updateContextTables  ( SliceType /*eSliceType*/, Int /*iQp*/ ) { return; }
 
   Void xParsePredWeightTable ( TComSlice* pcSlice );
   Void  parseScalingList     ( TComScalingList* scalingList );

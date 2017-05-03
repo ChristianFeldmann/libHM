@@ -475,7 +475,7 @@ Void TComPrediction::predIntraAng( const ComponentID compID, UInt uiDirMode, Pel
       const UInt              uiAbsPartIdx      = rTu.GetAbsPartIdxTU();
       const Bool              enableEdgeFilters = !(pcCU->isRDPCMEnabled(uiAbsPartIdx) && pcCU->getCUTransquantBypass(uiAbsPartIdx));
 
-#if RExt__O0043_BEST_EFFORT_DECODING
+#if O0043_BEST_EFFORT_DECODING
       xPredIntraAng( g_bitDepthInStream[channelType], ptrSrc+sw+1, sw, pDst, uiStride, iWidth, iHeight, channelType, format, uiDirMode, bAbove, bLeft, enableEdgeFilters );
 #else
       xPredIntraAng( g_bitDepth[channelType], ptrSrc+sw+1, sw, pDst, uiStride, iWidth, iHeight, channelType, format, uiDirMode, bAbove, bLeft, enableEdgeFilters );
@@ -789,9 +789,6 @@ Void TComPrediction::xPredIntraPlanar( const Pel* pSrc, Int srcStride, Pel* rpDs
       horPred += rightColumn[y];
       topRow[x] += bottomRow[x];
 
-      // NOTE: RExt - The intermediate shift right could be rolled into the final shift right,
-      //              thereby increasing the accuracy of the calculation
-      // eg  rpDst[y*dstStride+x] = ( (horPred<<topRowShift) + topRow[x] ) >> (shift1Dver+1);
       Int vertPred = ((topRow[x] + topRowShift)>>topRowShift);
       rpDst[y*dstStride+x] = ( horPred + vertPred ) >> (shift1Dhor+1);
     }

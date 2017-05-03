@@ -86,10 +86,6 @@ Void write(ostream& out, OutputNALUnit& nalu)
    */
   vector<uint8_t>& rbsp   = nalu.m_Bitstream.getFIFO();
 
-#if (RExt__BACKWARDS_COMPATIBILITY_RBSP_EMULATION_PREVENTION == 0)
-  // NOTE: RExt - New RBSP emulation prevention 3 method - the original method is OK, if the number of
-  //              insertions is small, but very wasteful for long NAL units with lots of insertions.
-  //              We'll just make a temporary work area.
   vector<uint8_t> outputBuffer;
   outputBuffer.resize(rbsp.size()*2+1); //there can never be enough emulation_prevention_three_bytes to require this much space
   std::size_t outputAmount = 0;
@@ -113,52 +109,6 @@ Void write(ostream& out, OutputNALUnit& nalu)
    */
   if (zeroCount>0) outputBuffer[outputAmount++]=emulation_prevention_three_byte[0];
   out.write((Char*)&(*outputBuffer.begin()), outputAmount);
-#else
-
-  if (rbsp.size() == 0)
-  {
-    return;
-  }
-  
-  for (vector<uint8_t>::iterator it = rbsp.begin(); it != rbsp.end();)
-  {
-    /* 1) find the next emulated 00 00 {00,01,02,03}
-     * 2a) if not found, write all remaining bytes out, stop.
-     * 2b) otherwise, write all non-emulated bytes out
-     * 3) insert emulation_prevention_three_byte
-     */
-    vector<uint8_t>::iterator found = it;
-    do
-    {
-      /* NB, end()-1, prevents finding a trailing two byte sequence */
-      found = search_n(found, rbsp.end()-1, 2, 0);
-      found++;
-      /* if not found, found == end, otherwise found = second zero byte */
-      if (found == rbsp.end())
-        break;
-      if (*(++found) <= 3)
-        break;
-    } while (true);
-
-    it = found;
-    if (found != rbsp.end())
-    {
-      it = rbsp.insert(found, emulation_prevention_three_byte[0]);
-    }
-  }
-
-  out.write((Char*)&(*rbsp.begin()), rbsp.end() - rbsp.begin());
-
-  /* 7.4.1.1
-   * ... when the last byte of the RBSP data is equal to 0x00 (which can
-   * only occur when the RBSP ends in a cabac_zero_word), a final byte equal
-   * to 0x03 is appended to the end of the data.
-   */
-  if (rbsp.back() == 0x00)
-  {
-    out.write(emulation_prevention_three_byte, 1);
-  }
-#endif
 }
 
 /**
@@ -168,17 +118,6 @@ Void writeRBSPTrailingBits(TComOutputBitstream& bs)
 {
   bs.write( 1, 1 );
   bs.writeAlignZero();
-}
-
-/**
- * Copy NALU from naluSrc to naluDest
- */
-Void copyNaluData(OutputNALUnit& naluDest, const OutputNALUnit& naluSrc)
-{
-  naluDest.m_nalUnitType = naluSrc.m_nalUnitType;
-  naluDest.m_reservedZero6Bits  = naluSrc.m_reservedZero6Bits;
-  naluDest.m_temporalId  = naluSrc.m_temporalId;
-  naluDest.m_Bitstream   = naluSrc.m_Bitstream;
 }
 
 //! \}

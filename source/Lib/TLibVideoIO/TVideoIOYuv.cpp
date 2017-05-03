@@ -108,7 +108,7 @@ static Void scalePlane(Pel* img, const UInt stride, const UInt width, const UInt
  */
 Void TVideoIOYuv::open( Char* pchFile, Bool bWriteMode, const Int fileBitDepth[MAX_NUM_CHANNEL_TYPE], const Int MSBExtendedBitDepth[MAX_NUM_CHANNEL_TYPE], const Int internalBitDepth[MAX_NUM_CHANNEL_TYPE] )
 {
-  //NOTE: RExt - files cannot have bit depth greater than 16
+  //NOTE: files cannot have bit depth greater than 16
   for(UInt ch=0; ch<MAX_NUM_CHANNEL_TYPE; ch++)
   {
     m_fileBitdepth       [ch] = std::min<UInt>(fileBitDepth[ch], 16);
@@ -877,7 +877,7 @@ Bool TVideoIOYuv::write( TComPicYuv* pPicYuvUserTop, TComPicYuv* pPicYuvUserBott
     assert(dstPicYuvTop->getStride         (compID) == dstPicYuvBottom->getStride         (compID));
 
     const UInt width444   = dstPicYuvTop->getWidth(COMPONENT_Y)  - (confLeft + confRight);
-    const UInt height444  = dstPicYuvTop->getHeight(COMPONENT_Y) - ((confTop + confBottom + 1) >> 1); //height of one field
+    const UInt height444  = dstPicYuvTop->getHeight(COMPONENT_Y) - (confTop + confBottom);
 
     if ((width444 == 0) || (height444 == 0))
     {
@@ -886,12 +886,11 @@ Bool TVideoIOYuv::write( TComPicYuv* pPicYuvUserTop, TComPicYuv* pPicYuvUserBott
 
     const UInt csx = dstPicYuvTop->getComponentScaleX(compID);
     const UInt csy = dstPicYuvTop->getComponentScaleY(compID);
-    const Int planeOffsetTop    = (confLeft>>csx) + ( (confTop>>csy)      >> 1) * dstPicYuvTop->getStride(compID); //offset is for entire frame - round up for top field and down for bottom field
-    const Int planeOffsetBottom = (confLeft>>csx) + (((confTop>>csy) + 1) >> 1) * dstPicYuvTop->getStride(compID); //offset is for entire frame - round up for top field and down for bottom field
+    const Int planeOffset  = (confLeft>>csx) + ( confTop>>csy) * dstPicYuvTop->getStride(compID); //offset is for entire frame - round up for top field and down for bottom field
 
     if (! writeField(m_cHandle,
-                     (dstPicYuvTop   ->getAddr(compID) + planeOffsetTop),
-                     (dstPicYuvBottom->getAddr(compID) + planeOffsetBottom),
+                     (dstPicYuvTop   ->getAddr(compID) + planeOffset),
+                     (dstPicYuvBottom->getAddr(compID) + planeOffset),
                      is16bit,
                      dstPicYuvTop->getStride(COMPONENT_Y),
                      width444, height444, compID, dstPicYuvTop->getChromaFormat(), format, m_fileBitdepth[ch], isTff))

@@ -181,40 +181,24 @@ Void TAppDecTop::decode()
       }
     }
 
-#if FIX_OUTPUT_ORDER_BEHAVIOR
     if ( (bNewPicture || !bitstreamFile || nalu.m_nalUnitType == NAL_UNIT_EOS) &&
         !m_cTDecTop.getFirstSliceInSequence () )
-#else
-    if (bNewPicture || !bitstreamFile || nalu.m_nalUnitType == NAL_UNIT_EOS)
-#endif
     {
       if (!loopFiltered || bitstreamFile)
       {
         m_cTDecTop.executeLoopFilters(poc, pcListPic);
       }
       loopFiltered = (nalu.m_nalUnitType == NAL_UNIT_EOS);
-#if FIX_OUTPUT_ORDER_BEHAVIOR
       if (nalu.m_nalUnitType == NAL_UNIT_EOS)
       {
         m_cTDecTop.setFirstSliceInSequence(true);
       }
-#endif
     }
-#if FIX_OUTPUT_ORDER_BEHAVIOR
     else if ( (bNewPicture || !bitstreamFile || nalu.m_nalUnitType == NAL_UNIT_EOS ) &&
               m_cTDecTop.getFirstSliceInSequence () ) 
     {
       m_cTDecTop.setFirstSliceInPicture (true);
     }
-#endif
-#if !FIX_WRITING_OUTPUT
-#if SETTING_NO_OUT_PIC_PRIOR
-    if (bNewPicture && m_cTDecTop.getIsNoOutputPriorPics())
-    {
-      m_cTDecTop.checkNoOutputPriorPics( pcListPic );
-    }
-#endif
-#endif
 
     if( pcListPic )
     {
@@ -228,20 +212,16 @@ Void TAppDecTop::decode()
         m_cTVideoIOYuvReconFile.open( m_pchReconFile, true, m_outputBitDepth, m_outputBitDepth, g_bitDepth ); // write mode
         openedReconFile = true;
       }
-#if FIX_WRITING_OUTPUT
       // write reconstruction to file
       if( bNewPicture )
       {
         xWriteOutput( pcListPic, nalu.m_temporalId );
       }
-#if SETTING_NO_OUT_PIC_PRIOR
       if ( (bNewPicture || nalu.m_nalUnitType == NAL_UNIT_CODED_SLICE_CRA) && m_cTDecTop.getNoOutputPriorPicsFlag() )
       {
         m_cTDecTop.checkNoOutputPriorPics( pcListPic );
         m_cTDecTop.setNoOutputPriorPicsFlag (false);
       }
-#endif
-#endif
       if ( bNewPicture &&
            (   nalu.m_nalUnitType == NAL_UNIT_CODED_SLICE_IDR_W_RADL
             || nalu.m_nalUnitType == NAL_UNIT_CODED_SLICE_IDR_N_LP
@@ -253,21 +233,11 @@ Void TAppDecTop::decode()
       }
       if (nalu.m_nalUnitType == NAL_UNIT_EOS)
       {
-#if FIX_OUTPUT_EOS
         xWriteOutput( pcListPic, nalu.m_temporalId );
-#if FIX_OUTPUT_ORDER_BEHAVIOR
         m_cTDecTop.setFirstSliceInPicture (false);
-#endif
-#else
-        xFlushOutput( pcListPic );
-#endif
       }
       // write reconstruction to file -- for additional bumping as defined in C.5.2.3
-#if FIX_WRITING_OUTPUT
       if(!bNewPicture && nalu.m_nalUnitType >= NAL_UNIT_CODED_SLICE_TRAIL_N && nalu.m_nalUnitType <= NAL_UNIT_RESERVED_VCL31)
-#else
-      if(bNewPicture)
-#endif
       {
         xWriteOutput( pcListPic, nalu.m_temporalId );
       }
@@ -308,7 +278,7 @@ Void TAppDecTop::xInitDecLib()
   // initialize decoder class
   m_cTDecTop.init();
   m_cTDecTop.setDecodedPictureHashSEIEnabled(m_decodedPictureHashSEIEnabled);
-#if RExt__O0043_BEST_EFFORT_DECODING
+#if O0043_BEST_EFFORT_DECODING
   m_cTDecTop.setForceDecodeBitDepth(m_forceDecodeBitDepth);
 #endif
   if (!m_outputDecodedSEIMessagesFilename.empty())
