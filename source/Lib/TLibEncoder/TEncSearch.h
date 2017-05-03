@@ -122,11 +122,12 @@ protected:
 
   TComMv          m_integerMv2Nx2N[NUM_REF_PIC_LIST_01][MAX_NUM_REF];
 
+  Bool            m_isInitialized;
 public:
   TEncSearch();
   virtual ~TEncSearch();
 
-  Void init(  TEncCfg*      pcEncCfg,
+  Void init(TEncCfg*      pcEncCfg,
             TComTrQuant*  pcTrQuant,
             Int           iSearchRange,
             Int           bipredSearchRange,
@@ -138,6 +139,8 @@ public:
             TComRdCost*   pcRdCost,
             TEncSbac***   pppcRDSbacCoder,
             TEncSbac*     pcRDGoOnSbacCoder );
+
+  Void destroy();
 
 protected:
 
