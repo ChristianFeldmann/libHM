@@ -1,9 +1,9 @@
 # For testing, we just create a test text file
 script:
-	- echo "Test text" > test.txt
+  - echo "Test text" > test.txt
 
 after_success:
-	- travis/push.sh
+  - travis/push.sh
 	
 env:
   global:
