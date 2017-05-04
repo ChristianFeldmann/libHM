@@ -12,8 +12,8 @@ commit_website_files() {
 }
 
 upload_files() {
-  git remote add compiledLibraries https://${GH_TOKEN}@github.com/ChristianFeldmann/libHM.git > /dev/null 2>&1
-  git push --quiet --set-upstream compiledLibraries upstreamFiles 
+  git remote add compiledLibraries https://${GH_TOKEN}@github.com/ChristianFeldmann/libHM.git
+  git push --set-upstream compiledLibraries upstreamFiles 
 }
 
 setup_git
