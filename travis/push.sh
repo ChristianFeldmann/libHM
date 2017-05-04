@@ -6,14 +6,14 @@ setup_git() {
 }
 
 commit_website_files() {
-  git checkout -b upstreamFiles
+  git checkout -b compiledLibraries
   git add test.txt
   git commit --message "Travis build: $TRAVIS_BUILD_NUMBER"
 }
 
 upload_files() {
-  git remote add compiledLibraries https://${GH_TOKEN}@github.com/ChristianFeldmann/libHM.git
-  git push --set-upstream compiledLibraries upstreamFiles 
+  git remote add origin-compiledLibraries https://${GH_TOKEN}@github.com/ChristianFeldmann/libHM.git
+  git push --set-upstream origin-compiledLibraries compiledLibraries 
 }
 
 setup_git
