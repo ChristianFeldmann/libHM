@@ -129,20 +129,21 @@ extern "C" {
       copyStart = 3;
     else if (data[0] == 0 && data[1] == 0 && data[2] == 0 && data[3] == 1)
       copyStart = 4;
-
-    // Recieve the NAL units data and put it into a vector so that we can parse it using the InputNALUnit.
-    vector<uint8_t> nalUnit;
-    for (int i = 0; i < copyStart; i++)
-      data++;
-    for (int i = 0; i < length-copyStart; i++)
-    {
-      nalUnit.push_back(*data);
-      data++;
-    }
+	
+	// Create a new NAL unit and put the payload into the nal units buffer
+	InputNALUnit nalu;
+	TComInputBitstream &bitstream = nalu.getBitstream();
+	vector<uint8_t>& nalUnitBuf = bitstream.getFifo();
+	for (int i = 0; i < copyStart; i++)
+		data++;
+	for (int i = 0; i < length - copyStart; i++)
+	{
+		nalUnitBuf.push_back(*data);
+		data++;
+	}
 
     // Read the NAL unit
-    InputNALUnit nalu;
-    read(nalu, nalUnit);
+    read(nalu);
 
     if( (d->maxTemporalLayer >= 0 && nalu.m_temporalId > d->maxTemporalLayer) || !isNaluWithinTargetDecLayerIdSet(&nalu)  )
     {
@@ -203,9 +204,9 @@ extern "C" {
       checkOutputPictures = true;
 
       d->lastNALTemporalID = nalu.m_temporalId;
-
+	  
       // This is what xWriteOutput does before iterating over the pictures
-      TComSPS* activeSPS = d->decTop.getActiveSPS();
+      const TComSPS* activeSPS = &(d->pcListPic->front()->getPicSym()->getSPS());
       unsigned int maxNrSublayers = activeSPS->getMaxTLayers();
       d->numPicsNotYetDisplayed = 0;
       d->dpbFullness = 0;
@@ -437,12 +438,17 @@ extern "C" {
   }
 
 
-  HM_DEC_API int libHMDEC_get_internal_bit_depth(libHMDec_ColorComponent c)
+  HM_DEC_API int libHMDEC_get_internal_bit_depth(libHMDec_picture *pic, libHMDec_ColorComponent c)
   {
+    TComPic* pcPic = (TComPic*)pic;
+    if (pcPic == NULL)
+      return -1;
+
+    const BitDepths &bitDepths = pcPic->getPicSym()->getSPS().getBitDepths();
     if (c == LIBHMDEC_LUMA)
-      return g_bitDepth[COMPONENT_Y];
+      return bitDepths.recon[CHANNEL_TYPE_LUMA];
     if (c == LIBHMDEC_CHROMA_U || c == LIBHMDEC_CHROMA_V)
-      return g_bitDepth[COMPONENT_Cb];
+      return bitDepths.recon[CHANNEL_TYPE_CHROMA];
     return -1;
   }
 
@@ -452,10 +458,10 @@ extern "C" {
   {
     PartSize ePartSize = pcCU->getPartitionSize( uiAbsPartIdx );
     UInt uiNumPU = ( ePartSize == SIZE_2Nx2N ? 1 : ( ePartSize == SIZE_NxN ? 4 : 2 ) );
-    UInt uiPUOffset = ( g_auiPUOffset[UInt( ePartSize )] << ( ( pcCU->getSlice()->getSPS()->getMaxCUDepth() - uiDepth ) << 1 ) ) >> 4;
+    UInt uiPUOffset = ( g_auiPUOffset[UInt( ePartSize )] << ( ( pcCU->getSlice()->getSPS()->getMaxTotalCUDepth() - uiDepth ) << 1 ) ) >> 4;
 
-    const int cuWidth = g_uiMaxCUWidth >> uiDepth;
-    const int cuHeight = g_uiMaxCUHeight >> uiDepth;
+    const int cuWidth = pcCU->getSlice()->getSPS()->getMaxCUWidth() >> uiDepth;
+    const int cuHeight = pcCU->getSlice()->getSPS()->getMaxCUHeight() >> uiDepth;
     const int cuX = pcCU->getCUPelX() + g_auiRasterToPelX[ g_auiZscanToRaster[uiAbsPartIdx] ];
     const int cuY = pcCU->getCUPelY() + g_auiRasterToPelY[ g_auiZscanToRaster[uiAbsPartIdx] ];
 
@@ -564,8 +570,8 @@ extern "C" {
     libHMDec_BlockValue b;
     b.x = uiLPelX;
     b.y = uiTPelY;
-    b.w = (g_uiMaxCUWidth >> (uiDepth + trDepth));
-    b.h = (g_uiMaxCUHeight >> (uiDepth + trDepth));
+    b.w = (pcCU->getSlice()->getSPS()->getMaxCUWidth() >> (uiDepth + trDepth));
+    b.h = (pcCU->getSlice()->getSPS()->getMaxCUHeight() >> (uiDepth + trDepth));
     if (type == LIBHMDEC_TU_CBF_Y)
       b.value = (pcCU->getCbf(uiAbsPartIdx, COMPONENT_Y, trDepth) != 0) ? 1 : 0;
     else if (type == LIBHMDEC_TU_CBF_CB)
@@ -602,20 +608,21 @@ extern "C" {
   void addValuesForCURecursively(hmDecoderWrapper *d, TComDataCU* pcLCU, UInt uiAbsPartIdx, UInt uiDepth, libHMDec_info_type type)
   {
     TComPic* pcPic = pcLCU->getPic();
+    TComSlice * pcSlice = pcLCU->getSlice();
+    const TComSPS &sps = *(pcSlice->getSPS());
 
     Bool bBoundary = false;
-    UInt uiLPelX   = pcLCU->getCUPelX() + g_auiRasterToPelX[ g_auiZscanToRaster[uiAbsPartIdx] ];
-    UInt uiRPelX   = uiLPelX + (g_uiMaxCUWidth >> uiDepth)  - 1;
-    UInt uiTPelY   = pcLCU->getCUPelY() + g_auiRasterToPelY[ g_auiZscanToRaster[uiAbsPartIdx] ];
-    UInt uiBPelY   = uiTPelY + (g_uiMaxCUHeight >> uiDepth) - 1;
+    UInt uiLPelX = pcLCU->getCUPelX() + g_auiRasterToPelX[g_auiZscanToRaster[uiAbsPartIdx]];
+    UInt uiRPelX = uiLPelX + (sps.getMaxCUWidth() >> uiDepth) - 1;
+    UInt uiTPelY = pcLCU->getCUPelY() + g_auiRasterToPelY[g_auiZscanToRaster[uiAbsPartIdx]];
+    UInt uiBPelY = uiTPelY + (sps.getMaxCUHeight() >> uiDepth) - 1;
 
-    UInt uiCurNumParts = pcPic->getNumPartInCU() >> (uiDepth<<1);
-    TComSlice *pcSlice = pcLCU->getPic()->getSlice(pcLCU->getPic()->getCurrSliceIdx());
-    Bool bStartInCU = (pcLCU->getSCUAddr() + uiAbsPartIdx + uiCurNumParts > pcSlice->getSliceSegmentCurStartCUAddr()) && (pcLCU->getSCUAddr() + uiAbsPartIdx < pcSlice->getSliceSegmentCurStartCUAddr());
-    if (bStartInCU || (uiRPelX >= pcSlice->getSPS()->getPicWidthInLumaSamples()) || (uiBPelY >= pcSlice->getSPS()->getPicHeightInLumaSamples()))
+    if ((uiRPelX >= sps.getPicWidthInLumaSamples()) || (uiBPelY >= sps.getPicHeightInLumaSamples()))
+    {
       bBoundary = true;
+    }
 
-    if(((uiDepth < pcLCU->getDepth(uiAbsPartIdx)) && (uiDepth < g_uiMaxCUDepth - g_uiAddCUDepth)) || bBoundary)
+    if (((uiDepth < pcLCU->getDepth(uiAbsPartIdx)) && (uiDepth < sps.getLog2DiffMaxMinCodingBlockSize())) || bBoundary)
     {
       UInt uiNextDepth = uiDepth + 1;
       UInt uiQNumParts = pcLCU->getTotalNumPart() >> (uiNextDepth<<1);
@@ -625,8 +632,10 @@ extern "C" {
         uiLPelX = pcLCU->getCUPelX() + g_auiRasterToPelX[g_auiZscanToRaster[uiIdx]];
         uiTPelY = pcLCU->getCUPelY() + g_auiRasterToPelY[g_auiZscanToRaster[uiIdx]];
 
-        if ((uiLPelX < pcSlice->getSPS()->getPicWidthInLumaSamples()) && (uiTPelY < pcSlice->getSPS()->getPicHeightInLumaSamples()))
+        if ((uiLPelX < sps.getPicWidthInLumaSamples()) && (uiTPelY < sps.getPicHeightInLumaSamples()))
+        {
           addValuesForCURecursively(d, pcLCU, uiIdx, uiNextDepth, type);
+        }
 
         uiIdx += uiQNumParts;
       }
@@ -636,7 +645,7 @@ extern "C" {
     // We reached the CU
     if (type == LIBHMDEC_CU_PREDICTION_MODE || type == LIBHMDEC_CU_TRQ_BYPASS || type == LIBHMDEC_CU_SKIP_FLAG || type == LIBHMDEC_CU_PART_MODE || type == LIBHMDEC_CU_INTRA_MODE_LUMA || type == LIBHMDEC_CU_INTRA_MODE_CHROMA || type == LIBHMDEC_CU_ROOT_CBF)
     {
-      if ((type == LIBHMDEC_CU_TRQ_BYPASS && !pcLCU->getSlice()->getPPS()->getTransquantBypassEnableFlag()) ||
+      if ((type == LIBHMDEC_CU_TRQ_BYPASS && !pcLCU->getSlice()->getPPS()->getTransquantBypassEnabledFlag()) ||
           (type == LIBHMDEC_CU_INTRA_MODE_LUMA && !pcLCU->isIntra(uiAbsPartIdx)) ||
           (type == LIBHMDEC_CU_INTRA_MODE_CHROMA && !pcLCU->isIntra(uiAbsPartIdx)) ||
           (type == LIBHMDEC_CU_ROOT_CBF && pcLCU->isInter(uiAbsPartIdx)))
@@ -645,8 +654,8 @@ extern "C" {
       libHMDec_BlockValue b;
       b.x = uiLPelX;
       b.y = uiTPelY;
-      b.w = (g_uiMaxCUWidth>>uiDepth);
-      b.h = (g_uiMaxCUHeight>>uiDepth);
+      b.w = (pcLCU->getSlice()->getSPS()->getMaxCUWidth() >>uiDepth);
+      b.h = (pcLCU->getSlice()->getSPS()->getMaxCUHeight() >>uiDepth);
       if (type == LIBHMDEC_CU_PREDICTION_MODE)
         b.value = int(pcLCU->getPredictionMode(uiAbsPartIdx));
       else if (type == LIBHMDEC_CU_TRQ_BYPASS)
@@ -687,11 +696,11 @@ extern "C" {
     TComPicSym *s = pcPic->getPicSym();
     if (s == NULL)
       return NULL;
-
-    int nrCU = s->getNumberOfCUsInFrame();
+    
+    int nrCU = s->getNumberOfCtusInFrame();
     for (int i = 0; i < nrCU; i++)
     {
-      TComDataCU *pcLCU = s->getCU(i);
+      TComDataCU *pcLCU = s->getCtu(i);
 
       if ((type == LIBHMDEC_TU_COEFF_TR_SKIP_Y || type == LIBHMDEC_TU_COEFF_TR_SKIP_Cb || type == LIBHMDEC_TU_COEFF_TR_SKIP_Cr) && pcLCU->getSlice()->getPPS()->getUseTransformSkip())
         // Transform skip not enabled for this slice
@@ -702,8 +711,8 @@ extern "C" {
         libHMDec_BlockValue b;
         b.x = pcLCU->getCUPelX();
         b.y = pcLCU->getCUPelY();
-        b.w = g_uiMaxCUWidth;
-        b.h = g_uiMaxCUHeight;
+        b.w = pcLCU->getSlice()->getSPS()->getMaxCUWidth();
+        b.h = pcLCU->getSlice()->getSPS()->getMaxCUHeight();
         b.value = (int)pcLCU->getPic()->getCurrSliceIdx();
         d->internalsBlockData.push_back(b);
       }

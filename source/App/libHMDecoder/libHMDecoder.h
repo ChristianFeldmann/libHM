@@ -231,11 +231,12 @@ typedef enum
  */
 HM_DEC_API libHMDec_ChromaFormat libHMDEC_get_chroma_format(libHMDec_picture *pic);
 
-/** Get the bit depth which is used internally for the given color component.
+/** Get the bit depth which is used internally for the given color component and the given picture.
+ * \param pic The picture to get the internal bit depth from
  * \param c The color component
  * \return The internal bit depth
  */
-HM_DEC_API int libHMDEC_get_internal_bit_depth(libHMDec_ColorComponent c);
+HM_DEC_API int libHMDEC_get_internal_bit_depth(libHMDec_picture *pic, libHMDec_ColorComponent c);
 
 /** This struct is used to retrive internal coding data for a picture.
  * A block is defined by its position within an image (x,y) and its size (w,h).
