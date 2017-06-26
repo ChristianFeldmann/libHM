@@ -470,44 +470,92 @@ extern "C" {
   } libHMDec_info_types_idx;
 
   // These types are supported here
-  HM_DEC_API unsigned int libHMDEC_get_internal_type_number(libHMDec_context *decCtx)
+  HM_DEC_API unsigned int libHMDEC_get_internal_type_number()
   {
     return LIBHMDEC_NUM_TYPES;
   }
   
-  HM_DEC_API char *libHMDEC_get_internal_type_name(libHMDec_context *decCtx, unsigned int idx)
+  HM_DEC_API char *libHMDEC_get_internal_type_name(unsigned int idx)
   {
     switch (idx)
     {
-    case LIBHMDEC_CTU_SLICE_INDEX:      return "CTU Slice Index"; break;
-    case LIBHMDEC_CU_PREDICTION_MODE:   return "CU Pred Mode"; break;
-    case LIBHMDEC_CU_TRQ_BYPASS:        return "CU TrQuant Bypass"; break;
-    case LIBHMDEC_CU_SKIP_FLAG:         return "CU Skip"; break;
-    case LIBHMDEC_CU_PART_MODE:         return "CU Part Mode"; break;
-    case LIBHMDEC_CU_INTRA_MODE_LUMA:   return "CU Intra Mode Y"; break;
-    case LIBHMDEC_CU_INTRA_MODE_CHROMA: return "CU Intra Mode C"; break;
-    case LIBHMDEC_CU_ROOT_CBF:          return "CU Root CBF"; break;
-    case LIBHMDEC_PU_MERGE_FLAG:        return "PU Merge"; break;
-    case LIBHMDEC_PU_MERGE_INDEX:       return "PU Merge Idx"; break;
-    case LIBHMDEC_PU_UNI_BI_PREDICTION: return "PU Uni/Bi Pred"; break;
-    case LIBHMDEC_PU_REFERENCE_POC_0:   return "PU Ref POC 0"; break;
-    case LIBHMDEC_PU_MV_0:              return "PU MV 0"; break;
-    case LIBHMDEC_PU_REFERENCE_POC_1:   return "PU Ref POC 1"; break;
-    case LIBHMDEC_PU_MV_1:              return "PU MV 1"; break;
-    case LIBHMDEC_TU_CBF_Y:             return "TU CBF Y"; break;
-    case LIBHMDEC_TU_CBF_CB:            return "TU CBF Cb"; break;
-    case LIBHMDEC_TU_CBF_CR:            return "TU CBF Cr"; break;
-    case LIBHMDEC_TU_COEFF_TR_SKIP_Y:   return "TU TrSkip Y"; break;
-    case LIBHMDEC_TU_COEFF_TR_SKIP_Cb:  return "TU TrSkip Cb"; break;
-    case LIBHMDEC_TU_COEFF_TR_SKIP_Cr:  return "TU TrSkip Cr"; break;
-    case LIBHMDEC_TU_COEFF_ENERGY_Y:    return "TU Coeff Energy Y"; break;
-    case LIBHMDEC_TU_COEFF_ENERGY_CB:   return "TU Coeff Energy Cb"; break;
-    case LIBHMDEC_TU_COEFF_ENERGY_CR:   return "TU Coeff Energy Cr"; break;
-    default: return ""; break;
+    case LIBHMDEC_CTU_SLICE_INDEX:      return "CTU Slice Index";
+    case LIBHMDEC_CU_PREDICTION_MODE:   return "CU Pred Mode";
+    case LIBHMDEC_CU_TRQ_BYPASS:        return "CU TrQuant Bypass";
+    case LIBHMDEC_CU_SKIP_FLAG:         return "CU Skip";
+    case LIBHMDEC_CU_PART_MODE:         return "CU Part Mode";
+    case LIBHMDEC_CU_INTRA_MODE_LUMA:   return "CU Intra Mode Y";
+    case LIBHMDEC_CU_INTRA_MODE_CHROMA: return "CU Intra Mode C";
+    case LIBHMDEC_CU_ROOT_CBF:          return "CU Root CBF";
+    case LIBHMDEC_PU_MERGE_FLAG:        return "PU Merge";
+    case LIBHMDEC_PU_MERGE_INDEX:       return "PU Merge Idx";
+    case LIBHMDEC_PU_UNI_BI_PREDICTION: return "PU Uni/Bi Pred";
+    case LIBHMDEC_PU_REFERENCE_POC_0:   return "PU Ref POC 0";
+    case LIBHMDEC_PU_MV_0:              return "PU MV 0"; 
+    case LIBHMDEC_PU_REFERENCE_POC_1:   return "PU Ref POC 1";
+    case LIBHMDEC_PU_MV_1:              return "PU MV 1";
+    case LIBHMDEC_TU_CBF_Y:             return "TU CBF Y";
+    case LIBHMDEC_TU_CBF_CB:            return "TU CBF Cb";
+    case LIBHMDEC_TU_CBF_CR:            return "TU CBF Cr";
+    case LIBHMDEC_TU_COEFF_TR_SKIP_Y:   return "TU TrSkip Y";
+    case LIBHMDEC_TU_COEFF_TR_SKIP_Cb:  return "TU TrSkip Cb";
+    case LIBHMDEC_TU_COEFF_TR_SKIP_Cr:  return "TU TrSkip Cr";
+    case LIBHMDEC_TU_COEFF_ENERGY_Y:    return "TU Coeff Energy Y";
+    case LIBHMDEC_TU_COEFF_ENERGY_CB:   return "TU Coeff Energy Cb";
+    case LIBHMDEC_TU_COEFF_ENERGY_CR:   return "TU Coeff Energy Cr";
+    default: return "";
+    }
+  }
+
+  HM_DEC_API libHMDec_InternalsType libHMDEC_get_internal_type(unsigned int idx)
+  {
+    switch (idx)
+    {
+    case LIBHMDEC_CTU_SLICE_INDEX:      return LIBHMDEC_TYPE_RANGE;
+    case LIBHMDEC_CU_PREDICTION_MODE:   return LIBHMDEC_TYPE_FLAG;
+    case LIBHMDEC_CU_TRQ_BYPASS:        return LIBHMDEC_TYPE_FLAG;
+    case LIBHMDEC_CU_SKIP_FLAG:         return LIBHMDEC_TYPE_FLAG;
+    case LIBHMDEC_CU_PART_MODE:         return LIBHMDEC_TYPE_RANGE;
+    case LIBHMDEC_CU_INTRA_MODE_LUMA:   return LIBHMDEC_TYPE_INTRA_DIR;
+    case LIBHMDEC_CU_INTRA_MODE_CHROMA: return LIBHMDEC_TYPE_INTRA_DIR;
+    case LIBHMDEC_CU_ROOT_CBF:          return LIBHMDEC_TYPE_FLAG;
+    case LIBHMDEC_PU_MERGE_FLAG:        return LIBHMDEC_TYPE_FLAG;
+    case LIBHMDEC_PU_MERGE_INDEX:       return LIBHMDEC_TYPE_RANGE;
+    case LIBHMDEC_PU_UNI_BI_PREDICTION: return LIBHMDEC_TYPE_FLAG;
+    case LIBHMDEC_PU_REFERENCE_POC_0:   return LIBHMDEC_TYPE_RANGE_ZEROCENTER;
+    case LIBHMDEC_PU_MV_0:              return LIBHMDEC_TYPE_VECTOR;
+    case LIBHMDEC_PU_REFERENCE_POC_1:   return LIBHMDEC_TYPE_RANGE_ZEROCENTER;
+    case LIBHMDEC_PU_MV_1:              return LIBHMDEC_TYPE_VECTOR;
+    case LIBHMDEC_TU_CBF_Y:             return LIBHMDEC_TYPE_FLAG;
+    case LIBHMDEC_TU_CBF_CB:            return LIBHMDEC_TYPE_FLAG;
+    case LIBHMDEC_TU_CBF_CR:            return LIBHMDEC_TYPE_FLAG;
+    case LIBHMDEC_TU_COEFF_TR_SKIP_Y:   return LIBHMDEC_TYPE_FLAG;
+    case LIBHMDEC_TU_COEFF_TR_SKIP_Cb:  return LIBHMDEC_TYPE_FLAG;
+    case LIBHMDEC_TU_COEFF_TR_SKIP_Cr:  return LIBHMDEC_TYPE_FLAG;
+    case LIBHMDEC_TU_COEFF_ENERGY_Y:    return LIBHMDEC_TYPE_RANGE;
+    case LIBHMDEC_TU_COEFF_ENERGY_CB:   return LIBHMDEC_TYPE_RANGE;
+    case LIBHMDEC_TU_COEFF_ENERGY_CR:   return LIBHMDEC_TYPE_RANGE;
+    default: return LIBHMDEC_TYPE_UNKNOWN;
+    }
+  }
+
+  HM_DEC_API unsigned int libHMDEC_get_internal_type_max(unsigned int idx)
+  {
+    switch (idx)
+    {
+    case LIBHMDEC_CTU_SLICE_INDEX:      return 10;
+    case LIBHMDEC_CU_PART_MODE:         return 7;
+    case LIBHMDEC_PU_MERGE_INDEX:       return 6;
+    case LIBHMDEC_PU_REFERENCE_POC_0:   return 16;
+    case LIBHMDEC_PU_REFERENCE_POC_1:   return 16;
+    case LIBHMDEC_TU_COEFF_ENERGY_Y:    return 1000;
+    case LIBHMDEC_TU_COEFF_ENERGY_CB:   return 1000;
+    case LIBHMDEC_TU_COEFF_ENERGY_CR:   return 1000;
+    default: return LIBHMDEC_TYPE_UNKNOWN;
     }
   }
   
-  HM_DEC_API char *libHMDEC_get_internal_type_description(libHMDec_context *decCtx, unsigned int idx)
+  HM_DEC_API char *libHMDEC_get_internal_type_description(unsigned int idx)
   {
     switch (idx)
     {

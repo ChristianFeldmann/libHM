@@ -257,21 +257,47 @@ typedef struct
   * \param decCtx The decoder context that was created with libHMDec_new_decoder
   * \return The number of supported internal types. Can be 0.
   */
-HM_DEC_API unsigned int libHMDEC_get_internal_type_number(libHMDec_context *decCtx);
+HM_DEC_API unsigned int libHMDEC_get_internal_type_number();
 
 /** Get the name of ther internals type with the given index.
   * \param decCtx The decoder context that was created with libHMDec_new_decoder
   * \param idx The index of the internals type (can range from 0 to the value provided by libHMDEC_get_internal_type_number)
   * \return The name of the type
   */
-HM_DEC_API char *libHMDEC_get_internal_type_name(libHMDec_context *decCtx, unsigned int idx);
+HM_DEC_API char *libHMDEC_get_internal_type_name(unsigned int idx);
+
+/** Each type can provide different types of data. These are the supported types.
+*/
+typedef enum
+{
+  LIBHMDEC_TYPE_FLAG = 0,         ///< A flag that is either 0 or 1
+  LIBHMDEC_TYPE_RANGE,            ///< A range from 0 to some maximum value (max)
+  LIBHMDEC_TYPE_RANGE_ZEROCENTER, ///< A range from -max to +max
+  LIBHMDEC_TYPE_VECTOR,           ///< A vector
+  LIBHMDEC_TYPE_INTRA_DIR,        ///< A HEVC intra direction (0 to 35)
+  LIBHMDEC_TYPE_UNKNOWN
+} libHMDec_InternalsType;
+
+/** Get the type of the internals type (does it represent a flag, a range, a vector ...)
+  * \param decCtx The decoder context that was created with libHMDec_new_decoder
+  * \param idx The index of the internals type (can range from 0 to the value provided by libHMDEC_get_internal_type_number)
+  * \return The type of the internals type
+  */
+HM_DEC_API libHMDec_InternalsType libHMDEC_get_internal_type(unsigned int idx);
+
+/** If the type is LIBHMDEC_TYPE_RANGE or LIBHMDEC_TYPE_RANGE_ZEROCENTER, this function will provide the max value.
+* \param decCtx The decoder context that was created with libHMDec_new_decoder
+* \param idx The index of the internals type (can range from 0 to the value provided by libHMDEC_get_internal_type_number)
+* \return The maximum value of this range or zero centered range
+*/
+HM_DEC_API unsigned int libHMDEC_get_internal_type_max(unsigned int idx);
 
 /** Get a description of ther internals type with the given index.
 * \param decCtx The decoder context that was created with libHMDec_new_decoder
 * \param idx The index of the internals type (can range from 0 to the value provided by libHMDEC_get_internal_type_number)
 * \return A desctiption of the interlas type
 */
-HM_DEC_API char *libHMDEC_get_internal_type_description(libHMDec_context *decCtx, unsigned int idx);
+HM_DEC_API char *libHMDEC_get_internal_type_description(unsigned int idx);
 
 /** Get the internal coding information from the picture.
  * The pointer to the returned vector is always valid. However, the vector is changed if libHMDEC_get_internal_info
