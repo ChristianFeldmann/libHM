@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -104,12 +104,12 @@ Int main(Int argc, const char** argv)
   input.skipFrames(num_frames_skip, width, height, chromaFormatIDC);
 
   TComPicYuv frame;
-  frame.create( width, height, chromaFormatIDC, 1, 1, 0 );
+  frame.createWithoutCUInfo( width, height, chromaFormatIDC);
 
   Int pad[2] = {0, 0};
 
   TComPicYuv cPicYuvTrueOrg;
-  cPicYuvTrueOrg.create( width, height, chromaFormatIDC, 1, 1, 0 );
+  cPicYuvTrueOrg.createWithoutCUInfo( width, height, chromaFormatIDC );
 
   UInt num_frames_processed = 0;
   while (!input.isEof())
@@ -123,7 +123,9 @@ Int main(Int argc, const char** argv)
     for (Int y = 0; y < height; y++)
     {
       for (Int x = 0; x < height; x++)
+      {
         img[x] = 0;
+      }
       img += frame.getStride();
     }
     img = frame.getAddr(COMPONENT_Y);
@@ -133,7 +135,9 @@ Int main(Int argc, const char** argv)
     output.write(&frame, IPCOLOURSPACE_UNCHANGED);
     num_frames_processed++;
     if (num_frames_processed == num_frames)
+    {
       break;
+    }
   }
 
   input.close();

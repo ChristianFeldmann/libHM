@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -105,6 +105,7 @@ public:
   Void init                 ( UInt  uiMaxTrSize,
                               Bool useRDOQ                = false,
                               Bool useRDOQTS              = false,
+                              Bool useSelectiveRDOQ       = false,
                               Bool bEnc                   = false,
                               Bool useTransformSkipFast   = false
 #if ADAPTIVE_QP_SELECTION
@@ -119,7 +120,7 @@ public:
                      const UInt             uiStride,
                            TCoeff        *  rpcCoeff,
 #if ADAPTIVE_QP_SELECTION
-                           TCoeff        *& rpcArlCoeff,
+                           TCoeff        * rpcArlCoeff,
 #endif
                            TCoeff         & uiAbsSum,
                      const QpParam        & cQP
@@ -128,7 +129,7 @@ public:
 
   Void invTransformNxN(      TComTU       & rTu,
                        const ComponentID    compID,
-                             Pel         *& rpcResidual,
+                             Pel         *pcResidual,
                        const UInt           uiStride,
                              TCoeff      *  pcCoeff,
                        const QpParam      & cQP
@@ -171,21 +172,21 @@ public:
 
   Void initScalingList                      ();
   Void destroyScalingList                   ();
-  Void setErrScaleCoeff    ( UInt list, UInt size, Int qp );
+  Void setErrScaleCoeff    ( UInt list, UInt size, Int qp, const Int maxLog2TrDynamicRange[MAX_NUM_CHANNEL_TYPE], const BitDepths &bitDepths );
   Double* getErrScaleCoeff              ( UInt list, UInt size, Int qp ) { return m_errScale             [size][list][qp]; };  //!< get Error Scale Coefficent
   Double& getErrScaleCoeffNoScalingList ( UInt list, UInt size, Int qp ) { return m_errScaleNoScalingList[size][list][qp]; };  //!< get Error Scale Coefficent
   Int* getQuantCoeff                    ( UInt list, Int qp, UInt size ) { return m_quantCoef            [size][list][qp]; };  //!< get Quant Coefficent
   Int* getDequantCoeff                  ( UInt list, Int qp, UInt size ) { return m_dequantCoef          [size][list][qp]; };  //!< get DeQuant Coefficent
   Void setUseScalingList   ( Bool bUseScalingList){ m_scalingListEnabledFlag = bUseScalingList; };
   Bool getUseScalingList   (const UInt width, const UInt height, const Bool isTransformSkip){ return m_scalingListEnabledFlag && (!isTransformSkip || ((width == 4) && (height == 4))); };
-  Void setFlatScalingList  (const ChromaFormat format);
-  Void xsetFlatScalingList ( UInt list, UInt size, Int qp, const ChromaFormat format);
-  Void xSetScalingListEnc  ( TComScalingList *scalingList, UInt list, UInt size, Int qp, const ChromaFormat format);
-  Void xSetScalingListDec  ( TComScalingList *scalingList, UInt list, UInt size, Int qp, const ChromaFormat format);
-  Void setScalingList      ( TComScalingList *scalingList, const ChromaFormat format);
-  Void setScalingListDec   ( TComScalingList *scalingList, const ChromaFormat format);
+  Void setFlatScalingList  (const Int maxLog2TrDynamicRange[MAX_NUM_CHANNEL_TYPE], const BitDepths &bitDepths);
+  Void xsetFlatScalingList ( UInt list, UInt size, Int qp);
+  Void xSetScalingListEnc  ( TComScalingList *scalingList, UInt list, UInt size, Int qp);
+  Void xSetScalingListDec  ( const TComScalingList &scalingList, UInt list, UInt size, Int qp);
+  Void setScalingList      ( TComScalingList *scalingList, const Int maxLog2TrDynamicRange[MAX_NUM_CHANNEL_TYPE], const BitDepths &bitDepths);
+  Void setScalingListDec   ( const TComScalingList &scalingList);
   Void processScalingListEnc( Int *coeff, Int *quantcoeff, Int quantScales, UInt height, UInt width, UInt ratio, Int sizuNum, UInt dc);
-  Void processScalingListDec( Int *coeff, Int *dequantcoeff, Int invQuantScales, UInt height, UInt width, UInt ratio, Int sizuNum, UInt dc);
+  Void processScalingListDec( const Int *coeff, Int *dequantcoeff, Int invQuantScales, UInt height, UInt width, UInt ratio, Int sizuNum, UInt dc);
 #if ADAPTIVE_QP_SELECTION
   Void    initSliceQpDelta() ;
   Void    storeSliceQpNext(TComSlice* pcSlice);
@@ -194,7 +195,7 @@ public:
   Int*    getSliceNSamples(){ return m_sliceNsamples ;}
   Double* getSliceSumC()    { return m_sliceSumC; }
 #endif
-  Void transformSkipQuantOneSample(TComTU &rTu, const ComponentID compID, const Pel resiDiff, TCoeff* pcCoeff, const UInt uiPos, const QpParam &cQP, const Bool bUseHalfRoundingPoint);
+  Void transformSkipQuantOneSample(TComTU &rTu, const ComponentID compID, const TCoeff resiDiff, TCoeff* pcCoeff, const UInt uiPos, const QpParam &cQP, const Bool bUseHalfRoundingPoint);
   Void invTrSkipDeQuantOneSample(TComTU &rTu, ComponentID compID, TCoeff pcCoeff, Pel &reconSample, const QpParam &cQP, UInt uiPos );
 
 protected:
@@ -215,6 +216,7 @@ protected:
   Bool     m_bEnc;
   Bool     m_useRDOQ;
   Bool     m_useRDOQTS;
+  Bool     m_useSelectiveRDOQ;
 #if ADAPTIVE_QP_SELECTION
   Bool     m_bUseAdaptQpSelect;
 #endif
@@ -229,21 +231,26 @@ protected:
 
 private:
   // forward Transform
-  Void xT   ( const ComponentID compID, Bool useDST, Pel* piBlkResi, UInt uiStride, TCoeff* psCoeff, Int iWidth, Int iHeight );
+  Void xT   ( const Int channelBitDepth, Bool useDST, Pel* piBlkResi, UInt uiStride, TCoeff* psCoeff, Int iWidth, Int iHeight, const Int maxLog2TrDynamicRange );
 
   // skipping Transform
   Void xTransformSkip ( Pel* piBlkResi, UInt uiStride, TCoeff* psCoeff, TComTU &rTu, const ComponentID component );
 
-  Void signBitHidingHDQ( const ComponentID compID, TCoeff* pQCoef, TCoeff* pCoef, TCoeff* deltaU, const TUEntropyCodingParameters &codingParameters );
+  Void signBitHidingHDQ( TCoeff* pQCoef, TCoeff* pCoef, TCoeff* deltaU, const TUEntropyCodingParameters &codingParameters, const Int maxLog2TrDynamicRange );
 
   // quantization
   Void xQuant(       TComTU       &rTu,
                      TCoeff      * pSrc,
                      TCoeff      * pDes,
 #if ADAPTIVE_QP_SELECTION
-                     TCoeff      *&pArlDes,
+                     TCoeff      *pArlDes,
 #endif
                      TCoeff       &uiAbsSum,
+               const ComponentID   compID,
+               const QpParam      &cQP );
+
+  Bool xNeedRDOQ(    TComTU       &rTu,
+                     TCoeff      * pSrc,
                const ComponentID   compID,
                const QpParam      &cQP );
 
@@ -253,7 +260,7 @@ private:
                                            TCoeff      * plSrcCoeff,
                                            TCoeff      * piDstCoeff,
 #if ADAPTIVE_QP_SELECTION
-                                           TCoeff      *&piArlDstCoeff,
+                                           TCoeff      *piArlDstCoeff,
 #endif
                                            TCoeff       &uiAbsSum,
                                      const ComponentID   compID,
@@ -274,18 +281,18 @@ __inline UInt              xGetCodedLevel  ( Double&          rd64CodedCost,
                                              Double           errorScale,
                                              Bool             bLast,
                                              Bool             useLimitedPrefixLength,
-                                             ChannelType      channelType
+                                             const Int        maxLog2TrDynamicRange
                                              ) const;
 
 
-  __inline Int xGetICRate  ( UInt   uiAbsLevel,
-                             UShort ui16CtxNumOne,
-                             UShort ui16CtxNumAbs,
-                             UShort ui16AbsGoRice,
-                             UInt   c1Idx,
-                             UInt   c2Idx,
-                             Bool   useLimitedPrefixLength,
-                             ChannelType channelType
+  __inline Int xGetICRate  ( const UInt   uiAbsLevel,
+                             const UShort ui16CtxNumOne,
+                             const UShort ui16CtxNumAbs,
+                             const UShort ui16AbsGoRice,
+                             const UInt   c1Idx,
+                             const UInt   c2Idx,
+                             const Bool   useLimitedPrefixLength,
+                             const Int maxLog2TrDynamicRange
                            ) const;
 
   __inline Double xGetRateLast         ( const UInt uiPosX, const UInt uiPosY, const ComponentID component ) const;
@@ -303,7 +310,7 @@ __inline UInt              xGetCodedLevel  ( Double&          rd64CodedCost,
                  const QpParam      &cQP );
 
   // inverse transform
-  Void xIT    ( const ComponentID compID, Bool useDST, TCoeff* plCoef, Pel* pResidual, UInt uiStride, Int iWidth, Int iHeight );
+  Void xIT    ( const Int channelBitDepth, Bool useDST, TCoeff* plCoef, Pel* pResidual, UInt uiStride, Int iWidth, Int iHeight, const Int maxLog2TrDynamicRange );
 
   // inverse skipping transform
   Void xITransformSkip ( TCoeff* plCoef, Pel* pResidual, UInt uiStride, TComTU &rTu, const ComponentID component );

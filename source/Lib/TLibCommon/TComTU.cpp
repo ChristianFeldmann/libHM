@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -53,12 +53,12 @@ TComTU::TComTU(TComDataCU *pcCU, const UInt absPartIdxCU, const UInt cuDepth, co
     mSplitMode(DONT_SPLIT),
     mAbsPartIdxCU(absPartIdxCU),
     mAbsPartIdxTURelCU(0),
-    mAbsPartIdxStep(pcCU->getPic()->getNumPartInCU() >> (pcCU->getDepth(absPartIdxCU)<<1)),
+    mAbsPartIdxStep(pcCU->getPic()->getNumPartitionsInCtu() >> (pcCU->getDepth(absPartIdxCU)<<1)),
     mpcCU(pcCU),
     mLog2TrLumaSize(0),
     mpParent(NULL)
 {
-  TComSPS *pSPS=pcCU->getSlice()->getSPS();
+  const TComSPS *pSPS=pcCU->getSlice()->getSPS();
   mLog2TrLumaSize = g_aucConvertToBit[pSPS->getMaxCUWidth() >> (mCuDepth+initTrDepthRelCU)]+2;
 
   const UInt baseOffset444=pcCU->getPic()->getMinCUWidth()*pcCU->getPic()->getMinCUHeight()*absPartIdxCU;
@@ -168,7 +168,10 @@ TComTU::TComTU(TComTU &parent, const Bool bProcessLastOfLevel, const TU_SPLIT_MO
     }
 
     mOrigWidth[i]=mRect[i].width;
-    if (!mCodeAll[i] && mbProcessLastOfLevel) mRect[i].width=0;
+    if (!mCodeAll[i] && mbProcessLastOfLevel)
+    {
+      mRect[i].width=0;
+    }
   }
 }
 
@@ -184,7 +187,10 @@ Bool TComTURecurse::nextSection(const TComTU &parent)
     for(UInt i=0; i<MAX_NUM_COMPONENT; i++)
     {
       mOffsets[i]+=mRect[i].width*mRect[i].height;
-      if (mbProcessLastOfLevel) mRect[i].width=mOrigWidth[i];
+      if (mbProcessLastOfLevel)
+      {
+        mRect[i].width=mOrigWidth[i];
+      }
       mRect[i].x0+=mRect[i].width;
       const TComRectangle &parentRect=parent.getRect(ComponentID(i));
       if (mRect[i].x0 >= parentRect.x0+parentRect.width)
@@ -194,7 +200,10 @@ Bool TComTURecurse::nextSection(const TComTU &parent)
       }
       if (!mCodeAll[i])
       {
-        if (!mbProcessLastOfLevel || mSection!=2) mRect[i].width=0;
+        if (!mbProcessLastOfLevel || mSection!=2)
+        {
+          mRect[i].width=0;
+        }
       }
     }
     assert(mRect[COMPONENT_Cb].x0==mRect[COMPONENT_Cr].x0);
@@ -227,7 +236,7 @@ Bool TComTU::useDST(const ComponentID compID)
 Bool TComTU::isNonTransformedResidualRotated(const ComponentID compID)
 {
   // rotation only for 4x4 intra, and is only used for non-transformed blocks (the latter is not checked here)
-  return    getCU()->getSlice()->getSPS()->getUseResidualRotation()
+  return    getCU()->getSlice()->getSPS()->getSpsRangeExtension().getTransformSkipRotationEnabledFlag()
          && mRect[compID].width == 4
          && getCU()->isIntra(GetAbsPartIdxTU());
 }

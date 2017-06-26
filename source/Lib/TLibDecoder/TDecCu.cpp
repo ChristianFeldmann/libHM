@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -37,6 +37,7 @@
 
 #include "TDecCu.h"
 #include "TLibCommon/TComTU.h"
+#include "TLibCommon/TComPrediction.h"
 
 //! \ingroup TLibDecoder
 //! \{
@@ -64,9 +65,10 @@ Void TDecCu::init( TDecEntropy* pcEntropyDecoder, TComTrQuant* pcTrQuant, TComPr
 }
 
 /**
- \param    uiMaxDepth    total number of allowable depth
- \param    uiMaxWidth    largest CU width
- \param    uiMaxHeight   largest CU height
+ \param    uiMaxDepth      total number of allowable depth
+ \param    uiMaxWidth      largest CU width
+ \param    uiMaxHeight     largest CU height
+ \param    chromaFormatIDC chroma format
  */
 Void TDecCu::create( UInt uiMaxDepth, UInt uiMaxWidth, UInt uiMaxHeight, ChromaFormat chromaFormatIDC )
 {
@@ -76,12 +78,19 @@ Void TDecCu::create( UInt uiMaxDepth, UInt uiMaxWidth, UInt uiMaxHeight, ChromaF
   m_ppcYuvReco = new TComYuv*[m_uiMaxDepth-1];
   m_ppcCU      = new TComDataCU*[m_uiMaxDepth-1];
 
-  UInt uiNumPartitions;
   for ( UInt ui = 0; ui < m_uiMaxDepth-1; ui++ )
   {
-    uiNumPartitions = 1<<( ( m_uiMaxDepth - ui - 1 )<<1 );
+    UInt uiNumPartitions = 1<<( ( m_uiMaxDepth - ui - 1 )<<1 );
     UInt uiWidth  = uiMaxWidth  >> ui;
     UInt uiHeight = uiMaxHeight >> ui;
+
+    // The following arrays (m_ppcYuvResi, m_ppcYuvReco and m_ppcCU) are only required for CU depths
+    // although data is allocated for all possible depths of the CU/TU tree except the last.
+    // Since the TU tree will always include at least one additional depth greater than the CU tree,
+    // there will be enough entries for these arrays.
+    // (Section 7.4.3.2: "The CVS shall not contain data that result in (Log2MinTrafoSize) MinTbLog2SizeY
+    //                    greater than or equal to MinCbLog2SizeY")
+    // TODO: tidy the array allocation given the above comment.
 
     m_ppcYuvResi[ui] = new TComYuv;    m_ppcYuvResi[ui]->create( uiWidth, uiHeight, chromaFormatIDC );
     m_ppcYuvReco[ui] = new TComYuv;    m_ppcYuvReco[ui]->create( uiWidth, uiHeight, chromaFormatIDC );
@@ -118,102 +127,76 @@ Void TDecCu::destroy()
 // Public member functions
 // ====================================================================================================================
 
-/** \param    pcCU        pointer of CU data
- \param    ruiIsLast   last data?
+/** 
+ Parse a CTU.
+ \param    pCtu                      [in/out] pointer to CTU data structure
+ \param    isLastCtuOfSliceSegment   [out]    true, if last CTU of the slice segment
  */
-Void TDecCu::decodeCU( TComDataCU* pcCU, UInt& ruiIsLast )
+Void TDecCu::decodeCtu( TComDataCU* pCtu, Bool& isLastCtuOfSliceSegment )
 {
-  if ( pcCU->getSlice()->getPPS()->getUseDQP() )
+  if ( pCtu->getSlice()->getPPS()->getUseDQP() )
   {
     setdQPFlag(true);
   }
 
-  if ( pcCU->getSlice()->getUseChromaQpAdj() )
+  if ( pCtu->getSlice()->getUseChromaQpAdj() )
   {
     setIsChromaQpAdjCoded(true);
   }
 
   // start from the top level CU
-  xDecodeCU( pcCU, 0, 0, ruiIsLast);
+  xDecodeCU( pCtu, 0, 0, isLastCtuOfSliceSegment);
 }
 
-/** \param    pcCU        pointer of CU data
+/** 
+ Decoding process for a CTU.
+ \param    pCtu                      [in/out] pointer to CTU data structure
  */
-Void TDecCu::decompressCU( TComDataCU* pcCU )
+Void TDecCu::decompressCtu( TComDataCU* pCtu )
 {
-  xDecompressCU( pcCU, 0,  0 );
+  xDecompressCU( pCtu, 0,  0 );
 }
 
 // ====================================================================================================================
 // Protected member functions
 // ====================================================================================================================
 
-/**decode end-of-slice flag
- * \param pcCU
- * \param uiAbsPartIdx
- * \param uiDepth
- * \returns Bool
- */
-Bool TDecCu::xDecodeSliceEnd( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth)
+//! decode end-of-slice flag
+Bool TDecCu::xDecodeSliceEnd( TComDataCU* pcCU, UInt uiAbsPartIdx )
 {
-  UInt uiIsLast;
-  TComPic* pcPic = pcCU->getPic();
-  TComSlice * pcSlice = pcPic->getSlice(pcPic->getCurrSliceIdx());
-  UInt uiCurNumParts    = pcPic->getNumPartInCU() >> (uiDepth<<1);
-  UInt uiWidth = pcSlice->getSPS()->getPicWidthInLumaSamples();
-  UInt uiHeight = pcSlice->getSPS()->getPicHeightInLumaSamples();
-  UInt uiGranularityWidth = g_uiMaxCUWidth;
-  UInt uiPosX = pcCU->getCUPelX() + g_auiRasterToPelX[ g_auiZscanToRaster[uiAbsPartIdx] ];
-  UInt uiPosY = pcCU->getCUPelY() + g_auiRasterToPelY[ g_auiZscanToRaster[uiAbsPartIdx] ];
+  UInt uiIsLastCtuOfSliceSegment;
 
-  if(((uiPosX+pcCU->getWidth(uiAbsPartIdx))%uiGranularityWidth==0||(uiPosX+pcCU->getWidth(uiAbsPartIdx)==uiWidth))
-    &&((uiPosY+pcCU->getHeight(uiAbsPartIdx))%uiGranularityWidth==0||(uiPosY+pcCU->getHeight(uiAbsPartIdx)==uiHeight)))
+  if (pcCU->isLastSubCUOfCtu(uiAbsPartIdx))
   {
-    m_pcEntropyDecoder->decodeTerminatingBit( uiIsLast );
+    m_pcEntropyDecoder->decodeTerminatingBit( uiIsLastCtuOfSliceSegment );
   }
   else
   {
-    uiIsLast=0;
+    uiIsLastCtuOfSliceSegment=0;
   }
 
-  if(uiIsLast > 0)
-  {
-    if(pcSlice->isNextSliceSegment()&&!pcSlice->isNextSlice())
-    {
-      pcSlice->setSliceSegmentCurEndCUAddr(pcCU->getSCUAddr()+uiAbsPartIdx+uiCurNumParts);
-    }
-    else
-    {
-      pcSlice->setSliceCurEndCUAddr(pcCU->getSCUAddr()+uiAbsPartIdx+uiCurNumParts);
-      pcSlice->setSliceSegmentCurEndCUAddr(pcCU->getSCUAddr()+uiAbsPartIdx+uiCurNumParts);
-    }
-  }
-
-  return uiIsLast>0;
+  return uiIsLastCtuOfSliceSegment>0;
 }
 
-/** decode CU block recursively
- * \param pcCU
- * \param uiAbsPartIdx
- * \param uiDepth
- * \returns Void
- */
-
-Void TDecCu::xDecodeCU( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, UInt& ruiIsLast)
+//! decode CU block recursively
+Void TDecCu::xDecodeCU( TComDataCU*const pcCU, const UInt uiAbsPartIdx, const UInt uiDepth, Bool &isLastCtuOfSliceSegment)
 {
-  TComPic* pcPic = pcCU->getPic();
-  UInt uiCurNumParts    = pcPic->getNumPartInCU() >> (uiDepth<<1);
+  TComPic* pcPic        = pcCU->getPic();
+  const TComSPS &sps    = pcPic->getPicSym()->getSPS();
+  const TComPPS &pps    = pcPic->getPicSym()->getPPS();
+  const UInt maxCuWidth = sps.getMaxCUWidth();
+  const UInt maxCuHeight= sps.getMaxCUHeight();
+  UInt uiCurNumParts    = pcPic->getNumPartitionsInCtu() >> (uiDepth<<1);
   UInt uiQNumParts      = uiCurNumParts>>2;
+
 
   Bool bBoundary = false;
   UInt uiLPelX   = pcCU->getCUPelX() + g_auiRasterToPelX[ g_auiZscanToRaster[uiAbsPartIdx] ];
-  UInt uiRPelX   = uiLPelX + (g_uiMaxCUWidth>>uiDepth)  - 1;
+  UInt uiRPelX   = uiLPelX + (maxCuWidth>>uiDepth)  - 1;
   UInt uiTPelY   = pcCU->getCUPelY() + g_auiRasterToPelY[ g_auiZscanToRaster[uiAbsPartIdx] ];
-  UInt uiBPelY   = uiTPelY + (g_uiMaxCUHeight>>uiDepth) - 1;
+  UInt uiBPelY   = uiTPelY + (maxCuHeight>>uiDepth) - 1;
 
-  TComSlice * pcSlice = pcCU->getPic()->getSlice(pcCU->getPic()->getCurrSliceIdx());
-  Bool bStartInCU = pcCU->getSCUAddr()+uiAbsPartIdx+uiCurNumParts>pcSlice->getSliceSegmentCurStartCUAddr()&&pcCU->getSCUAddr()+uiAbsPartIdx<pcSlice->getSliceSegmentCurStartCUAddr();
-  if((!bStartInCU) && ( uiRPelX < pcSlice->getSPS()->getPicWidthInLumaSamples() ) && ( uiBPelY < pcSlice->getSPS()->getPicHeightInLumaSamples() ) )
+  if( ( uiRPelX < sps.getPicWidthInLumaSamples() ) && ( uiBPelY < sps.getPicHeightInLumaSamples() ) )
   {
     m_pcEntropyDecoder->decodeSplitFlag( pcCU, uiAbsPartIdx, uiDepth );
   }
@@ -221,17 +204,16 @@ Void TDecCu::xDecodeCU( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, UInt&
   {
     bBoundary = true;
   }
-
-  if( ( ( uiDepth < pcCU->getDepth( uiAbsPartIdx ) ) && ( uiDepth < g_uiMaxCUDepth - g_uiAddCUDepth ) ) || bBoundary )
+  if( ( ( uiDepth < pcCU->getDepth( uiAbsPartIdx ) ) && ( uiDepth < sps.getLog2DiffMaxMinCodingBlockSize() ) ) || bBoundary )
   {
     UInt uiIdx = uiAbsPartIdx;
-    if( (g_uiMaxCUWidth>>uiDepth) == pcCU->getSlice()->getPPS()->getMinCuDQPSize() && pcCU->getSlice()->getPPS()->getUseDQP())
+    if( uiDepth == pps.getMaxCuDQPDepth() && pps.getUseDQP())
     {
       setdQPFlag(true);
       pcCU->setQPSubParts( pcCU->getRefQP(uiAbsPartIdx), uiAbsPartIdx, uiDepth ); // set QP to default QP
     }
 
-    if( (g_uiMaxCUWidth>>uiDepth) == pcCU->getSlice()->getPPS()->getMinCuChromaQpAdjSize() && pcCU->getSlice()->getUseChromaQpAdj() )
+    if( uiDepth == pps.getPpsRangeExtension().getDiffCuChromaQpOffsetDepth() && pcCU->getSlice()->getUseChromaQpAdj() )
     {
       setIsChromaQpAdjCoded(true);
     }
@@ -241,52 +223,40 @@ Void TDecCu::xDecodeCU( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, UInt&
       uiLPelX   = pcCU->getCUPelX() + g_auiRasterToPelX[ g_auiZscanToRaster[uiIdx] ];
       uiTPelY   = pcCU->getCUPelY() + g_auiRasterToPelY[ g_auiZscanToRaster[uiIdx] ];
 
-      Bool bSubInSlice = pcCU->getSCUAddr()+uiIdx+uiQNumParts>pcSlice->getSliceSegmentCurStartCUAddr();
-      if ( bSubInSlice )
+      if ( !isLastCtuOfSliceSegment && ( uiLPelX < sps.getPicWidthInLumaSamples() ) && ( uiTPelY < sps.getPicHeightInLumaSamples() ) )
       {
-        if ( !ruiIsLast && ( uiLPelX < pcCU->getSlice()->getSPS()->getPicWidthInLumaSamples() ) && ( uiTPelY < pcCU->getSlice()->getSPS()->getPicHeightInLumaSamples() ) )
-        {
-          xDecodeCU( pcCU, uiIdx, uiDepth+1, ruiIsLast );
-        }
-        else
-        {
-          pcCU->setOutsideCUPart( uiIdx, uiDepth+1 );
-        }
+        xDecodeCU( pcCU, uiIdx, uiDepth+1, isLastCtuOfSliceSegment );
+      }
+      else
+      {
+        pcCU->setOutsideCUPart( uiIdx, uiDepth+1 );
       }
 
       uiIdx += uiQNumParts;
     }
-    if( (g_uiMaxCUWidth>>uiDepth) == pcCU->getSlice()->getPPS()->getMinCuDQPSize() && pcCU->getSlice()->getPPS()->getUseDQP())
+    if( uiDepth == pps.getMaxCuDQPDepth() && pps.getUseDQP())
     {
       if ( getdQPFlag() )
       {
-        UInt uiQPSrcPartIdx;
-        if ( pcPic->getCU( pcCU->getAddr() )->getSliceSegmentStartCU(uiAbsPartIdx) != pcSlice->getSliceSegmentCurStartCUAddr() )
-        {
-          uiQPSrcPartIdx = pcSlice->getSliceSegmentCurStartCUAddr() % pcPic->getNumPartInCU();
-        }
-        else
-        {
-          uiQPSrcPartIdx = uiAbsPartIdx;
-        }
+        UInt uiQPSrcPartIdx = uiAbsPartIdx;
         pcCU->setQPSubParts( pcCU->getRefQP( uiQPSrcPartIdx ), uiAbsPartIdx, uiDepth ); // set QP to default QP
       }
     }
     return;
   }
 
-  if( (g_uiMaxCUWidth>>uiDepth) >= pcCU->getSlice()->getPPS()->getMinCuDQPSize() && pcCU->getSlice()->getPPS()->getUseDQP())
+  if( uiDepth <= pps.getMaxCuDQPDepth() && pps.getUseDQP())
   {
     setdQPFlag(true);
     pcCU->setQPSubParts( pcCU->getRefQP(uiAbsPartIdx), uiAbsPartIdx, uiDepth ); // set QP to default QP
   }
 
-  if( (g_uiMaxCUWidth>>uiDepth) >= pcCU->getSlice()->getPPS()->getMinCuChromaQpAdjSize() && pcCU->getSlice()->getUseChromaQpAdj() )
+  if( uiDepth <= pps.getPpsRangeExtension().getDiffCuChromaQpOffsetDepth() && pcCU->getSlice()->getUseChromaQpAdj() )
   {
     setIsChromaQpAdjCoded(true);
   }
 
-  if (pcCU->getSlice()->getPPS()->getTransquantBypassEnableFlag())
+  if (pps.getTransquantBypassEnabledFlag())
   {
     m_pcEntropyDecoder->decodeCUTransquantBypassFlag( pcCU, uiAbsPartIdx, uiDepth );
   }
@@ -325,7 +295,7 @@ Void TDecCu::xDecodeCU( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, UInt&
         pcCU->getCUMvField( RefPicList( uiRefListIdx ) )->setAllMvField( cMvFieldNeighbours[ 2*uiMergeIndex + uiRefListIdx ], SIZE_2Nx2N, uiAbsPartIdx, uiDepth );
       }
     }
-    xFinishDecodeCU( pcCU, uiAbsPartIdx, uiDepth, ruiIsLast );
+    xFinishDecodeCU( pcCU, uiAbsPartIdx, uiDepth, isLastCtuOfSliceSegment );
     return;
   }
 
@@ -338,7 +308,7 @@ Void TDecCu::xDecodeCU( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, UInt&
 
     if(pcCU->getIPCMFlag(uiAbsPartIdx))
     {
-      xFinishDecodeCU( pcCU, uiAbsPartIdx, uiDepth, ruiIsLast );
+      xFinishDecodeCU( pcCU, uiAbsPartIdx, uiDepth, isLastCtuOfSliceSegment );
       return;
     }
   }
@@ -352,10 +322,10 @@ Void TDecCu::xDecodeCU( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, UInt&
   m_pcEntropyDecoder->decodeCoeff( pcCU, uiAbsPartIdx, uiDepth, bCodeDQP, isChromaQpAdjCoded );
   setIsChromaQpAdjCoded( isChromaQpAdjCoded );
   setdQPFlag( bCodeDQP );
-  xFinishDecodeCU( pcCU, uiAbsPartIdx, uiDepth, ruiIsLast );
+  xFinishDecodeCU( pcCU, uiAbsPartIdx, uiDepth, isLastCtuOfSliceSegment );
 }
 
-Void TDecCu::xFinishDecodeCU( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, UInt& ruiIsLast)
+Void TDecCu::xFinishDecodeCU( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, Bool &isLastCtuOfSliceSegment)
 {
   if(  pcCU->getSlice()->getPPS()->getUseDQP())
   {
@@ -367,41 +337,39 @@ Void TDecCu::xFinishDecodeCU( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth,
     pcCU->setChromaQpAdjSubParts( pcCU->getCodedChromaQpAdj(), uiAbsPartIdx, uiDepth ); // set QP
   }
 
-  ruiIsLast = xDecodeSliceEnd( pcCU, uiAbsPartIdx, uiDepth);
+  isLastCtuOfSliceSegment = xDecodeSliceEnd( pcCU, uiAbsPartIdx );
 }
 
-Void TDecCu::xDecompressCU( TComDataCU* pcLCU, UInt uiAbsPartIdx,  UInt uiDepth )
+Void TDecCu::xDecompressCU( TComDataCU* pCtu, UInt uiAbsPartIdx,  UInt uiDepth )
 {
-  TComPic* pcPic = pcLCU->getPic();
+  TComPic* pcPic = pCtu->getPic();
+  TComSlice * pcSlice = pCtu->getSlice();
+  const TComSPS &sps=*(pcSlice->getSPS());
 
   Bool bBoundary = false;
-  UInt uiLPelX   = pcLCU->getCUPelX() + g_auiRasterToPelX[ g_auiZscanToRaster[uiAbsPartIdx] ];
-  UInt uiRPelX   = uiLPelX + (g_uiMaxCUWidth>>uiDepth)  - 1;
-  UInt uiTPelY   = pcLCU->getCUPelY() + g_auiRasterToPelY[ g_auiZscanToRaster[uiAbsPartIdx] ];
-  UInt uiBPelY   = uiTPelY + (g_uiMaxCUHeight>>uiDepth) - 1;
+  UInt uiLPelX   = pCtu->getCUPelX() + g_auiRasterToPelX[ g_auiZscanToRaster[uiAbsPartIdx] ];
+  UInt uiRPelX   = uiLPelX + (sps.getMaxCUWidth()>>uiDepth)  - 1;
+  UInt uiTPelY   = pCtu->getCUPelY() + g_auiRasterToPelY[ g_auiZscanToRaster[uiAbsPartIdx] ];
+  UInt uiBPelY   = uiTPelY + (sps.getMaxCUHeight()>>uiDepth) - 1;
 
-  UInt uiCurNumParts    = pcPic->getNumPartInCU() >> (uiDepth<<1);
-  TComSlice * pcSlice = pcLCU->getPic()->getSlice(pcLCU->getPic()->getCurrSliceIdx());
-  Bool bStartInCU = pcLCU->getSCUAddr()+uiAbsPartIdx+uiCurNumParts>pcSlice->getSliceSegmentCurStartCUAddr()&&pcLCU->getSCUAddr()+uiAbsPartIdx<pcSlice->getSliceSegmentCurStartCUAddr();
-  if(bStartInCU||( uiRPelX >= pcSlice->getSPS()->getPicWidthInLumaSamples() ) || ( uiBPelY >= pcSlice->getSPS()->getPicHeightInLumaSamples() ) )
+  if( ( uiRPelX >= sps.getPicWidthInLumaSamples() ) || ( uiBPelY >= sps.getPicHeightInLumaSamples() ) )
   {
     bBoundary = true;
   }
 
-  if( ( ( uiDepth < pcLCU->getDepth( uiAbsPartIdx ) ) && ( uiDepth < g_uiMaxCUDepth - g_uiAddCUDepth ) ) || bBoundary )
+  if( ( ( uiDepth < pCtu->getDepth( uiAbsPartIdx ) ) && ( uiDepth < sps.getLog2DiffMaxMinCodingBlockSize() ) ) || bBoundary )
   {
     UInt uiNextDepth = uiDepth + 1;
-    UInt uiQNumParts = pcLCU->getTotalNumPart() >> (uiNextDepth<<1);
+    UInt uiQNumParts = pCtu->getTotalNumPart() >> (uiNextDepth<<1);
     UInt uiIdx = uiAbsPartIdx;
     for ( UInt uiPartIdx = 0; uiPartIdx < 4; uiPartIdx++ )
     {
-      uiLPelX = pcLCU->getCUPelX() + g_auiRasterToPelX[ g_auiZscanToRaster[uiIdx] ];
-      uiTPelY = pcLCU->getCUPelY() + g_auiRasterToPelY[ g_auiZscanToRaster[uiIdx] ];
+      uiLPelX = pCtu->getCUPelX() + g_auiRasterToPelX[ g_auiZscanToRaster[uiIdx] ];
+      uiTPelY = pCtu->getCUPelY() + g_auiRasterToPelY[ g_auiZscanToRaster[uiIdx] ];
 
-      Bool binSlice = ((pcLCU->getSCUAddr() + uiIdx + uiQNumParts) > pcSlice->getSliceSegmentCurStartCUAddr()) && ((pcLCU->getSCUAddr() + uiIdx) < pcSlice->getSliceSegmentCurEndCUAddr());
-      if(binSlice&&( uiLPelX < pcSlice->getSPS()->getPicWidthInLumaSamples() ) && ( uiTPelY < pcSlice->getSPS()->getPicHeightInLumaSamples() ) )
+      if( ( uiLPelX < sps.getPicWidthInLumaSamples() ) && ( uiTPelY < sps.getPicHeightInLumaSamples() ) )
       {
-        xDecompressCU(pcLCU, uiIdx, uiNextDepth );
+        xDecompressCU(pCtu, uiIdx, uiNextDepth );
       }
 
       uiIdx += uiQNumParts;
@@ -412,7 +380,7 @@ Void TDecCu::xDecompressCU( TComDataCU* pcLCU, UInt uiAbsPartIdx,  UInt uiDepth 
   // Residual reconstruction
   m_ppcYuvResi[uiDepth]->clear();
 
-  m_ppcCU[uiDepth]->copySubCU( pcLCU, uiAbsPartIdx, uiDepth );
+  m_ppcCU[uiDepth]->copySubCU( pCtu, uiAbsPartIdx );
 
   switch( m_ppcCU[uiDepth]->getPredictionMode(0) )
   {
@@ -427,7 +395,7 @@ Void TDecCu::xDecompressCU( TComDataCU* pcLCU, UInt uiAbsPartIdx,  UInt uiDepth 
       break;
   }
 
-#ifdef DEBUG_STRING
+#if DEBUG_STRING
   const PredMode predMode=m_ppcCU[uiDepth]->getPredictionMode(0);
   if (DebugOptionList::DebugString_Structure.getInt()&DebugStringGetPredModeMask(predMode))
   {
@@ -452,29 +420,38 @@ Void TDecCu::xReconInter( TComDataCU* pcCU, UInt uiDepth )
   // inter prediction
   m_pcPrediction->motionCompensation( pcCU, m_ppcYuvReco[uiDepth] );
 
-#ifdef DEBUG_STRING
+#if DEBUG_STRING
   const Int debugPredModeMask=DebugStringGetPredModeMask(MODE_INTER);
-  if (DebugOptionList::DebugString_Pred.getInt()&debugPredModeMask) printBlockToStream(std::cout, "###inter-pred: ", *(m_ppcYuvReco[uiDepth]));
+  if (DebugOptionList::DebugString_Pred.getInt()&debugPredModeMask)
+  {
+    printBlockToStream(std::cout, "###inter-pred: ", *(m_ppcYuvReco[uiDepth]));
+  }
 #endif
 
   // inter recon
   xDecodeInterTexture( pcCU, uiDepth );
 
-#ifdef DEBUG_STRING
-  if (DebugOptionList::DebugString_Resi.getInt()&debugPredModeMask) printBlockToStream(std::cout, "###inter-resi: ", *(m_ppcYuvResi[uiDepth]));
+#if DEBUG_STRING
+  if (DebugOptionList::DebugString_Resi.getInt()&debugPredModeMask)
+  {
+    printBlockToStream(std::cout, "###inter-resi: ", *(m_ppcYuvResi[uiDepth]));
+  }
 #endif
 
   // clip for only non-zero cbp case
   if  ( pcCU->getQtRootCbf( 0) )
   {
-    m_ppcYuvReco[uiDepth]->addClip( m_ppcYuvReco[uiDepth], m_ppcYuvResi[uiDepth], 0, pcCU->getWidth( 0 ) );
+    m_ppcYuvReco[uiDepth]->addClip( m_ppcYuvReco[uiDepth], m_ppcYuvResi[uiDepth], 0, pcCU->getWidth( 0 ), pcCU->getSlice()->getSPS()->getBitDepths() );
   }
   else
   {
     m_ppcYuvReco[uiDepth]->copyPartToPartYuv( m_ppcYuvReco[uiDepth],0, pcCU->getWidth( 0 ),pcCU->getHeight( 0 ));
   }
-#ifdef DEBUG_STRING
-  if (DebugOptionList::DebugString_Reco.getInt()&debugPredModeMask) printBlockToStream(std::cout, "###inter-reco: ", *(m_ppcYuvReco[uiDepth]));
+#if DEBUG_STRING
+  if (DebugOptionList::DebugString_Reco.getInt()&debugPredModeMask)
+  {
+    printBlockToStream(std::cout, "###inter-reco: ", *(m_ppcYuvReco[uiDepth]));
+  }
 #endif
 
 }
@@ -487,11 +464,15 @@ TDecCu::xIntraRecBlk(       TComYuv*    pcRecoYuv,
                       const ComponentID compID,
                             TComTU     &rTu)
 {
-  if (!rTu.ProcessComponentSection(compID)) return;
+  if (!rTu.ProcessComponentSection(compID))
+  {
+    return;
+  }
   const Bool       bIsLuma = isLuma(compID);
 
 
   TComDataCU *pcCU = rTu.getCU();
+  const TComSPS &sps=*(pcCU->getSlice()->getSPS());
   const UInt uiAbsPartIdx=rTu.GetAbsPartIdxTU();
 
   const TComRectangle &tuRect  =rTu.getRect(compID);
@@ -513,8 +494,7 @@ TDecCu::xIntraRecBlk(       TComYuv*    pcRecoYuv,
     do
     {
       xIntraRecBlk(pcRecoYuv, pcPredYuv, pcResiYuv, compID, subTURecurse);
-    }
-    while (subTURecurse.nextSection(rTu));
+    } while (subTURecurse.nextSection(rTu));
 
     //------------------------------------------------
 
@@ -522,28 +502,26 @@ TDecCu::xIntraRecBlk(       TComYuv*    pcRecoYuv,
   }
 
   const UInt uiChPredMode  = pcCU->getIntraDir( toChannelType(compID), uiAbsPartIdx );
-  const UInt uiChCodedMode = (uiChPredMode==DM_CHROMA_IDX && !bIsLuma) ? pcCU->getIntraDir(CHANNEL_TYPE_LUMA, getChromasCorrespondingPULumaIdx(uiAbsPartIdx, chFmt)) : uiChPredMode;
+  const UInt partsPerMinCU = 1<<(2*(sps.getMaxTotalCUDepth() - sps.getLog2DiffMaxMinCodingBlockSize()));
+  const UInt uiChCodedMode = (uiChPredMode==DM_CHROMA_IDX && !bIsLuma) ? pcCU->getIntraDir(CHANNEL_TYPE_LUMA, getChromasCorrespondingPULumaIdx(uiAbsPartIdx, chFmt, partsPerMinCU)) : uiChPredMode;
   const UInt uiChFinalMode = ((chFmt == CHROMA_422)       && !bIsLuma) ? g_chroma422IntraAngleMappingTable[uiChCodedMode] : uiChCodedMode;
 
   //===== init availability pattern =====
-  Bool  bAboveAvail = false;
-  Bool  bLeftAvail  = false;
+  const Bool bUseFilteredPredictions=TComPrediction::filteringIntraReferenceSamples(compID, uiChFinalMode, uiWidth, uiHeight, chFmt, pcCU->getSlice()->getSPS()->getSpsRangeExtension().getIntraSmoothingDisabledFlag());
 
-  const Bool bUseFilteredPredictions=TComPrediction::filteringIntraReferenceSamples(compID, uiChFinalMode, uiWidth, uiHeight, chFmt, pcCU->getSlice()->getSPS()->getDisableIntraReferenceSmoothing());
-
-#ifdef DEBUG_STRING
+#if DEBUG_STRING
   std::ostream &ss(std::cout);
 #endif
 
   DEBUG_STRING_NEW(sTemp)
-  m_pcPrediction->initAdiPatternChType( rTu, bAboveAvail, bLeftAvail, compID, bUseFilteredPredictions  DEBUG_STRING_PASS_INTO(sTemp) );
+  m_pcPrediction->initIntraPatternChType( rTu, compID, bUseFilteredPredictions  DEBUG_STRING_PASS_INTO(sTemp) );
 
 
   //===== get prediction signal =====
 
-  m_pcPrediction->predIntraAng( compID,   uiChFinalMode, 0 /* Decoder does not have an original image */, 0, piPred, uiStride, rTu, bAboveAvail, bLeftAvail, bUseFilteredPredictions );
+  m_pcPrediction->predIntraAng( compID,   uiChFinalMode, 0 /* Decoder does not have an original image */, 0, piPred, uiStride, rTu, bUseFilteredPredictions );
 
-#ifdef DEBUG_STRING
+#if DEBUG_STRING
   ss << sTemp;
 #endif
 
@@ -555,7 +533,7 @@ TDecCu::xIntraRecBlk(       TComYuv*    pcRecoYuv,
 
 
   DEBUG_STRING_NEW(sDebug);
-#ifdef DEBUG_STRING
+#if DEBUG_STRING
   const Int debugPredModeMask=DebugStringGetPredModeMask(MODE_INTRA);
   std::string *psDebug=(DebugOptionList::DebugString_InvTran.getInt()&debugPredModeMask) ? &sDebug : 0;
 #endif
@@ -567,15 +545,19 @@ TDecCu::xIntraRecBlk(       TComYuv*    pcRecoYuv,
   else
   {
     for (UInt y = 0; y < uiHeight; y++)
+    {
       for (UInt x = 0; x < uiWidth; x++)
       {
         piResi[(y * uiStride) + x] = 0;
       }
+    }
   }
 
-#ifdef DEBUG_STRING
+#if DEBUG_STRING
   if (psDebug)
+  {
     ss << (*psDebug);
+  }
 #endif
 
   //===== reconstruction =====
@@ -588,21 +570,23 @@ TDecCu::xIntraRecBlk(       TComYuv*    pcRecoYuv,
         Pel* pPred      = piPred;
         Pel* pResi      = piResi;
         Pel* pReco      = pcRecoYuv->getAddr( compID, uiAbsPartIdx );
-        Pel* pRecIPred  = pcCU->getPic()->getPicYuvRec()->getAddr( compID, pcCU->getAddr(), pcCU->getZorderIdxInCU() + uiAbsPartIdx );
+        Pel* pRecIPred  = pcCU->getPic()->getPicYuvRec()->getAddr( compID, pcCU->getCtuRsAddr(), pcCU->getZorderIdxInCtu() + uiAbsPartIdx );
 
 
-#ifdef DEBUG_STRING
+#if DEBUG_STRING
   const Bool bDebugPred=((DebugOptionList::DebugString_Pred.getInt()&debugPredModeMask) && DEBUG_STRING_CHANNEL_CONDITION(compID));
   const Bool bDebugResi=((DebugOptionList::DebugString_Resi.getInt()&debugPredModeMask) && DEBUG_STRING_CHANNEL_CONDITION(compID));
   const Bool bDebugReco=((DebugOptionList::DebugString_Reco.getInt()&debugPredModeMask) && DEBUG_STRING_CHANNEL_CONDITION(compID));
   if (bDebugPred || bDebugResi || bDebugReco)
+  {
     ss << "###: " << "CompID: " << compID << " pred mode (ch/fin): " << uiChPredMode << "/" << uiChFinalMode << " absPartIdx: " << rTu.GetAbsPartIdxTU() << std::endl;
+  }
 #endif
 
-#if RExt__O0043_BEST_EFFORT_DECODING
-  const Int bitDepthDelta = g_bitDepthInStream[toChannelType(compID)] - g_bitDepth[toChannelType(compID)];
+  const Int clipbd = sps.getBitDepth(toChannelType(compID));
+#if O0043_BEST_EFFORT_DECODING
+  const Int bitDepthDelta = sps.getStreamBitDepth(toChannelType(compID)) - clipbd;
 #endif
-  const Int clipbd = g_bitDepth[toChannelType(compID)];
 
   if( useCrossComponentPrediction )
   {
@@ -611,8 +595,11 @@ TDecCu::xIntraRecBlk(       TComYuv*    pcRecoYuv,
 
   for( UInt uiY = 0; uiY < uiHeight; uiY++ )
   {
-#ifdef DEBUG_STRING
-    if (bDebugPred || bDebugResi || bDebugReco) ss << "###: ";
+#if DEBUG_STRING
+    if (bDebugPred || bDebugResi || bDebugReco)
+    {
+      ss << "###: ";
+    }
 
     if (bDebugPred)
     {
@@ -622,23 +609,28 @@ TDecCu::xIntraRecBlk(       TComYuv*    pcRecoYuv,
         ss << pPred[ uiX ] << ", ";
       }
     }
-    if (bDebugResi) ss << " - resi: ";
+    if (bDebugResi)
+    {
+      ss << " - resi: ";
+    }
 #endif
 
     for( UInt uiX = 0; uiX < uiWidth; uiX++ )
     {
-#ifdef DEBUG_STRING
+#if DEBUG_STRING
       if (bDebugResi)
+      {
         ss << pResi[ uiX ] << ", ";
+      }
 #endif
-#if RExt__O0043_BEST_EFFORT_DECODING
+#if O0043_BEST_EFFORT_DECODING
       pReco    [ uiX ] = ClipBD( rightShiftEvenRounding<Pel>(pPred[ uiX ] + pResi[ uiX ], bitDepthDelta), clipbd );
 #else
       pReco    [ uiX ] = ClipBD( pPred[ uiX ] + pResi[ uiX ], clipbd );
 #endif
       pRecIPred[ uiX ] = pReco[ uiX ];
     }
-#ifdef DEBUG_STRING
+#if DEBUG_STRING
     if (bDebugReco)
     {
       ss << " - reco: ";
@@ -649,7 +641,9 @@ TDecCu::xIntraRecBlk(       TComYuv*    pcRecoYuv,
     }
 
     if (bDebugPred || bDebugResi || bDebugReco)
+    {
       ss << "\n";
+    }
 #endif
     pPred     += uiStride;
     pResi     += uiStride;
@@ -686,15 +680,14 @@ TDecCu::xReconIntraQT( TComDataCU* pcCU, UInt uiDepth )
 
 
 
-/** Function for deriving recontructed PU/CU chroma samples with QTree structure
- * \param pcCU pointer of current CU
- * \param uiTrDepth current tranform split depth
- * \param uiAbsPartIdx  part index
+/** Function for deriving reconstructed PU/CU chroma samples with QTree structure
  * \param pcRecoYuv pointer to reconstructed sample arrays
  * \param pcPredYuv pointer to prediction sample arrays
  * \param pcResiYuv pointer to residue sample arrays
+ * \param chType    texture channel type (luma/chroma)
+ * \param rTu       reference to transform data
  *
- \ This function dervies recontructed PU/CU chroma samples with QTree recursive structure
+ \ This function derives reconstructed PU/CU chroma samples with QTree recursive structure
  */
 
 Void
@@ -711,7 +704,9 @@ TDecCu::xIntraRecQT(TComYuv*    pcRecoYuv,
   if( uiTrMode == uiTrDepth )
   {
     if (isLuma(chType))
+    {
       xIntraRecBlk( pcRecoYuv, pcPredYuv, pcResiYuv, COMPONENT_Y,  rTu );
+    }
     else
     {
       const UInt numValidComp=getNumberValidComponents(rTu.GetChromaFormat());
@@ -733,9 +728,9 @@ TDecCu::xIntraRecQT(TComYuv*    pcRecoYuv,
 
 Void TDecCu::xCopyToPic( TComDataCU* pcCU, TComPic* pcPic, UInt uiZorderIdx, UInt uiDepth )
 {
-  UInt uiCUAddr = pcCU->getAddr();
+  UInt uiCtuRsAddr = pcCU->getCtuRsAddr();
 
-  m_ppcYuvReco[uiDepth]->copyToPicYuv  ( pcPic->getPicYuvRec (), uiCUAddr, uiZorderIdx );
+  m_ppcYuvReco[uiDepth]->copyToPicYuv  ( pcPic->getPicYuvRec (), uiCtuRsAddr, uiZorderIdx );
 
   return;
 }
@@ -750,7 +745,6 @@ Void TDecCu::xDecodeInterTexture ( TComDataCU* pcCU, UInt uiDepth )
     const ComponentID compID=ComponentID(ch);
     DEBUG_STRING_OUTPUT(std::cout, debug_reorder_data_inter_token[compID])
 
-    // NOTE RExt - setQPForQuant was called here, but it has now been placed at the lowest level of decoding.
     m_pcTrQuant->invRecurTransformNxN ( compID, m_ppcYuvResi[uiDepth], tuRecur );
   }
 
@@ -765,14 +759,15 @@ Void TDecCu::xDecodeInterTexture ( TComDataCU* pcCU, UInt uiDepth )
  * \param uiStride stride of reconstructed sample arrays
  * \param uiWidth CU width
  * \param uiHeight CU height
- * \param ttText texture component type
+ * \param compID colour component ID
  * \returns Void
  */
 Void TDecCu::xDecodePCMTexture( TComDataCU* pcCU, const UInt uiPartIdx, const Pel *piPCM, Pel* piReco, const UInt uiStride, const UInt uiWidth, const UInt uiHeight, const ComponentID compID)
 {
-        Pel* piPicReco         = pcCU->getPic()->getPicYuvRec()->getAddr(compID, pcCU->getAddr(), pcCU->getZorderIdxInCU()+uiPartIdx);
+        Pel* piPicReco         = pcCU->getPic()->getPicYuvRec()->getAddr(compID, pcCU->getCtuRsAddr(), pcCU->getZorderIdxInCtu()+uiPartIdx);
   const UInt uiPicStride       = pcCU->getPic()->getPicYuvRec()->getStride(compID);
-  const UInt uiPcmLeftShiftBit = g_bitDepth[toChannelType(compID)] - pcCU->getSlice()->getSPS()->getPCMBitDepth(toChannelType(compID));
+  const TComSPS &sps           = *(pcCU->getSlice()->getSPS());
+  const UInt uiPcmLeftShiftBit = sps.getBitDepth(toChannelType(compID)) - sps.getPCMBitDepth(toChannelType(compID));
 
   for(UInt uiY = 0; uiY < uiHeight; uiY++ )
   {
@@ -794,11 +789,13 @@ Void TDecCu::xDecodePCMTexture( TComDataCU* pcCU, const UInt uiPartIdx, const Pe
  */
 Void TDecCu::xReconPCM( TComDataCU* pcCU, UInt uiDepth )
 {
+  const UInt maxCuWidth     = pcCU->getSlice()->getSPS()->getMaxCUWidth();
+  const UInt maxCuHeight    = pcCU->getSlice()->getSPS()->getMaxCUHeight();
   for (UInt ch=0; ch < pcCU->getPic()->getNumberValidComponents(); ch++)
   {
     const ComponentID compID = ComponentID(ch);
-    const UInt width  = (g_uiMaxCUWidth >>(uiDepth+m_ppcYuvResi[uiDepth]->getComponentScaleX(compID)));
-    const UInt height = (g_uiMaxCUHeight>>(uiDepth+m_ppcYuvResi[uiDepth]->getComponentScaleY(compID)));
+    const UInt width  = (maxCuWidth >>(uiDepth+m_ppcYuvResi[uiDepth]->getComponentScaleX(compID)));
+    const UInt height = (maxCuHeight>>(uiDepth+m_ppcYuvResi[uiDepth]->getComponentScaleY(compID)));
     const UInt stride = m_ppcYuvResi[uiDepth]->getStride(compID);
     Pel * pPCMChannel = pcCU->getPCMSample(compID);
     Pel * pRecChannel = m_ppcYuvReco[uiDepth]->getAddr(compID);
@@ -807,21 +804,22 @@ Void TDecCu::xReconPCM( TComDataCU* pcCU, UInt uiDepth )
 }
 
 /** Function for filling the PCM buffer of a CU using its reconstructed sample array
- * \param pcCU pointer to current CU
- * \param uiDepth CU Depth
- * \returns Void
+ * \param pCU   pointer to current CU
+ * \param depth CU Depth
  */
 Void TDecCu::xFillPCMBuffer(TComDataCU* pCU, UInt depth)
 {
   const ChromaFormat format = pCU->getPic()->getChromaFormat();
-  const UInt numValidComp=getNumberValidComponents(format);
+  const UInt numValidComp   = getNumberValidComponents(format);
+  const UInt maxCuWidth     = pCU->getSlice()->getSPS()->getMaxCUWidth();
+  const UInt maxCuHeight    = pCU->getSlice()->getSPS()->getMaxCUHeight();
 
   for (UInt componentIndex = 0; componentIndex < numValidComp; componentIndex++)
   {
     const ComponentID component = ComponentID(componentIndex);
 
-    const UInt width  = g_uiMaxCUWidth  >> (depth + getComponentScaleX(component, format));
-    const UInt height = g_uiMaxCUHeight >> (depth + getComponentScaleY(component, format));
+    const UInt width  = maxCuWidth  >> (depth + getComponentScaleX(component, format));
+    const UInt height = maxCuHeight >> (depth + getComponentScaleY(component, format));
 
     Pel *source      = m_ppcYuvReco[depth]->getAddr(component, 0, width);
     Pel *destination = pCU->getPCMSample(component);

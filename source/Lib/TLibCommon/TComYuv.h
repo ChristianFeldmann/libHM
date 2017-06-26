@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -39,7 +39,6 @@
 
 #ifndef __TCOMYUV__
 #define __TCOMYUV__
-#include <assert.h>
 #include "CommonDef.h"
 #include "TComPicYuv.h"
 #include "TComRectangle.h"
@@ -104,12 +103,12 @@ public:
   // ------------------------------------------------------------------------------------------------------------------
 
   //  Copy YUV buffer to picture buffer
-  Void         copyToPicYuv               ( TComPicYuv* pcPicYuvDst, const UInt iCuAddr, const UInt uiAbsZorderIdx, const UInt uiPartDepth = 0, const UInt uiPartIdx = 0 ) const ;
-  Void         copyToPicComponent         ( const ComponentID id, TComPicYuv* pcPicYuvDst, const UInt iCuAddr, const UInt uiAbsZorderIdx, const UInt uiPartDepth = 0, const UInt uiPartIdx = 0 ) const ;
+  Void         copyToPicYuv               ( TComPicYuv* pcPicYuvDst, const UInt ctuRsAddr, const UInt uiAbsZorderIdx, const UInt uiPartDepth = 0, const UInt uiPartIdx = 0 ) const ;
+  Void         copyToPicComponent         ( const ComponentID id, TComPicYuv* pcPicYuvDst, const UInt iCtuRsAddr, const UInt uiAbsZorderIdx, const UInt uiPartDepth = 0, const UInt uiPartIdx = 0 ) const ;
 
   //  Copy YUV buffer from picture buffer
-  Void         copyFromPicYuv             ( const TComPicYuv* pcPicYuvSrc, const  UInt iCuAddr, const UInt uiAbsZorderIdx );
-  Void         copyFromPicComponent       ( const ComponentID id, const TComPicYuv* pcPicYuvSrc, const UInt iCuAddr, const UInt uiAbsZorderIdx );
+  Void         copyFromPicYuv             ( const TComPicYuv* pcPicYuvSrc, const  UInt ctuRsAddr, const UInt uiAbsZorderIdx );
+  Void         copyFromPicComponent       ( const ComponentID id, const TComPicYuv* pcPicYuvSrc, const UInt iCtuRsAddr, const UInt uiAbsZorderIdx );
 
   //  Copy Small YUV buffer to the part of other Big YUV buffer
   Void         copyToPartYuv              ( TComYuv*    pcYuvDst,    const UInt uiDstPartIdx ) const ;
@@ -131,15 +130,17 @@ public:
   // ------------------------------------------------------------------------------------------------------------------
 
   //  Clip(pcYuvSrc0 + pcYuvSrc1) -> m_apiBuf
-  Void         addClip                    ( const TComYuv* pcYuvSrc0, const TComYuv* pcYuvSrc1, const UInt uiTrUnitIdx, const UInt uiPartSize );
+  Void         addClip                    ( const TComYuv* pcYuvSrc0, const TComYuv* pcYuvSrc1, const UInt uiTrUnitIdx, const UInt uiPartSize, const BitDepths &clipBitDepths );
 
   //  pcYuvSrc0 - pcYuvSrc1 -> m_apiBuf
   Void         subtract                   ( const TComYuv* pcYuvSrc0, const TComYuv* pcYuvSrc1, const UInt uiTrUnitIdx, const UInt uiPartSize );
 
   //  (pcYuvSrc0 + pcYuvSrc1)/2 for YUV partition
-  Void         addAvg                     ( const TComYuv* pcYuvSrc0, const TComYuv* pcYuvSrc1, const UInt iPartUnitIdx, const UInt iWidth, const UInt iHeight );
+  Void         addAvg                     ( const TComYuv* pcYuvSrc0, const TComYuv* pcYuvSrc1, const UInt iPartUnitIdx, const UInt iWidth, const UInt iHeight, const BitDepths &clipBitDepths );
 
-  Void         removeHighFreq             ( const TComYuv* pcYuvSrc, const UInt uiPartIdx, const UInt uiWidth, const UInt uiHeight );
+  Void         removeHighFreq             ( const TComYuv* pcYuvSrc, const UInt uiPartIdx, const UInt uiWidth, const UInt uiHeight
+                                          , const Int bitDepths[MAX_NUM_CHANNEL_TYPE], const Bool bClipToBitDepths
+                                          );
 
   // ------------------------------------------------------------------------------------------------------------------
   //  Access function for YUV buffer
@@ -171,8 +172,10 @@ public:
                                                 UInt width=getWidth(id);
                                                 Int blkX = ( iTransUnitIdx * iBlkSizeForComponent ) &  ( width - 1 );
                                                 Int blkY = ( iTransUnitIdx * iBlkSizeForComponent ) &~ ( width - 1 );
-                                                if (m_chromaFormatIDC==CHROMA_422 && id!=COMPONENT_Y) blkY<<=1;
-//                                                assert((blkX<getWidth(id) && blkY<getHeight(id)));
+                                                if (m_chromaFormatIDC==CHROMA_422 && id!=COMPONENT_Y)
+                                                {
+                                                  blkY<<=1;
+                                                }
                                                 return m_apiBuf[id] + blkX + blkY * iBlkSizeForComponent;
                                               }
 
@@ -181,9 +184,10 @@ public:
                                                 UInt width=getWidth(id);
                                                 Int blkX = ( iTransUnitIdx * iBlkSizeForComponent ) &  ( width - 1 );
                                                 Int blkY = ( iTransUnitIdx * iBlkSizeForComponent ) &~ ( width - 1 );
-                                                if (m_chromaFormatIDC==CHROMA_422 && id!=COMPONENT_Y) blkY<<=1;
-//                                                UInt w=getWidth(id), h=getHeight(id);
-//                                                assert((blkX<w && blkY<h));
+                                                if (m_chromaFormatIDC==CHROMA_422 && id!=COMPONENT_Y)
+                                                {
+                                                  blkY<<=1;
+                                                }
                                                 return m_apiBuf[id] + blkX + blkY * iBlkSizeForComponent;
                                               }
 

@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -73,26 +73,21 @@ public:
   Void  uninit                 ()                { m_pcBinIf = 0; }
 
   //  Virtual list
-  Void  resetEntropy           ();
-  Void  determineCabacInitIdx  ();
+  Void  resetEntropy           (const TComSlice *pSlice);
+  SliceType determineCabacInitIdx  (const TComSlice *pSlice);
   Void  setBitstream           ( TComBitIf* p )  { m_pcBitIf = p; m_pcBinIf->init( p ); }
-  Void  setSlice               ( TComSlice* p )  { m_pcSlice = p;                       }
 
-  // SBAC RD
-  Void  resetCoeffCost         ()                { m_uiCoeffCost = 0;  }
-  UInt  getCoeffCost           ()                { return  m_uiCoeffCost;  }
-
-  Void  load                   ( TEncSbac* pScr  );
-  Void  loadIntraDirMode       ( TEncSbac* pScr, const ChannelType chType  );
-  Void  store                  ( TEncSbac* pDest );
-  Void  loadContexts           ( TEncSbac* pScr  );
+  Void  load                   ( const TEncSbac* pSrc  );
+  Void  loadIntraDirMode       ( const TEncSbac* pScr, const ChannelType chType  );
+  Void  store                  ( TEncSbac* pDest ) const;
+  Void  loadContexts           ( const TEncSbac* pSrc  );
   Void  resetBits              ()                { m_pcBinIf->resetBits(); m_pcBitIf->resetBits(); }
   UInt  getNumberOfWrittenBits ()                { return m_pcBinIf->getNumWrittenBits(); }
   //--SBAC RD
 
-  Void  codeVPS                ( TComVPS* pcVPS );
-  Void  codeSPS                ( TComSPS* pcSPS     );
-  Void  codePPS                ( TComPPS* pcPPS     );
+  Void  codeVPS                ( const TComVPS* pcVPS );
+  Void  codeSPS                ( const TComSPS* pcSPS     );
+  Void  codePPS                ( const TComPPS* pcPPS     );
   Void  codeSliceHeader        ( TComSlice* pcSlice );
   Void  codeTilesWPPEntryPoint ( TComSlice* pSlice );
   Void  codeTerminatingBit     ( UInt uilsLast      );
@@ -102,10 +97,9 @@ public:
   Void  codeSaoTypeIdx       ( UInt  uiCode);
   Void  codeSaoUflc          ( UInt uiLength, UInt  uiCode );
   Void  codeSAOSign          ( UInt  uiCode);  //<! code SAO offset sign
-  Void  codeScalingList      ( TComScalingList* /*scalingList*/     ){ assert (0);  return;};
 
-  Void codeSAOOffsetParam(ComponentID compIdx, SAOOffset& ctbParam, Bool sliceEnabled);
-  Void codeSAOBlkParam(SAOBlkParam& saoBlkParam
+  Void codeSAOOffsetParam(ComponentID compIdx, SAOOffset& ctbParam, Bool sliceEnabled, const Int channelBitDepth);
+  Void codeSAOBlkParam(SAOBlkParam& saoBlkParam, const BitDepths &bitDepths
                     , Bool* sliceEnabled
                     , Bool leftMergeAvail
                     , Bool aboveMergeAvail
@@ -116,21 +110,14 @@ private:
   Void  xWriteUnarySymbol    ( UInt uiSymbol, ContextModel* pcSCModel, Int iOffset );
   Void  xWriteUnaryMaxSymbol ( UInt uiSymbol, ContextModel* pcSCModel, Int iOffset, UInt uiMaxSymbol );
   Void  xWriteEpExGolomb     ( UInt uiSymbol, UInt uiCount );
-  Void  xWriteCoefRemainExGolomb ( UInt symbol, UInt &rParam, const Bool useLimitedPrefixLength, const ChannelType channelType );
+  Void  xWriteCoefRemainExGolomb ( UInt symbol, UInt &rParam, const Bool useLimitedPrefixLength, const Int maxLog2TrDynamicRange );
 
-  Void  xCopyFrom            ( TEncSbac* pSrc );
-  Void  xCopyContextsFrom    ( TEncSbac* pSrc );
-
-  Void codeDFFlag( UInt /*uiCode*/, const Char* /*pSymbolName*/ )       {printf("Not supported in codeDFFlag()\n"); assert(0); exit(1);};
-  Void codeDFSvlc( Int /*iCode*/, const Char* /*pSymbolName*/ )         {printf("Not supported in codeDFSvlc()\n"); assert(0); exit(1);};
+  Void  xCopyFrom            ( const TEncSbac* pSrc );
+  Void  xCopyContextsFrom    ( const TEncSbac* pSrc );
 
 protected:
   TComBitIf*    m_pcBitIf;
-  TComSlice*    m_pcSlice;
   TEncBinIf*    m_pcBinIf;
-
-  //SBAC RD
-  UInt          m_uiCoeffCost;
 
   //--Adaptive loop filter
 
@@ -149,7 +136,7 @@ public:
   Void codeQtCbf               ( TComTU & rTu, const ComponentID compID, const Bool lowestLevel );
   Void codeQtRootCbf           ( TComDataCU* pcCU, UInt uiAbsPartIdx );
   Void codeQtCbfZero           ( TComTU &rTu, const ChannelType chType );
-  Void codeQtRootCbfZero       ( TComDataCU* pcCU );
+  Void codeQtRootCbfZero       ( );
   Void codeIntraDirLumaAng     ( TComDataCU* pcCU, UInt absPartIdx, Bool isMultiple);
 
   Void codeIntraDirChroma      ( TComDataCU* pcCU, UInt uiAbsPartIdx );
@@ -170,23 +157,18 @@ public:
   // for RD-optimizatioon
   // -------------------------------------------------------------------------------------------------------------------
 
-  Void estBit               (estBitsSbacStruct* pcEstBitsSbac, Int width, Int height, ChannelType chType);
+  Void estBit               (estBitsSbacStruct* pcEstBitsSbac, Int width, Int height, ChannelType chType, COEFF_SCAN_TYPE scanType);
   Void estCBFBit                     ( estBitsSbacStruct* pcEstBitsSbac );
   Void estSignificantCoeffGroupMapBit( estBitsSbacStruct* pcEstBitsSbac, ChannelType chType );
   Void estSignificantMapBit          ( estBitsSbacStruct* pcEstBitsSbac, Int width, Int height, ChannelType chType );
-  Void estLastSignificantPositionBit ( estBitsSbacStruct* pcEstBitsSbac, Int width, Int height, ChannelType chType );
+  Void estLastSignificantPositionBit ( estBitsSbacStruct* pcEstBitsSbac, Int width, Int height, ChannelType chType, COEFF_SCAN_TYPE scanType );
   Void estSignificantCoefficientsBit ( estBitsSbacStruct* pcEstBitsSbac, ChannelType chType );
-
-  Void updateContextTables           ( SliceType eSliceType, Int iQp, Bool bExecuteFinish=true  );
-  Void updateContextTables           ( SliceType eSliceType, Int iQp  ) { this->updateContextTables( eSliceType, iQp, true); };
 
   Void codeExplicitRdpcmMode            ( TComTU &rTu, const ComponentID compID );
 
 
   TEncBinIf* getEncBinIf()  { return m_pcBinIf; }
 private:
-  UInt                 m_uiLastQp;
-
   ContextModel         m_contextModels[MAX_NUM_CTX_MOD];
   Int                  m_numContextModels;
   ContextModel3DBuffer m_cCUSplitFlagSCModel;

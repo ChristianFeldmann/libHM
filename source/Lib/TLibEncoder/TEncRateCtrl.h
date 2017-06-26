@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -236,7 +236,7 @@ public:
   Double getLCUEstLambda( Double bpp );
   Int    getLCUEstQP( Double lambda, Int clipPicQP );
 
-  Void updateAfterLCU( Int LCUIdx, Int bits, Int QP, Double lambda, Bool updateLCUParameter = true );
+  Void updateAfterCTU( Int LCUIdx, Int bits, Int QP, Double lambda, Bool updateLCUParameter = true );
   Void updateAfterPicture( Int actualHeaderBits, Int actualTotalBits, Double averageQP, Double averageLambda, SliceType eSliceType);
 
   Void addToPictureLsit( list<TEncRCPic*>& listPreviousPictures );
@@ -246,6 +246,7 @@ public:
 private:
   Int xEstPicTargetBits( TEncRCSeq* encRCSeq, TEncRCGOP* encRCGOP );
   Int xEstPicHeaderBits( list<TEncRCPic*>& listPreviousPictures, Int frameLevel );
+  Int xEstPicLowerBound( TEncRCSeq* encRCSeq, TEncRCGOP* encRCGOP );
 
 public:
   TEncRCSeq*      getRCSequence()                         { return m_encRCSeq; }
@@ -261,9 +262,11 @@ public:
   Int  getPixelsLeft()                                    { return m_pixelsLeft; }
   Int  getBitsCoded()                                     { return m_targetBits - m_estHeaderBits - m_bitsLeft; }
   Int  getLCUCoded()                                      { return m_numberOfLCU - m_LCULeft; }
+  Int  getLowerBound()                                    { return m_lowerBound; }
   TRCLCU* getLCU()                                        { return m_LCUs; }
   TRCLCU& getLCU( Int LCUIdx )                            { return m_LCUs[LCUIdx]; }
   Int  getPicActualHeaderBits()                           { return m_picActualHeaderBits; }
+  Void setBitLeft(Int bits)                               { m_bitsLeft = bits; }
   Void setTargetBits( Int bits )                          { m_targetBits = bits; m_bitsLeft = bits;}
   Void setTotalIntraCost(Double cost)                     { m_totalCostIntra = cost; }
   Void getLCUInitTargetBits();
@@ -286,6 +289,7 @@ private:
   Int m_targetBits;
   Int m_estHeaderBits;
   Int m_estPicQP;
+  Int m_lowerBound;
   Double m_estPicLambda;
 
   Int m_LCULeft;
@@ -321,6 +325,12 @@ public:
   TEncRCGOP* getRCGOP()          { assert ( m_encRCGOP != NULL ); return m_encRCGOP; }
   TEncRCPic* getRCPic()          { assert ( m_encRCPic != NULL ); return m_encRCPic; }
   list<TEncRCPic*>& getPicList() { return m_listRCPictures; }
+  Bool       getCpbSaturationEnabled()  { return m_CpbSaturationEnabled;  }
+  UInt       getCpbState()              { return m_cpbState;       }
+  UInt       getCpbSize()               { return m_cpbSize;        }
+  UInt       getBufferingRate()         { return m_bufferingRate;  }
+  Int        updateCpbState(Int actualBits);
+  Void       initHrdParam(const TComHRD* pcHrd, Int iFrameRate, Double fInitialCpbFullness);
 
 private:
   TEncRCSeq* m_encRCSeq;
@@ -328,6 +338,10 @@ private:
   TEncRCPic* m_encRCPic;
   list<TEncRCPic*> m_listRCPictures;
   Int        m_RCQP;
+  Bool       m_CpbSaturationEnabled;    // Enable target bits saturation to avoid CPB overflow and underflow
+  Int        m_cpbState;                // CPB State 
+  UInt       m_cpbSize;                 // CPB size
+  UInt       m_bufferingRate;           // Buffering rate
 };
 
 #endif

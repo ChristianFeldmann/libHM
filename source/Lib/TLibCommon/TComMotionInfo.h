@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -53,7 +53,7 @@
 /// parameters for AMVP
 typedef struct _AMVPInfo
 {
-  TComMv m_acMvCand[ AMVP_MAX_NUM_CANDS_MEM ];  ///< array of motion vector predictor candidates
+  TComMv m_acMvCand[ AMVP_MAX_NUM_CANDS ];  ///< array of motion vector predictor candidates
   Int    iN;                                ///< number of motion vector predictor candidates
 } AMVPInfo;
 
@@ -93,7 +93,7 @@ class TComCUMvField
 private:
   TComMv*   m_pcMv;
   TComMv*   m_pcMvd;
-  Char*     m_piRefIdx;
+  SChar*    m_piRefIdx;
   UInt      m_uiNumPartition;
   AMVPInfo  m_cAMVPInfo;
 
@@ -152,7 +152,11 @@ public:
     m_piRefIdx = src->m_piRefIdx + offset;
   }
 
-  Void compress(Char* pePredMode, Int scale);
+#if REDUCED_ENCODER_MEMORY
+  Void compress(SChar *pePredMode, const SChar* pePredModeSource, const Int scale, const TComCUMvField &source);
+#else
+  Void compress(SChar* pePredMode, Int scale);
+#endif
 };
 
 //! \}

@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -545,6 +545,44 @@ Int TEncRCPic::xEstPicHeaderBits( list<TEncRCPic*>& listPreviousPictures, Int fr
   return estHeaderBits;
 }
 
+Int TEncRCPic::xEstPicLowerBound(TEncRCSeq* encRCSeq, TEncRCGOP* encRCGOP)
+{
+  Int lowerBound = 0;
+  Int GOPbitsLeft = encRCGOP->getBitsLeft();
+
+  const Int nextPicPosition = (encRCGOP->getNumPic() - encRCGOP->getPicLeft() + 1) % encRCGOP->getNumPic();
+  const Int nextPicRatio = encRCSeq->getBitRatio(nextPicPosition);
+
+  Int totalPicRatio = 0;
+  for (Int i = nextPicPosition; i < encRCGOP->getNumPic(); i++)
+  {
+    totalPicRatio += encRCSeq->getBitRatio(i);
+  }
+
+  if (nextPicPosition == 0)
+  {
+    GOPbitsLeft = encRCGOP->getTargetBits();
+  }
+  else
+  {
+    GOPbitsLeft -= m_targetBits;
+  }
+
+  lowerBound = Int(((Double)GOPbitsLeft) * nextPicRatio / totalPicRatio);
+
+  if (lowerBound < 100)
+  {
+    lowerBound = 100;   // at least allocate 100 bits for one picture
+  }
+
+  if (m_encRCSeq->getFramesLeft() > 16)
+  {
+    lowerBound = Int(g_RCWeightPicRargetBitInBuffer * lowerBound + g_RCWeightPicTargetBitInGOP * m_encRCGOP->getTargetBitInGOP(nextPicPosition));
+  }
+
+  return lowerBound;
+}
+
 Void TEncRCPic::addToPictureLsit( list<TEncRCPic*>& listPreviousPictures )
 {
   if ( listPreviousPictures.size() > g_RCMaxPicListSize )
@@ -585,6 +623,7 @@ Void TEncRCPic::create( TEncRCSeq* encRCSeq, TEncRCGOP* encRCGOP, Int frameLevel
   Int LCUHeight      = encRCSeq->getLCUHeight();
   Int picWidthInLCU  = ( picWidth  % LCUWidth  ) == 0 ? picWidth  / LCUWidth  : picWidth  / LCUWidth  + 1;
   Int picHeightInLCU = ( picHeight % LCUHeight ) == 0 ? picHeight / LCUHeight : picHeight / LCUHeight + 1;
+  m_lowerBound       = xEstPicLowerBound( encRCSeq, encRCGOP );
 
   m_LCULeft         = m_numberOfLCU;
   m_bitsLeft       -= m_estHeaderBits;
@@ -882,7 +921,7 @@ Int TEncRCPic::getLCUEstQP( Double lambda, Int clipPicQP )
   return estQP;
 }
 
-Void TEncRCPic::updateAfterLCU( Int LCUIdx, Int bits, Int QP, Double lambda, Bool updateLCUParameter )
+Void TEncRCPic::updateAfterCTU( Int LCUIdx, Int bits, Int QP, Double lambda, Bool updateLCUParameter )
 {
   m_LCUs[LCUIdx].m_actualBits = bits;
   m_LCUs[LCUIdx].m_QP         = QP;
@@ -1378,6 +1417,10 @@ Void TEncRateCtrl::init( Int totalFrames, Int targetBitrate, Int frameRate, Int 
   {
     m_encRCSeq->initLCUPara();
   }
+  m_CpbSaturationEnabled = false;
+  m_cpbSize              = targetBitrate;
+  m_cpbState             = (UInt)(m_cpbSize*0.5f);
+  m_bufferingRate        = (Int)(targetBitrate / frameRate);
 
   delete[] bitsRatio;
   delete[] GOPID2Level;
@@ -1393,6 +1436,34 @@ Void TEncRateCtrl::initRCGOP( Int numberOfPictures )
 {
   m_encRCGOP = new TEncRCGOP;
   m_encRCGOP->create( m_encRCSeq, numberOfPictures );
+}
+
+Int  TEncRateCtrl::updateCpbState(Int actualBits)
+{
+  Int cpbState = 1;
+
+  m_cpbState -= actualBits;
+  if (m_cpbState < 0)
+  {
+    cpbState = -1;
+  }
+
+  m_cpbState += m_bufferingRate;
+  if (m_cpbState > m_cpbSize)
+  {
+    cpbState = 0;
+  }
+
+  return cpbState;
+}
+
+Void TEncRateCtrl::initHrdParam(const TComHRD* pcHrd, Int iFrameRate, Double fInitialCpbFullness)
+{
+  m_CpbSaturationEnabled = true;
+  m_cpbSize = (pcHrd->getCpbSizeValueMinus1(0, 0, 0) + 1) << (4 + pcHrd->getCpbSizeScale());
+  m_cpbState = (UInt)(m_cpbSize*fInitialCpbFullness);
+  m_bufferingRate = (UInt)(((pcHrd->getBitRateValueMinus1(0, 0, 0) + 1) << (6 + pcHrd->getBitRateScale())) / iFrameRate);
+  printf("\nHRD - [Initial CPB state %6d] [CPB Size %6d] [Buffering Rate %6d]\n", m_cpbState, m_cpbSize, m_bufferingRate);
 }
 
 Void TEncRateCtrl::destroyRCGOP()

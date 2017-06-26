@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -54,7 +54,7 @@ public:
 
   virtual Void  start             ()                                          = 0;
   virtual Void  finish            ()                                          = 0;
-  virtual Void  copyState         ( TEncBinIf* pcTEncBinIf )                  = 0;
+  virtual Void  copyState         ( const TEncBinIf* pcTEncBinIf )            = 0;
   virtual Void  flush            ()                                           = 0;
 
   virtual Void  resetBac          ()                                          = 0;
@@ -72,6 +72,7 @@ public:
   virtual Void  align             ()                                          = 0;
 
   virtual TEncBinCABAC*   getTEncBinCABAC   ()  { return 0; }
+  virtual const TEncBinCABAC*   getTEncBinCABAC   () const { return 0; }
 
   virtual ~TEncBinIf() {}
 };

@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -49,6 +49,39 @@
 
 //! \ingroup TLibCommon
 //! \{
+
+const TChar* nalUnitTypeToString(NalUnitType type)
+{
+  switch (type)
+  {
+  case NAL_UNIT_CODED_SLICE_TRAIL_R:    return "TRAIL_R";
+  case NAL_UNIT_CODED_SLICE_TRAIL_N:    return "TRAIL_N";
+  case NAL_UNIT_CODED_SLICE_TSA_R:      return "TSA_R";
+  case NAL_UNIT_CODED_SLICE_TSA_N:      return "TSA_N";
+  case NAL_UNIT_CODED_SLICE_STSA_R:     return "STSA_R";
+  case NAL_UNIT_CODED_SLICE_STSA_N:     return "STSA_N";
+  case NAL_UNIT_CODED_SLICE_BLA_W_LP:   return "BLA_W_LP";
+  case NAL_UNIT_CODED_SLICE_BLA_W_RADL: return "BLA_W_RADL";
+  case NAL_UNIT_CODED_SLICE_BLA_N_LP:   return "BLA_N_LP";
+  case NAL_UNIT_CODED_SLICE_IDR_W_RADL: return "IDR_W_RADL";
+  case NAL_UNIT_CODED_SLICE_IDR_N_LP:   return "IDR_N_LP";
+  case NAL_UNIT_CODED_SLICE_CRA:        return "CRA";
+  case NAL_UNIT_CODED_SLICE_RADL_R:     return "RADL_R";
+  case NAL_UNIT_CODED_SLICE_RADL_N:     return "RADL_N";
+  case NAL_UNIT_CODED_SLICE_RASL_R:     return "RASL_R";
+  case NAL_UNIT_CODED_SLICE_RASL_N:     return "RASL_N";
+  case NAL_UNIT_VPS:                    return "VPS";
+  case NAL_UNIT_SPS:                    return "SPS";
+  case NAL_UNIT_PPS:                    return "PPS";
+  case NAL_UNIT_ACCESS_UNIT_DELIMITER:  return "AUD";
+  case NAL_UNIT_EOS:                    return "EOS";
+  case NAL_UNIT_EOB:                    return "EOB";
+  case NAL_UNIT_FILLER_DATA:            return "FILLER";
+  case NAL_UNIT_PREFIX_SEI:             return "Prefix SEI";
+  case NAL_UNIT_SUFFIX_SEI:             return "Suffix SEI";
+  default:                              return "UNK";
+  }
+}
 
 class ScanGenerator
 {
@@ -105,7 +138,10 @@ public:
             m_line++;
             m_column = 0;
           }
-          else m_column++;
+          else
+          {
+            m_column++;
+          }
         }
         break;
 
@@ -118,7 +154,10 @@ public:
             m_column++;
             m_line = 0;
           }
-          else m_line++;
+          else
+          {
+            m_line++;
+          }
         }
         break;
 
@@ -242,16 +281,12 @@ Void destroyROM()
 // Data structure related table & variable
 // ====================================================================================================================
 
-UInt g_uiMaxCUWidth  = MAX_CU_SIZE;
-UInt g_uiMaxCUHeight = MAX_CU_SIZE;
-UInt g_uiMaxCUDepth  = MAX_CU_DEPTH;
-UInt g_uiAddCUDepth  = 0;
-UInt g_auiZscanToRaster [ MAX_NUM_SPU_W*MAX_NUM_SPU_W ] = { 0, };
-UInt g_auiRasterToZscan [ MAX_NUM_SPU_W*MAX_NUM_SPU_W ] = { 0, };
-UInt g_auiRasterToPelX  [ MAX_NUM_SPU_W*MAX_NUM_SPU_W ] = { 0, };
-UInt g_auiRasterToPelY  [ MAX_NUM_SPU_W*MAX_NUM_SPU_W ] = { 0, };
+UInt g_auiZscanToRaster [ MAX_NUM_PART_IDXS_IN_CTU_WIDTH*MAX_NUM_PART_IDXS_IN_CTU_WIDTH ] = { 0, };
+UInt g_auiRasterToZscan [ MAX_NUM_PART_IDXS_IN_CTU_WIDTH*MAX_NUM_PART_IDXS_IN_CTU_WIDTH ] = { 0, };
+UInt g_auiRasterToPelX  [ MAX_NUM_PART_IDXS_IN_CTU_WIDTH*MAX_NUM_PART_IDXS_IN_CTU_WIDTH ] = { 0, };
+UInt g_auiRasterToPelY  [ MAX_NUM_PART_IDXS_IN_CTU_WIDTH*MAX_NUM_PART_IDXS_IN_CTU_WIDTH ] = { 0, };
 
-UInt g_auiPUOffset[NUMBER_OF_PART_SIZES] = { 0, 8, 4, 4, 2, 10, 1, 5};
+const UInt g_auiPUOffset[NUMBER_OF_PART_SIZES] = { 0, 8, 4, 4, 2, 10, 1, 5};
 
 Void initZscanToRaster ( Int iMaxDepth, Int iDepth, UInt uiStartVal, UInt*& rpuiCurrIdx )
 {
@@ -316,14 +351,12 @@ Void initRasterToPelXY ( UInt uiMaxCUWidth, UInt uiMaxCUHeight, UInt uiMaxDepth 
   }
 }
 
-Int g_maxTrDynamicRange[MAX_NUM_CHANNEL_TYPE];
-
-Int g_quantScales[SCALING_LIST_REM_NUM] =
+const Int g_quantScales[SCALING_LIST_REM_NUM] =
 {
   26214,23302,20560,18396,16384,14564
 };
 
-Int g_invQuantScales[SCALING_LIST_REM_NUM] =
+const Int g_invQuantScales[SCALING_LIST_REM_NUM] =
 {
   40,45,51,57,64,72
 };
@@ -506,11 +539,10 @@ const UChar g_aucChromaScale[NUM_CHROMA_FORMAT][chromaQPMappingTableSize]=
 };
 
 // ====================================================================================================================
-// ADI
+// Intra prediction
 // ====================================================================================================================
 
-#if FAST_UDI_USE_MPM
-const UChar g_aucIntraModeNumFast[MAX_CU_DEPTH] =
+const UChar g_aucIntraModeNumFast_UseMPM[MAX_CU_DEPTH] =
 {
   3,  //   2x2
   8,  //   4x4
@@ -519,8 +551,7 @@ const UChar g_aucIntraModeNumFast[MAX_CU_DEPTH] =
   3,  //  32x32
   3   //  64x64
 };
-#else // FAST_UDI_USE_MPM
-const UChar g_aucIntraModeNumFast[MAX_CU_DEPTH] =
+const UChar g_aucIntraModeNumFast_NotUseMPM[MAX_CU_DEPTH] =
 {
   3,  //   2x2
   9,  //   4x4
@@ -529,30 +560,19 @@ const UChar g_aucIntraModeNumFast[MAX_CU_DEPTH] =
   4,  //  32x32   33
   5   //  64x64   33
 };
-#endif // FAST_UDI_USE_MPM
 
 const UChar g_chroma422IntraAngleMappingTable[NUM_INTRA_MODE] =
   //0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, DM
   { 0, 1, 2, 2, 2, 2, 3, 5, 7, 8, 10, 12, 13, 15, 17, 18, 19, 20, 21, 22, 23, 23, 24, 24, 25, 25, 26, 27, 27, 28, 28, 29, 29, 30, 31, DM_CHROMA_IDX};
 
 // ====================================================================================================================
-// Bit-depth
-// ====================================================================================================================
-
-Int g_bitDepth   [MAX_NUM_CHANNEL_TYPE] = {8, 8};
-#if RExt__O0043_BEST_EFFORT_DECODING
-Int g_bitDepthInStream   [MAX_NUM_CHANNEL_TYPE] = {8, 8}; // In the encoder, this is the same as g_bitDepth. In the decoder, this can vary from g_bitDepth if the decoder is forced to use 'best-effort decoding' at a particular bit-depth.
-#endif
-Int g_PCMBitDepth[MAX_NUM_CHANNEL_TYPE] = {8, 8};    // PCM bit-depth
-
-// ====================================================================================================================
 // Misc.
 // ====================================================================================================================
 
-Char  g_aucConvertToBit  [ MAX_CU_SIZE+1 ];
+SChar  g_aucConvertToBit  [ MAX_CU_SIZE+1 ];
 
 #if ENC_DEC_TRACE
-FILE*  g_hTrace = stdout; // Set to NULL to open up a file. Set to stdout to use the current output
+FILE*  g_hTrace = NULL; // Set to NULL to open up a file. Set to stdout to use the current output
 const Bool g_bEncDecTraceEnable  = true;
 const Bool g_bEncDecTraceDisable = false;
 Bool   g_HLSTraceEnable = true;
@@ -577,7 +597,7 @@ const UInt ctxIndMap4x4[4*4] =
 const UInt g_uiMinInGroup[ LAST_SIGNIFICANT_GROUPS ] = {0,1,2,3,4,6,8,12,16,24};
 const UInt g_uiGroupIdx[ MAX_TU_SIZE ]   = {0,1,2,3,4,4,5,5,6,6,6,6,7,7,7,7,8,8,8,8,8,8,8,8,9,9,9,9,9,9,9,9};
 
-const Char *MatrixType[SCALING_LIST_SIZE_NUM][SCALING_LIST_NUM] =
+const TChar *MatrixType[SCALING_LIST_SIZE_NUM][SCALING_LIST_NUM] =
 {
   {
     "INTRA4X4_LUMA",
@@ -613,7 +633,7 @@ const Char *MatrixType[SCALING_LIST_SIZE_NUM][SCALING_LIST_NUM] =
   },
 };
 
-const Char *MatrixType_DC[SCALING_LIST_SIZE_NUM][SCALING_LIST_NUM] =
+const TChar *MatrixType_DC[SCALING_LIST_SIZE_NUM][SCALING_LIST_NUM] =
 {
   {
   },
@@ -637,7 +657,7 @@ const Char *MatrixType_DC[SCALING_LIST_SIZE_NUM][SCALING_LIST_NUM] =
   },
 };
 
-Int g_quantTSDefault4x4[4*4] =
+const Int g_quantTSDefault4x4[4*4] =
 {
   16,16,16,16,
   16,16,16,16,
@@ -645,7 +665,7 @@ Int g_quantTSDefault4x4[4*4] =
   16,16,16,16
 };
 
-Int g_quantIntraDefault8x8[8*8] =
+const Int g_quantIntraDefault8x8[8*8] =
 {
   16,16,16,16,17,18,21,24,
   16,16,16,16,17,19,22,25,
@@ -657,7 +677,7 @@ Int g_quantIntraDefault8x8[8*8] =
   24,25,29,36,47,65,88,115
 };
 
-Int g_quantInterDefault8x8[8*8] =
+const Int g_quantInterDefault8x8[8*8] =
 {
   16,16,16,16,17,18,20,24,
   16,16,16,17,18,20,24,25,
@@ -669,7 +689,7 @@ Int g_quantInterDefault8x8[8*8] =
   24,25,28,33,41,54,71,91
 };
 
-UInt g_scalingListSize   [SCALING_LIST_SIZE_NUM] = {16,64,256,1024};
-UInt g_scalingListSizeX  [SCALING_LIST_SIZE_NUM] = { 4, 8, 16,  32};
+const UInt g_scalingListSize   [SCALING_LIST_SIZE_NUM] = {16,64,256,1024};
+const UInt g_scalingListSizeX  [SCALING_LIST_SIZE_NUM] = { 4, 8, 16,  32};
 
 //! \}

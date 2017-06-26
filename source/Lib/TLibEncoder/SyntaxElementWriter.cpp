@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -43,7 +43,7 @@
 
 #if ENC_DEC_TRACE
 
-Void  SyntaxElementWriter::xWriteCodeTr (UInt value, UInt  length, const Char *pSymbolName)
+Void  SyntaxElementWriter::xWriteCodeTr (UInt value, UInt  length, const TChar *pSymbolName)
 {
   xWriteCode (value,length);
   if( g_HLSTraceEnable )
@@ -60,7 +60,7 @@ Void  SyntaxElementWriter::xWriteCodeTr (UInt value, UInt  length, const Char *p
   }
 }
 
-Void  SyntaxElementWriter::xWriteUvlcTr (UInt value, const Char *pSymbolName)
+Void  SyntaxElementWriter::xWriteUvlcTr (UInt value, const TChar *pSymbolName)
 {
   xWriteUvlc (value);
   if( g_HLSTraceEnable )
@@ -70,7 +70,7 @@ Void  SyntaxElementWriter::xWriteUvlcTr (UInt value, const Char *pSymbolName)
   }
 }
 
-Void  SyntaxElementWriter::xWriteSvlcTr (Int value, const Char *pSymbolName)
+Void  SyntaxElementWriter::xWriteSvlcTr (Int value, const TChar *pSymbolName)
 {
   xWriteSvlc(value);
   if( g_HLSTraceEnable )
@@ -80,7 +80,7 @@ Void  SyntaxElementWriter::xWriteSvlcTr (Int value, const Char *pSymbolName)
   }
 }
 
-Void  SyntaxElementWriter::xWriteFlagTr(UInt value, const Char *pSymbolName)
+Void  SyntaxElementWriter::xWriteFlagTr(UInt value, const TChar *pSymbolName)
 {
   xWriteFlag(value);
   if( g_HLSTraceEnable )
@@ -127,6 +127,18 @@ Void SyntaxElementWriter::xWriteSvlc     ( Int iCode )
 Void SyntaxElementWriter::xWriteFlag( UInt uiCode )
 {
   m_pcBitIf->write( uiCode, 1 );
+}
+
+Void SyntaxElementWriter::xWriteRbspTrailingBits()
+{
+  WRITE_FLAG( 1, "rbsp_stop_one_bit");
+  Int cnt = 0;
+  while (m_pcBitIf->getNumBitsUntilByteAligned())
+  {
+    WRITE_FLAG( 0, "rbsp_alignment_zero_bit");
+    cnt++;
+  }
+  assert(cnt<8);
 }
 
 //! \}

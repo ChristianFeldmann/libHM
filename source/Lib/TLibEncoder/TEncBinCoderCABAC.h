@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -55,7 +55,7 @@ public:
 
   Void  start             ();
   Void  finish            ();
-  Void  copyState         ( TEncBinIf* pcTEncBinIf );
+  Void  copyState         ( const TEncBinIf* pcTEncBinIf );
   Void  flush            ();
 
   Void  resetBac          ();
@@ -74,6 +74,7 @@ public:
   Void  encodeAlignedBinsEP( UInt  binValues, Int numBins             );
 
   TEncBinCABAC* getTEncBinCABAC()  { return this; }
+  const TEncBinCABAC* getTEncBinCABAC() const { return this; }
 
   Void  setBinsCoded              ( UInt uiVal )  { m_uiBinsCoded = uiVal;               }
   UInt  getBinsCoded              ()              { return m_uiBinsCoded;                }

@@ -3,7 +3,7 @@
 * and contributor rights, including patent rights, and no such rights are
 * granted under this license.
 *
-* Copyright (c) 2010-2014, ITU/ISO/IEC
+* Copyright (c) 2010-2017, ITU/ISO/IEC
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
@@ -48,13 +48,61 @@
 
 #if ENC_DEC_TRACE
 
-Void  SyntaxElementParser::xReadCodeTr           (UInt length, UInt& rValue, const Char *pSymbolName)
+Void  xTraceAccessUnitDelimiter ()
 {
-#if RExt__DECODER_DEBUG_BIT_STATISTICS
-  xReadCode (length, rValue, pSymbolName);
-#else
-  xReadCode (length, rValue);
+  fprintf( g_hTrace, "=========== Access Unit Delimiter ===========\n");
+}
+
+Void xTraceFillerData ()
+{
+  fprintf( g_hTrace, "=========== Filler Data ===========\n");
+}
+
 #endif
+
+
+
+#if DECODER_PARTIAL_CONFORMANCE_CHECK!=0
+Void SyntaxElementParser::xReadCodeChk ( UInt   length, UInt& val, const TChar *pSymbolName, const UInt minValIncl, const UInt maxValIncl )
+{
+  READ_CODE(length, val, pSymbolName);
+  TDecConformanceCheck::checkRange(val, pSymbolName, minValIncl, maxValIncl);
+}
+
+Void SyntaxElementParser::xReadUvlcChk ( UInt&  val, const TChar *pSymbolName, const UInt minValIncl, const UInt maxValIncl )
+{
+  READ_UVLC(val, pSymbolName);
+  TDecConformanceCheck::checkRange(val, pSymbolName, minValIncl, maxValIncl);
+}
+
+Void SyntaxElementParser::xReadSvlcChk ( Int&   val, const TChar *pSymbolName, const Int  minValIncl, const Int  maxValIncl )
+{
+  READ_SVLC(val, pSymbolName);
+  TDecConformanceCheck::checkRange(val, pSymbolName, minValIncl, maxValIncl);
+}
+
+Void SyntaxElementParser::xReadFlagChk ( UInt&  val, const TChar *pSymbolName, const UInt minValIncl, const UInt maxValIncl )
+{
+  READ_FLAG(val, pSymbolName);
+  TDecConformanceCheck::checkRange(val, pSymbolName, minValIncl, maxValIncl);
+}
+#endif
+
+// ====================================================================================================================
+// Protected member functions
+// ====================================================================================================================
+#if RExt__DECODER_DEBUG_BIT_STATISTICS || ENC_DEC_TRACE
+Void SyntaxElementParser::xReadCode (UInt uiLength, UInt& rValue, const TChar *pSymbolName)
+#else
+Void SyntaxElementParser::xReadCode (UInt uiLength, UInt& rValue)
+#endif
+{
+  assert ( uiLength > 0 );
+  m_pcBitstream->read (uiLength, rValue);
+#if RExt__DECODER_DEBUG_BIT_STATISTICS
+  TComCodingStatistics::IncrementStatisticEP(pSymbolName, uiLength, rValue);
+#endif
+#if ENC_DEC_TRACE
   fprintf( g_hTrace, "%8lld  ", g_nSymbolCounter++ );
   if (length < 10)
   {
@@ -65,67 +113,14 @@ Void  SyntaxElementParser::xReadCodeTr           (UInt length, UInt& rValue, con
     fprintf( g_hTrace, "%-50s u(%d) : %u\n", pSymbolName, length, rValue );
   }
   fflush ( g_hTrace );
-}
-
-Void  SyntaxElementParser::xReadUvlcTr           (UInt& rValue, const Char *pSymbolName)
-{
-#if RExt__DECODER_DEBUG_BIT_STATISTICS
-  xReadUvlc (rValue, pSymbolName);
-#else
-  xReadUvlc (rValue);
-#endif
-  fprintf( g_hTrace, "%8lld  ", g_nSymbolCounter++ );
-  fprintf( g_hTrace, "%-50s ue(v) : %u\n", pSymbolName, rValue );
-  fflush ( g_hTrace );
-}
-
-Void  SyntaxElementParser::xReadSvlcTr           (Int& rValue, const Char *pSymbolName)
-{
-#if RExt__DECODER_DEBUG_BIT_STATISTICS
-  xReadSvlc (rValue, pSymbolName);
-#else
-  xReadSvlc (rValue);
-#endif
-  fprintf( g_hTrace, "%8lld  ", g_nSymbolCounter++ );
-  fprintf( g_hTrace, "%-50s se(v) : %d\n", pSymbolName, rValue );
-  fflush ( g_hTrace );
-}
-
-Void  SyntaxElementParser::xReadFlagTr           (UInt& rValue, const Char *pSymbolName)
-{
-#if RExt__DECODER_DEBUG_BIT_STATISTICS
-  xReadFlag (rValue, pSymbolName);
-#else
-  xReadFlag (rValue);
-#endif
-  fprintf( g_hTrace, "%8lld  ", g_nSymbolCounter++ );
-  fprintf( g_hTrace, "%-50s u(1)  : %d\n", pSymbolName, rValue );
-  fflush ( g_hTrace );
-}
-
-#endif
-
-
-// ====================================================================================================================
-// Protected member functions
-// ====================================================================================================================
-#if RExt__DECODER_DEBUG_BIT_STATISTICS
-Void SyntaxElementParser::xReadCode (UInt uiLength, UInt& ruiCode, const Char *pSymbolName)
-#else
-Void SyntaxElementParser::xReadCode (UInt uiLength, UInt& ruiCode)
-#endif
-{
-  assert ( uiLength > 0 );
-  m_pcBitstream->read (uiLength, ruiCode);
-#if RExt__DECODER_DEBUG_BIT_STATISTICS
-  TComCodingStatistics::IncrementStatisticEP(pSymbolName, uiLength, ruiCode);
 #endif
 }
 
-#if RExt__DECODER_DEBUG_BIT_STATISTICS
-Void SyntaxElementParser::xReadUvlc( UInt& ruiVal, const Char *pSymbolName)
+
+#if RExt__DECODER_DEBUG_BIT_STATISTICS || ENC_DEC_TRACE
+Void SyntaxElementParser::xReadUvlc( UInt& rValue, const TChar *pSymbolName)
 #else
-Void SyntaxElementParser::xReadUvlc( UInt& ruiVal)
+Void SyntaxElementParser::xReadUvlc( UInt& rValue)
 #endif
 {
   UInt uiVal = 0;
@@ -154,16 +149,22 @@ Void SyntaxElementParser::xReadUvlc( UInt& ruiVal)
 #endif
   }
 
-  ruiVal = uiVal;
+  rValue = uiVal;
 #if RExt__DECODER_DEBUG_BIT_STATISTICS
-  TComCodingStatistics::IncrementStatisticEP(pSymbolName, Int(totalLen), ruiVal);
+  TComCodingStatistics::IncrementStatisticEP(pSymbolName, Int(totalLen), rValue);
+#endif
+
+#if ENC_DEC_TRACE
+  fprintf( g_hTrace, "%8lld  ", g_nSymbolCounter++ );
+  fprintf( g_hTrace, "%-50s ue(v) : %u\n", pSymbolName, rValue );
+  fflush ( g_hTrace );
 #endif
 }
 
-#if RExt__DECODER_DEBUG_BIT_STATISTICS
-Void SyntaxElementParser::xReadSvlc( Int& riVal, const Char *pSymbolName)
+#if RExt__DECODER_DEBUG_BIT_STATISTICS || ENC_DEC_TRACE
+Void SyntaxElementParser::xReadSvlc( Int& rValue, const TChar *pSymbolName)
 #else
-Void SyntaxElementParser::xReadSvlc( Int& riVal)
+Void SyntaxElementParser::xReadSvlc( Int& rValue)
 #endif
 {
   UInt uiBits = 0;
@@ -184,31 +185,89 @@ Void SyntaxElementParser::xReadSvlc( Int& riVal)
     m_pcBitstream->read( uiLength, uiBits );
 
     uiBits += (1 << uiLength);
-    riVal = ( uiBits & 1) ? -(Int)(uiBits>>1) : (Int)(uiBits>>1);
+    rValue = ( uiBits & 1) ? -(Int)(uiBits>>1) : (Int)(uiBits>>1);
 #if RExt__DECODER_DEBUG_BIT_STATISTICS
     totalLen+=uiLength+uiLength;
 #endif
   }
   else
   {
-    riVal = 0;
+    rValue = 0;
   }
 #if RExt__DECODER_DEBUG_BIT_STATISTICS
-  TComCodingStatistics::IncrementStatisticEP(pSymbolName, Int(totalLen), riVal);
+  TComCodingStatistics::IncrementStatisticEP(pSymbolName, Int(totalLen), rValue);
+#endif
+
+#if ENC_DEC_TRACE
+  fprintf( g_hTrace, "%8lld  ", g_nSymbolCounter++ );
+  fprintf( g_hTrace, "%-50s se(v) : %d\n", pSymbolName, rValue );
+  fflush ( g_hTrace );
+#endif
+
+}
+
+#if RExt__DECODER_DEBUG_BIT_STATISTICS || ENC_DEC_TRACE
+Void SyntaxElementParser::xReadFlag (UInt& rValue, const TChar *pSymbolName)
+#else
+Void SyntaxElementParser::xReadFlag (UInt& rValue)
+#endif
+{
+  m_pcBitstream->read( 1, rValue );
+#if RExt__DECODER_DEBUG_BIT_STATISTICS
+  TComCodingStatistics::IncrementStatisticEP(pSymbolName, 1, Int(rValue));
+#endif
+
+#if ENC_DEC_TRACE
+  fprintf( g_hTrace, "%8lld  ", g_nSymbolCounter++ );
+  fprintf( g_hTrace, "%-50s u(1)  : %d\n", pSymbolName, rValue );
+  fflush ( g_hTrace );
 #endif
 }
 
-#if RExt__DECODER_DEBUG_BIT_STATISTICS
-Void SyntaxElementParser::xReadFlag (UInt& ruiCode, const Char *pSymbolName)
-#else
-Void SyntaxElementParser::xReadFlag (UInt& ruiCode)
-#endif
+Void SyntaxElementParser::xReadRbspTrailingBits()
 {
-  m_pcBitstream->read( 1, ruiCode );
-#if RExt__DECODER_DEBUG_BIT_STATISTICS
-  TComCodingStatistics::IncrementStatisticEP(pSymbolName, 1, Int(ruiCode));
-#endif
+  UInt bit;
+  READ_FLAG( bit, "rbsp_stop_one_bit");
+  assert (bit==1);
+  Int cnt = 0;
+  while (m_pcBitstream->getNumBitsUntilByteAligned())
+  {
+    READ_FLAG( bit, "rbsp_alignment_zero_bit");
+    assert (bit==0);
+    cnt++;
+  }
+  assert(cnt<8);
 }
+
+Void AUDReader::parseAccessUnitDelimiter(TComInputBitstream* bs, UInt &picType)
+{
+  setBitstream(bs);
+
+#if ENC_DEC_TRACE
+  xTraceAccessUnitDelimiter();
+#endif
+
+  READ_CODE (3, picType, "pic_type");
+  xReadRbspTrailingBits();
+}
+
+Void FDReader::parseFillerData(TComInputBitstream* bs, UInt &fdSize)
+{
+  setBitstream(bs);
+#if ENC_DEC_TRACE
+  xTraceFillerData();
+#endif
+  UInt ffByte;
+  fdSize = 0;
+  while( m_pcBitstream->getNumBitsLeft() >8 )
+  {
+    READ_CODE (8, ffByte, "ff_byte");
+    assert (ffByte==0xff);
+    fdSize++;
+  }
+  xReadRbspTrailingBits();
+}
+
 
 //! \}
 

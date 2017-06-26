@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -73,6 +73,9 @@ Void TEncBinCABAC::start()
   m_bitsLeft         = 23;
   m_numBufferedBytes = 0;
   m_bufferedByte     = 0xff;
+#if FAST_BIT_EST
+  m_fracBits         = 0;
+#endif
 }
 
 Void TEncBinCABAC::finish()
@@ -142,9 +145,9 @@ Void TEncBinCABAC::xWritePCMCode(UInt uiCode, UInt uiLength)
   m_pcTComBitIf->write(uiCode, uiLength);
 }
 
-Void TEncBinCABAC::copyState( TEncBinIf* pcTEncBinIf )
+Void TEncBinCABAC::copyState( const TEncBinIf* pcTEncBinIf )
 {
-  TEncBinCABAC* pcTEncBinCABAC = pcTEncBinIf->getTEncBinCABAC();
+  const TEncBinCABAC* pcTEncBinCABAC = pcTEncBinIf->getTEncBinCABAC();
   m_uiLow           = pcTEncBinCABAC->m_uiLow;
   m_uiRange         = pcTEncBinCABAC->m_uiRange;
   m_bitsLeft        = pcTEncBinCABAC->m_bitsLeft;
@@ -192,7 +195,7 @@ Void TEncBinCABAC::encodeBin( UInt binValue, ContextModel &rcCtxModel )
   //  DTRACE_CABAC_T( "\n" )
   //}
 
-#ifdef DEBUG_CABAC_BINS
+#if DEBUG_CABAC_BINS
   const UInt startingRange = m_uiRange;
 #endif
 
@@ -224,16 +227,22 @@ Void TEncBinCABAC::encodeBin( UInt binValue, ContextModel &rcCtxModel )
     }
   }
 
-#ifdef DEBUG_CABAC_BINS
+#if DEBUG_CABAC_BINS
   if ((g_debugCounter + debugCabacBinWindow) >= debugCabacBinTargetLine)
+  {
     std::cout << g_debugCounter << ": coding bin value " << binValue << ", range = [" << startingRange << "->" << m_uiRange << "]\n";
+  }
 
   if (g_debugCounter >= debugCabacBinTargetLine)
   {
-    Char breakPointThis;
+    UChar breakPointThis;
     breakPointThis = 7;
   }
-  if (g_debugCounter >= (debugCabacBinTargetLine + debugCabacBinWindow)) exit(0);
+  if (g_debugCounter >= (debugCabacBinTargetLine + debugCabacBinWindow))
+  {
+    exit(0);
+  }
+
   g_debugCounter++;
 #endif
 }

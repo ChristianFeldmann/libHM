@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -69,24 +69,141 @@ Distortion TComRdCostWeightPrediction::xGetSADw( DistParam* pcDtParam )
   const Int             offset     = wpCur.offset;
   const Int             shift      = wpCur.shift;
   const Int             round      = wpCur.round;
+  const Int        distortionShift = DISTORTION_PRECISION_ADJUSTMENT(pcDtParam->bitDepth-8);
 
   Distortion uiSum = 0;
 
-  for(Int iRows = pcDtParam->iRows; iRows != 0; iRows-- )
+  // Default weight
+  if (w0 == 1 << shift)
   {
-    for (Int n = 0; n < iCols; n++ )
+    // no offset
+    if (offset == 0)
     {
-      const Pel pred = ( (w0*piCur[n] + round) >> shift ) + offset ;
-
-      uiSum += abs( piOrg[n] - pred );
+      for(Int iRows = pcDtParam->iRows; iRows != 0; iRows-- )
+      {
+        for (Int n = 0; n < iCols; n++ )
+        {
+          uiSum += abs( piOrg[n] - piCur[n] );
+        }
+        if (pcDtParam->m_maximumDistortionForEarlyExit <  ( uiSum >> distortionShift))
+        {
+          return uiSum >> distortionShift;
+        }
+        piOrg += iStrideOrg;
+        piCur += iStrideCur;
+      }
     }
-    piOrg += iStrideOrg;
-    piCur += iStrideCur;
+    else
+    {
+      // Lets not clip for the bipredictive case since clipping should be done after
+      // combining both elements. Unfortunately the code uses the suboptimal "subtraction"
+      // method, which is faster but introduces the clipping issue (therefore Bipred is suboptimal).
+      if (pcDtParam->bIsBiPred)
+      {
+        for(Int iRows = pcDtParam->iRows; iRows != 0; iRows-- )
+        {
+          for (Int n = 0; n < iCols; n++ )
+          {
+            uiSum += abs( piOrg[n] - (piCur[n] + offset) );
+          }
+          if (pcDtParam->m_maximumDistortionForEarlyExit <  ( uiSum >> distortionShift))
+          {
+            return uiSum >> distortionShift;
+          }
+
+          piOrg += iStrideOrg;
+          piCur += iStrideCur;
+        }
+      }
+      else
+      {
+        const Pel iMaxValue = (Pel) ((1 << pcDtParam->bitDepth) - 1);
+        for(Int iRows = pcDtParam->iRows; iRows != 0; iRows-- )
+        {
+          for (Int n = 0; n < iCols; n++ )
+          {
+            const Pel pred = Clip3((Pel) 0, iMaxValue, (Pel) (piCur[n] + offset)) ;
+
+            uiSum += abs( piOrg[n] - pred );
+          }
+          if (pcDtParam->m_maximumDistortionForEarlyExit <  ( uiSum >> distortionShift))
+          {
+            return uiSum >> distortionShift;
+          }
+          piOrg += iStrideOrg;
+          piCur += iStrideCur;
+        }
+      }
+    }
   }
+  else
+  {
+    // Lets not clip for the bipredictive case since clipping should be done after
+    // combining both elements. Unfortunately the code uses the suboptimal "subtraction"
+    // method, which is faster but introduces the clipping issue (therefore Bipred is suboptimal).
+    if (pcDtParam->bIsBiPred)
+    {
+      for(Int iRows = pcDtParam->iRows; iRows != 0; iRows-- )
+      {
+        for (Int n = 0; n < iCols; n++ )
+        {
+          const Pel pred = ( (w0*piCur[n] + round) >> shift ) + offset ;
+          uiSum += abs( piOrg[n] - pred );
+        }
+        if (pcDtParam->m_maximumDistortionForEarlyExit <  ( uiSum >> distortionShift))
+        {
+          return uiSum >> distortionShift;
+        }
 
-  pcDtParam->compIdx = MAX_NUM_COMPONENT;  // reset for DEBUG (assert test)
+        piOrg += iStrideOrg;
+        piCur += iStrideCur;
+      }
+    }
+    else
+    {
+      const Pel iMaxValue = (Pel) ((1 << pcDtParam->bitDepth) - 1);
 
-  return uiSum >> DISTORTION_PRECISION_ADJUSTMENT(pcDtParam->bitDepth-8);
+      if (offset == 0)
+      {
+        for(Int iRows = pcDtParam->iRows; iRows != 0; iRows-- )
+        {
+          for (Int n = 0; n < iCols; n++ )
+          {
+            const Pel pred = Clip3((Pel) 0, iMaxValue, (Pel) (( (w0*piCur[n] + round) >> shift ))) ;
+
+            uiSum += abs( piOrg[n] - pred );
+          }
+          if (pcDtParam->m_maximumDistortionForEarlyExit <  ( uiSum >> distortionShift))
+          {
+            return uiSum >> distortionShift;
+          }
+          piOrg += iStrideOrg;
+          piCur += iStrideCur;
+        }
+      }
+      else
+      {
+        for(Int iRows = pcDtParam->iRows; iRows != 0; iRows-- )
+        {
+          for (Int n = 0; n < iCols; n++ )
+          {
+            const Pel pred = Clip3((Pel) 0, iMaxValue, (Pel) (( (w0*piCur[n] + round) >> shift ) + offset)) ;
+
+            uiSum += abs( piOrg[n] - pred );
+          }
+          if (pcDtParam->m_maximumDistortionForEarlyExit <  ( uiSum >> distortionShift))
+          {
+            return uiSum >> distortionShift;
+          }
+          piOrg += iStrideOrg;
+          piCur += iStrideCur;
+        }
+      }
+    }
+  }
+  //pcDtParam->compIdx = MAX_NUM_COMPONENT;  // reset for DEBUG (assert test)
+
+  return uiSum >> distortionShift;
 }
 
 
@@ -106,7 +223,7 @@ Distortion TComRdCostWeightPrediction::xGetSSEw( DistParam* pcDtParam )
   const Int             iStrideCur      = pcDtParam->iStrideCur;
   const ComponentID     compIdx         = pcDtParam->compIdx;
 
-  assert( pcDtParam->iSubShift == 0 ); // NOTE: RExt - what is this protecting?
+  assert( pcDtParam->iSubShift == 0 ); // NOTE: what is this protecting?
 
   assert(compIdx<MAX_NUM_COMPONENT);
   const WPScalingParam &wpCur           = pcDtParam->wpCur[compIdx];
@@ -118,19 +235,38 @@ Distortion TComRdCostWeightPrediction::xGetSSEw( DistParam* pcDtParam )
 
   Distortion sum = 0;
 
-  for(Int iRows = pcDtParam->iRows ; iRows != 0; iRows-- )
+  if (pcDtParam->bIsBiPred)
   {
-    for (Int n = 0; n < iCols; n++ )
+    for(Int iRows = pcDtParam->iRows ; iRows != 0; iRows-- )
     {
-      const Pel pred     = ( (w0*piCur[n] + round) >> shift ) + offset ;
-      const Pel residual = piOrg[n] - pred;
-      sum += ( Distortion(residual) * Distortion(residual) ) >> distortionShift;
+      for (Int n = 0; n < iCols; n++ )
+      {
+        const Pel pred     = ( (w0*piCur[n] + round) >> shift ) + offset ;
+        const Pel residual = piOrg[n] - pred;
+        sum += ( Distortion(residual) * Distortion(residual) ) >> distortionShift;
+      }
+      piOrg += iStrideOrg;
+      piCur += iStrideCur;
     }
-    piOrg += iStrideOrg;
-    piCur += iStrideCur;
+  }
+  else
+  {
+    const Pel iMaxValue = (Pel) ((1 << pcDtParam->bitDepth) - 1);
+
+    for(Int iRows = pcDtParam->iRows ; iRows != 0; iRows-- )
+    {
+      for (Int n = 0; n < iCols; n++ )
+      {
+        const Pel pred     = Clip3((Pel) 0, iMaxValue, (Pel) (( (w0*piCur[n] + round) >> shift ) + offset)) ;
+        const Pel residual = piOrg[n] - pred;
+        sum += ( Distortion(residual) * Distortion(residual) ) >> distortionShift;
+      }
+      piOrg += iStrideOrg;
+      piCur += iStrideCur;
+    }
   }
 
-  pcDtParam->compIdx = MAX_NUM_COMPONENT; // reset for DEBUG (assert test)
+  //pcDtParam->compIdx = MAX_NUM_COMPONENT; // reset for DEBUG (assert test)
 
   return sum;
 }
@@ -139,14 +275,7 @@ Distortion TComRdCostWeightPrediction::xGetSSEw( DistParam* pcDtParam )
 // --------------------------------------------------------------------------------------------------------------------
 // HADAMARD with step (used in fractional search)
 // --------------------------------------------------------------------------------------------------------------------
-/** get weighted Hadamard cost for 2x2 block
- * \param *piOrg
- * \param *piCur
- * \param iStrideOrg
- * \param iStrideCur
- * \param iStep
- * \returns Distortion
- */
+//! get weighted Hadamard cost for 2x2 block
 Distortion xCalcHADs2x2w( const WPScalingParam &wpCur, const Pel *piOrg, const Pel *piCur, Int iStrideOrg, Int iStrideCur, Int iStep )
 {
   const Int round  = wpCur.round;
@@ -183,14 +312,7 @@ Distortion xCalcHADs2x2w( const WPScalingParam &wpCur, const Pel *piOrg, const P
 }
 
 
-/** get weighted Hadamard cost for 4x4 block
- * \param *piOrg
- * \param *piCur
- * \param iStrideOrg
- * \param iStrideCur
- * \param iStep
- * \returns Distortion
- */
+//! get weighted Hadamard cost for 4x4 block
 Distortion xCalcHADs4x4w( const WPScalingParam &wpCur, const Pel *piOrg, const Pel *piCur, Int iStrideOrg, Int iStrideCur, Int iStep )
 {
   const Int round  = wpCur.round;
@@ -299,14 +421,7 @@ Distortion xCalcHADs4x4w( const WPScalingParam &wpCur, const Pel *piOrg, const P
 }
 
 
-/** get weighted Hadamard cost for 8x8 block
- * \param *piOrg
- * \param *piCur
- * \param iStrideOrg
- * \param iStrideCur
- * \param iStep
- * \returns Distortion
- */
+//! get weighted Hadamard cost for 8x8 block
 Distortion xCalcHADs8x8w( const WPScalingParam &wpCur, const Pel *piOrg, const Pel *piCur, Int iStrideOrg, Int iStrideCur, Int iStep )
 {
   Distortion sad=0;
@@ -424,10 +539,7 @@ Distortion xCalcHADs8x8w( const WPScalingParam &wpCur, const Pel *piOrg, const P
 }
 
 
-/** get weighted Hadamard cost
- * \param *pcDtParam
- * \returns Distortion
- */
+//! get weighted Hadamard cost
 Distortion TComRdCostWeightPrediction::xGetHADsw( DistParam* pcDtParam )
 {
   const Pel        *piOrg      = pcDtParam->pOrg;
@@ -439,7 +551,7 @@ Distortion TComRdCostWeightPrediction::xGetHADsw( DistParam* pcDtParam )
   const Int         iStep      = pcDtParam->iStep;
   const ComponentID compIdx    = pcDtParam->compIdx;
   assert(compIdx<MAX_NUM_COMPONENT);
-  const WPScalingParam  wpCur    = pcDtParam->wpCur[compIdx];
+  const WPScalingParam &wpCur  = pcDtParam->wpCur[compIdx];
 
   Distortion uiSum = 0;
 

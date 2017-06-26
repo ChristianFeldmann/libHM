@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -37,7 +37,7 @@
 #ifndef __WEIGHTPREDANALYSIS__
 #define __WEIGHTPREDANALYSIS__
 
-#include "../TLibCommon/TypeDef.h"
+#include "../TLibCommon/CommonDef.h"
 #include "../TLibCommon/TComSlice.h"
 #include "TEncCavlc.h"
 
@@ -46,26 +46,13 @@ class  WeightPredAnalysis
 private:
 
   // member variables
-  Bool            m_weighted_pred_flag;
-  Bool            m_weighted_bipred_flag;
   WPScalingParam  m_wp[NUM_REF_PIC_LIST_01][MAX_NUM_REF][MAX_NUM_COMPONENT];
 
   // member functions
 
   Bool  xSelectWP            (TComSlice *const slice, const Int log2Denom);
+  Bool  xSelectWPHistExtClip (TComSlice *const slice, const Int log2Denom, const Bool bDoEnhancement, const Bool bClipInitialSADWP, const Bool bUseHistogram);
   Bool  xUpdatingWPParameters(TComSlice *const slice, const Int log2Denom);
-
-  Int64 xCalcSADvalueWP      (const Int   bitDepth,
-                              const Pel  *pOrgPel,
-                              const Pel  *pRefPel,
-                              const Int   iWidth,
-                              const Int   iHeight,
-                              const Int   iOrgStride,
-                              const Int   iRefStride,
-                              const Int   iLog2Denom,
-                              const Int   iWeight,
-                              const Int   iOffset,
-                              const Bool  useHighPrecisionPredictionWeighting);
 
 public:
 
@@ -73,9 +60,7 @@ public:
 
   // WP analysis :
   Void  xCalcACDCParamSlice  (TComSlice *const slice);
-  Void  xEstimateWPParamSlice(TComSlice *const slice);
-  Void  xStoreWPparam        (const Bool weighted_pred_flag, const Bool weighted_bipred_flag);
-  Void  xRestoreWPparam      (TComSlice *const slice);
+  Void  xEstimateWPParamSlice(TComSlice *const slice, const WeightedPredictionMethod method);
   Void  xCheckWPEnable       (TComSlice *const slice);
 };
 

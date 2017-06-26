@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -53,7 +53,7 @@ Void  xTraceSEIMessageType(SEI::PayloadType payloadType)
 }
 #endif
 
-Void SEIWriter::xWriteSEIpayloadData(TComBitIf& bs, const SEI& sei, TComSPS *sps)
+Void SEIWriter::xWriteSEIpayloadData(TComBitIf& bs, const SEI& sei, const TComSPS *sps)
 {
   switch (sei.payloadType())
   {
@@ -105,11 +105,11 @@ Void SEIWriter::xWriteSEIpayloadData(TComBitIf& bs, const SEI& sei, TComSPS *sps
   case SEI::SCALABLE_NESTING:
     xWriteSEIScalableNesting(bs, *static_cast<const SEIScalableNesting*>(&sei), sps);
     break;
-  case SEI::CHROMA_SAMPLING_FILTER_HINT:
-    xWriteSEIChromaSamplingFilterHint(*static_cast<const SEIChromaSamplingFilterHint*>(&sei)/*, sps*/);
+  case SEI::CHROMA_RESAMPLING_FILTER_HINT:
+    xWriteSEIChromaResamplingFilterHint(*static_cast<const SEIChromaResamplingFilterHint*>(&sei));
     break;
   case SEI::TEMP_MOTION_CONSTRAINED_TILE_SETS:
-    xWriteSEITempMotionConstrainedTileSets(bs, *static_cast<const SEITempMotionConstrainedTileSets*>(&sei));
+    xWriteSEITempMotionConstrainedTileSets(*static_cast<const SEITempMotionConstrainedTileSets*>(&sei));
     break;
   case SEI::TIME_CODE:
     xWriteSEITimeCode(*static_cast<const SEITimeCode*>(&sei));
@@ -117,68 +117,82 @@ Void SEIWriter::xWriteSEIpayloadData(TComBitIf& bs, const SEI& sei, TComSPS *sps
   case SEI::KNEE_FUNCTION_INFO:
     xWriteSEIKneeFunctionInfo(*static_cast<const SEIKneeFunctionInfo*>(&sei));
     break;
+  case SEI::COLOUR_REMAPPING_INFO:
+    xWriteSEIColourRemappingInfo(*static_cast<const SEIColourRemappingInfo*>(&sei));
+    break;
   case SEI::MASTERING_DISPLAY_COLOUR_VOLUME:
     xWriteSEIMasteringDisplayColourVolume(*static_cast<const SEIMasteringDisplayColourVolume*>(&sei));
     break;
+  case SEI::ALTERNATIVE_TRANSFER_CHARACTERISTICS:
+    xWriteSEIAlternativeTransferCharacteristics(*static_cast<const SEIAlternativeTransferCharacteristics*>(&sei));
+    break;
+  case SEI::GREEN_METADATA:
+      xWriteSEIGreenMetadataInfo(*static_cast<const SEIGreenMetadataInfo*>(&sei));
+    break;
   default:
-    assert(!"Unhandled SEI message");
+    assert(!"Trying to write unhandled SEI message");
     break;
   }
+  xWriteByteAlign();
 }
 
 /**
- * marshal a single SEI message sei, storing the marshalled representation
- * in bitstream bs.
+ * marshal all SEI messages in provided list into one bitstream bs
  */
-Void SEIWriter::writeSEImessage(TComBitIf& bs, const SEI& sei, TComSPS *sps)
+Void SEIWriter::writeSEImessages(TComBitIf& bs, const SEIMessages &seiList, const TComSPS *sps, Bool isNested)
 {
-  /* calculate how large the payload data is */
-  /* TODO: this would be far nicer if it used vectored buffers */
+#if ENC_DEC_TRACE
+  if (g_HLSTraceEnable)
+    xTraceSEIHeader();
+#endif
+
   TComBitCounter bs_count;
-  bs_count.resetBits();
-  setBitstream(&bs_count);
 
-
-#if ENC_DEC_TRACE
-  Bool traceEnable = g_HLSTraceEnable;
-  g_HLSTraceEnable = false;
-#endif
-  xWriteSEIpayloadData(bs_count, sei, sps);
-#if ENC_DEC_TRACE
-  g_HLSTraceEnable = traceEnable;
-#endif
-
-  UInt payload_data_num_bits = bs_count.getNumberOfWrittenBits();
-  assert(0 == payload_data_num_bits % 8);
-
-  setBitstream(&bs);
-
-#if ENC_DEC_TRACE
-  if (g_HLSTraceEnable)
-  xTraceSEIHeader();
-#endif
-
-  UInt payloadType = sei.payloadType();
-  for (; payloadType >= 0xff; payloadType -= 0xff)
+  for (SEIMessages::const_iterator sei=seiList.begin(); sei!=seiList.end(); sei++)
   {
-    WRITE_CODE(0xff, 8, "payload_type");
-  }
-  WRITE_CODE(payloadType, 8, "payload_type");
+    // calculate how large the payload data is
+    // TODO: this would be far nicer if it used vectored buffers
+    bs_count.resetBits();
+    setBitstream(&bs_count);
 
-  UInt payloadSize = payload_data_num_bits/8;
-  for (; payloadSize >= 0xff; payloadSize -= 0xff)
-  {
-    WRITE_CODE(0xff, 8, "payload_size");
-  }
-  WRITE_CODE(payloadSize, 8, "payload_size");
-
-  /* payloadData */
 #if ENC_DEC_TRACE
-  if (g_HLSTraceEnable)
-  xTraceSEIMessageType(sei.payloadType());
+    Bool traceEnable = g_HLSTraceEnable;
+    g_HLSTraceEnable = false;
+#endif
+    xWriteSEIpayloadData(bs_count, **sei, sps);
+#if ENC_DEC_TRACE
+    g_HLSTraceEnable = traceEnable;
+#endif
+    UInt payload_data_num_bits = bs_count.getNumberOfWrittenBits();
+    assert(0 == payload_data_num_bits % 8);
+
+    setBitstream(&bs);
+    UInt payloadType = (*sei)->payloadType();
+    for (; payloadType >= 0xff; payloadType -= 0xff)
+    {
+      WRITE_CODE(0xff, 8, "payload_type");
+    }
+    WRITE_CODE(payloadType, 8, "payload_type");
+
+    UInt payloadSize = payload_data_num_bits/8;
+    for (; payloadSize >= 0xff; payloadSize -= 0xff)
+    {
+      WRITE_CODE(0xff, 8, "payload_size");
+    }
+    WRITE_CODE(payloadSize, 8, "payload_size");
+
+    /* payloadData */
+#if ENC_DEC_TRACE
+    if (g_HLSTraceEnable)
+      xTraceSEIMessageType((*sei)->payloadType());
 #endif
 
-  xWriteSEIpayloadData(bs, sei, sps);
+    xWriteSEIpayloadData(bs, **sei, sps);
+  }
+  if (!isNested)
+  {
+    xWriteRbspTrailingBits();
+  }
 }
 
 /**
@@ -204,21 +218,21 @@ Void SEIWriter::xWriteSEIuserDataUnregistered(const SEIuserDataUnregistered &sei
  */
 Void SEIWriter::xWriteSEIDecodedPictureHash(const SEIDecodedPictureHash& sei)
 {
-  const Char *traceString="\0";
+  const TChar *traceString="\0";
   switch (sei.method)
   {
-    case SEIDecodedPictureHash::MD5: traceString="picture_md5"; break;
-    case SEIDecodedPictureHash::CRC: traceString="picture_crc"; break;
-    case SEIDecodedPictureHash::CHECKSUM: traceString="picture_checksum"; break;
+    case HASHTYPE_MD5: traceString="picture_md5"; break;
+    case HASHTYPE_CRC: traceString="picture_crc"; break;
+    case HASHTYPE_CHECKSUM: traceString="picture_checksum"; break;
     default: assert(false); break;
   }
 
   if (traceString != 0) //use of this variable is needed to avoid a compiler error with G++ 4.6.1
   {
     WRITE_CODE(sei.method, 8, "hash_type");
-    for(UInt i=0; i<UInt(sei.m_digest.hash.size()); i++)
+    for(UInt i=0; i<UInt(sei.m_pictureHash.hash.size()); i++)
     {
-      WRITE_CODE(sei.m_digest.hash[i], 8, traceString);
+      WRITE_CODE(sei.m_pictureHash.hash[i], 8, traceString);
     }
   }
 }
@@ -236,30 +250,28 @@ Void SEIWriter::xWriteSEIActiveParameterSets(const SEIActiveParameterSets& sei)
   {
     WRITE_UVLC(sei.activeSeqParameterSetId[i], "active_seq_parameter_set_id"); 
   }
-  xWriteByteAlign();
 }
 
-Void SEIWriter::xWriteSEIDecodingUnitInfo(const SEIDecodingUnitInfo& sei, TComSPS *sps)
+Void SEIWriter::xWriteSEIDecodingUnitInfo(const SEIDecodingUnitInfo& sei, const TComSPS *sps)
 {
-  TComVUI *vui = sps->getVuiParameters();
+  const TComVUI *vui = sps->getVuiParameters();
   WRITE_UVLC(sei.m_decodingUnitIdx, "decoding_unit_idx");
   if(vui->getHrdParameters()->getSubPicCpbParamsInPicTimingSEIFlag())
   {
-    WRITE_CODE( sei.m_duSptCpbRemovalDelay, (vui->getHrdParameters()->getDuCpbRemovalDelayLengthMinus1() + 1), "du_spt_cpb_removal_delay");
+    WRITE_CODE( sei.m_duSptCpbRemovalDelay, (vui->getHrdParameters()->getDuCpbRemovalDelayLengthMinus1() + 1), "du_spt_cpb_removal_delay_increment");
   }
   WRITE_FLAG( sei.m_dpbOutputDuDelayPresentFlag, "dpb_output_du_delay_present_flag");
   if(sei.m_dpbOutputDuDelayPresentFlag)
   {
     WRITE_CODE(sei.m_picSptDpbOutputDuDelay, vui->getHrdParameters()->getDpbOutputDelayDuLengthMinus1() + 1, "pic_spt_dpb_output_du_delay");
   }
-  xWriteByteAlign();
 }
 
-Void SEIWriter::xWriteSEIBufferingPeriod(const SEIBufferingPeriod& sei, TComSPS *sps)
+Void SEIWriter::xWriteSEIBufferingPeriod(const SEIBufferingPeriod& sei, const TComSPS *sps)
 {
   Int i, nalOrVcl;
-  TComVUI *vui = sps->getVuiParameters();
-  TComHRD *hrd = vui->getHrdParameters();
+  const TComVUI *vui = sps->getVuiParameters();
+  const TComHRD *hrd = vui->getHrdParameters();
 
   WRITE_UVLC( sei.m_bpSeqParameterSetId, "bp_seq_parameter_set_id" );
   if( !hrd->getSubPicCpbParamsPresentFlag() )
@@ -290,13 +302,12 @@ Void SEIWriter::xWriteSEIBufferingPeriod(const SEIBufferingPeriod& sei, TComSPS 
       }
     }
   }
-  xWriteByteAlign();
 }
-Void SEIWriter::xWriteSEIPictureTiming(const SEIPictureTiming& sei,  TComSPS *sps)
+Void SEIWriter::xWriteSEIPictureTiming(const SEIPictureTiming& sei, const TComSPS *sps)
 {
   Int i;
-  TComVUI *vui = sps->getVuiParameters();
-  TComHRD *hrd = vui->getHrdParameters();
+  const TComVUI *vui = sps->getVuiParameters();
+  const TComHRD *hrd = vui->getHrdParameters();
 
   if( vui->getFrameFieldInfoPresentFlag() )
   {
@@ -331,21 +342,20 @@ Void SEIWriter::xWriteSEIPictureTiming(const SEIPictureTiming& sei,  TComSPS *sp
       }
     }
   }
-  xWriteByteAlign();
 }
 Void SEIWriter::xWriteSEIRecoveryPoint(const SEIRecoveryPoint& sei)
 {
   WRITE_SVLC( sei.m_recoveryPocCnt,    "recovery_poc_cnt"    );
   WRITE_FLAG( sei.m_exactMatchingFlag, "exact_matching_flag" );
   WRITE_FLAG( sei.m_brokenLinkFlag,    "broken_link_flag"    );
-  xWriteByteAlign();
 }
 Void SEIWriter::xWriteSEIFramePacking(const SEIFramePacking& sei)
 {
   WRITE_UVLC( sei.m_arrangementId,                  "frame_packing_arrangement_id" );
   WRITE_FLAG( sei.m_arrangementCancelFlag,          "frame_packing_arrangement_cancel_flag" );
 
-  if( sei.m_arrangementCancelFlag == 0 ) {
+  if( sei.m_arrangementCancelFlag == 0 )
+  {
     WRITE_CODE( sei.m_arrangementType, 7,           "frame_packing_arrangement_type" );
 
     WRITE_FLAG( sei.m_quincunxSamplingFlag,         "quincunx_sampling_flag" );
@@ -371,19 +381,16 @@ Void SEIWriter::xWriteSEIFramePacking(const SEIFramePacking& sei)
   }
 
   WRITE_FLAG( sei.m_upsampledAspectRatio,           "upsampled_aspect_ratio" );
-
-  xWriteByteAlign();
 }
 
 Void SEIWriter::xWriteSEISegmentedRectFramePacking(const SEISegmentedRectFramePacking& sei)
 {
   WRITE_FLAG( sei.m_arrangementCancelFlag,          "segmented_rect_frame_packing_arrangement_cancel_flag" );
-  if( sei.m_arrangementCancelFlag == 0 ) {
+  if( sei.m_arrangementCancelFlag == 0 ) 
+  {
     WRITE_CODE( sei.m_contentInterpretationType, 2, "segmented_rect_content_interpretation_type" );
     WRITE_FLAG( sei.m_arrangementPersistenceFlag,   "segmented_rect_frame_packing_arrangement_persistence" );
   }
-
-  xWriteByteAlign();
 }
 
 Void SEIWriter::xWriteSEIToneMappingInfo(const SEIToneMappingInfo& sei)
@@ -459,8 +466,6 @@ Void SEIWriter::xWriteSEIToneMappingInfo(const SEIToneMappingInfo& sei)
       }
     }//switch m_modelId
   }//if(!sei.m_toneMapCancelFlag)
-
-  xWriteByteAlign();
 }
 
 Void SEIWriter::xWriteSEIDisplayOrientation(const SEIDisplayOrientation &sei)
@@ -473,25 +478,21 @@ Void SEIWriter::xWriteSEIDisplayOrientation(const SEIDisplayOrientation &sei)
     WRITE_CODE( sei.anticlockwiseRotation, 16, "anticlockwise_rotation" );
     WRITE_FLAG( sei.persistenceFlag,          "display_orientation_persistence_flag" );
   }
-  xWriteByteAlign();
 }
 
 Void SEIWriter::xWriteSEITemporalLevel0Index(const SEITemporalLevel0Index &sei)
 {
   WRITE_CODE( sei.tl0Idx, 8 , "tl0_idx" );
   WRITE_CODE( sei.rapIdx, 8 , "rap_idx" );
-  xWriteByteAlign();
 }
 
 Void SEIWriter::xWriteSEIGradualDecodingRefreshInfo(const SEIGradualDecodingRefreshInfo &sei)
 {
   WRITE_FLAG( sei.m_gdrForegroundFlag, "gdr_foreground_flag");
-  xWriteByteAlign();
 }
 
-Void SEIWriter::xWriteSEINoDisplay(const SEINoDisplay &sei)
+Void SEIWriter::xWriteSEINoDisplay(const SEINoDisplay& /*sei*/)
 {
-  xWriteByteAlign();
 }
 
 Void SEIWriter::xWriteSEISOPDescription(const SEISOPDescription& sei)
@@ -511,22 +512,19 @@ Void SEIWriter::xWriteSEISOPDescription(const SEISOPDescription& sei)
       WRITE_SVLC( sei.m_sopDescPocDelta[i],           "sop_desc_poc_delta"               );
     }
   }
-
-  xWriteByteAlign();
 }
 
-Void SEIWriter::xWriteSEIScalableNesting(TComBitIf& bs, const SEIScalableNesting& sei, TComSPS *sps)
+Void SEIWriter::xWriteSEIScalableNesting(TComBitIf& bs, const SEIScalableNesting& sei, const TComSPS *sps)
 {
   WRITE_FLAG( sei.m_bitStreamSubsetFlag,             "bitstream_subset_flag"         );
   WRITE_FLAG( sei.m_nestingOpFlag,                   "nesting_op_flag      "         );
   if (sei.m_nestingOpFlag)
   {
     WRITE_FLAG( sei.m_defaultOpFlag,                 "default_op_flag"               );
-    WRITE_UVLC( sei.m_nestingNumOpsMinus1,           "nesting_num_ops"               );
+    WRITE_UVLC( sei.m_nestingNumOpsMinus1,           "nesting_num_ops_minus1"        );
     for (UInt i = (sei.m_defaultOpFlag ? 1 : 0); i <= sei.m_nestingNumOpsMinus1; i++)
     {
-      WRITE_CODE( sei.m_nestingNoOpMaxTemporalIdPlus1, 3, "nesting_no_op_max_temporal_id" );
-      WRITE_CODE( sei.m_nestingMaxTemporalIdPlus1[i], 3,  "nesting_max_temporal_id"       );
+      WRITE_CODE( sei.m_nestingMaxTemporalIdPlus1[i], 3,  "nesting_max_temporal_id_plus1" );
       WRITE_UVLC( sei.m_nestingOpIdx[i],                  "nesting_op_idx"                );
     }
   }
@@ -535,8 +533,8 @@ Void SEIWriter::xWriteSEIScalableNesting(TComBitIf& bs, const SEIScalableNesting
     WRITE_FLAG( sei.m_allLayersFlag,                      "all_layers_flag"               );
     if (!sei.m_allLayersFlag)
     {
-      WRITE_CODE( sei.m_nestingNoOpMaxTemporalIdPlus1, 3, "nesting_no_op_max_temporal_id" );
-      WRITE_UVLC( sei.m_nestingNumLayersMinus1,           "nesting_num_layers"            );
+      WRITE_CODE( sei.m_nestingNoOpMaxTemporalIdPlus1, 3, "nesting_no_op_max_temporal_id_plus1" );
+      WRITE_UVLC( sei.m_nestingNumLayersMinus1,           "nesting_num_layers"                  );
       for (UInt i = 0; i <= sei.m_nestingNumLayersMinus1; i++)
       {
         WRITE_CODE( sei.m_nestingLayerId[i], 6,           "nesting_layer_id"              );
@@ -551,13 +549,10 @@ Void SEIWriter::xWriteSEIScalableNesting(TComBitIf& bs, const SEIScalableNesting
   }
 
   // write nested SEI messages
-  for (SEIMessages::const_iterator it = sei.m_nestedSEIs.begin(); it != sei.m_nestedSEIs.end(); it++)
-  {
-    writeSEImessage(bs, *(*it), sps);
-  }
+  writeSEImessages(bs, sei.m_nestedSEIs, sps, true);
 }
 
-Void SEIWriter::xWriteSEITempMotionConstrainedTileSets(TComBitIf& bs, const SEITempMotionConstrainedTileSets& sei)
+Void SEIWriter::xWriteSEITempMotionConstrainedTileSets(const SEITempMotionConstrainedTileSets& sei)
 {
   //UInt code;
   WRITE_FLAG((sei.m_mc_all_tiles_exact_sample_value_match_flag ? 1 : 0), "mc_all_tiles_exact_sample_value_match_flag"); 
@@ -612,7 +607,6 @@ Void SEIWriter::xWriteSEITempMotionConstrainedTileSets(TComBitIf& bs, const SEIT
       WRITE_CODE( sei.m_max_mcts_level_idc, 8,       "max_mcts_level_idc"); 
     }
   }
-  xWriteByteAlign();
 }
 
 Void SEIWriter::xWriteSEITimeCode(const SEITimeCode& sei)
@@ -648,7 +642,9 @@ Void SEIWriter::xWriteSEITimeCode(const SEITimeCode& sei)
             WRITE_CODE(currentTimeSet.minutesValue, 6, "minutes_value");
             WRITE_FLAG(currentTimeSet.hoursFlag, "hours_flag");
             if(currentTimeSet.hoursFlag)
+            {
               WRITE_CODE(currentTimeSet.hoursValue, 5, "hours_value");
+            }
           }
         }
       }
@@ -669,90 +665,47 @@ Void SEIWriter::xWriteSEITimeCode(const SEITimeCode& sei)
       }
     }
   }
-  xWriteByteAlign();
 }
 
-Void SEIWriter::xWriteSEIChromaSamplingFilterHint(const SEIChromaSamplingFilterHint &sei/*, TComSPS* sps*/)
+Void SEIWriter::xWriteSEIChromaResamplingFilterHint(const SEIChromaResamplingFilterHint &sei)
 {
-  //NOTE: RExt - Made unconditional to be consistent with the working text P1005
-  //if(sps->getVuiParameters()->getChromaLocInfoPresentFlag())
-  //{
   WRITE_CODE(sei.m_verChromaFilterIdc, 8, "ver_chroma_filter_idc");
   WRITE_CODE(sei.m_horChromaFilterIdc, 8, "hor_chroma_filter_idc");
-  WRITE_FLAG(sei.m_verFilteringProcessFlag, "ver_filtering_process_flag");
+  WRITE_FLAG(sei.m_verFilteringFieldProcessingFlag, "ver_filtering_field_processing_flag");
   if(sei.m_verChromaFilterIdc == 1 || sei.m_horChromaFilterIdc == 1)
   {
-    writeUserDefinedCoefficients(sei);
-  }
-  //}
-  xWriteByteAlign();
-}
-
-// write hardcoded chroma filter coefficients in the SEI messages
-Void SEIWriter::writeUserDefinedCoefficients(const SEIChromaSamplingFilterHint &sei)
-{
-  Int const iNumVerticalFilters = 3;
-  Int verticalTapLength_minus1[iNumVerticalFilters] = {5,3,3};
-  Int* userVerticalCoefficients[iNumVerticalFilters];
-  for(Int i = 0; i < iNumVerticalFilters; i ++)
-  {
-    userVerticalCoefficients[i] = (Int*)malloc( (verticalTapLength_minus1[i]+1) * sizeof(Int));
-  }
-  userVerticalCoefficients[0][0] = -3;
-  userVerticalCoefficients[0][1] = 13;
-  userVerticalCoefficients[0][2] = 31;
-  userVerticalCoefficients[0][3] = 23;
-  userVerticalCoefficients[0][4] = 3;
-  userVerticalCoefficients[0][5] = -3;
-
-  userVerticalCoefficients[1][0] = -1;
-  userVerticalCoefficients[1][1] = 25;
-  userVerticalCoefficients[1][2] = 247;
-  userVerticalCoefficients[1][3] = -15;
-
-  userVerticalCoefficients[2][0] = -20;
-  userVerticalCoefficients[2][1] = 186;
-  userVerticalCoefficients[2][2] = 100;
-  userVerticalCoefficients[2][3] = -10;
-  
-  Int const iNumHorizontalFilters = 1;
-  Int horizontalTapLength_minus1[iNumHorizontalFilters] = {3};
-  Int* userHorizontalCoefficients[iNumHorizontalFilters];
-  for(Int i = 0; i < iNumHorizontalFilters; i ++)
-  {
-    userHorizontalCoefficients[i] = (Int*)malloc( (horizontalTapLength_minus1[i]+1) * sizeof(Int));
-  }
-  userHorizontalCoefficients[0][0] = 1;
-  userHorizontalCoefficients[0][1] = 6;
-  userHorizontalCoefficients[0][2] = 1;
-
-  WRITE_UVLC(3, "target_format_idc");
-  if(sei.m_verChromaFilterIdc == 1)
-  {
-    WRITE_UVLC(iNumVerticalFilters, "num_vertical_filters");
-    if(iNumVerticalFilters > 0)
+    WRITE_UVLC(sei.m_targetFormatIdc, "target_format_idc");
+    if(sei.m_verChromaFilterIdc == 1)
     {
-      for(Int i = 0; i < iNumVerticalFilters; i ++)
+      const Int numVerticalFilter = (Int)sei.m_verFilterCoeff.size();
+      WRITE_UVLC(numVerticalFilter, "num_vertical_filters");
+      if(numVerticalFilter > 0)
       {
-        WRITE_UVLC(verticalTapLength_minus1[i], "ver_tap_length_minus_1");
-        for(Int j = 0; j < verticalTapLength_minus1[i]; j ++)
+        for(Int i = 0; i < numVerticalFilter; i ++)
         {
-          WRITE_SVLC(userVerticalCoefficients[i][j], "ver_filter_coeff");
+          const Int verTapLengthMinus1 = (Int) sei.m_verFilterCoeff[i].size() - 1;
+          WRITE_UVLC(verTapLengthMinus1, "ver_tap_length_minus_1");
+          for(Int j = 0; j < (verTapLengthMinus1 + 1); j ++)
+          {
+            WRITE_SVLC(sei.m_verFilterCoeff[i][j], "ver_filter_coeff");
+          }
         }
       }
     }
-  }
-  if(sei.m_horChromaFilterIdc == 1)
-  {
-    WRITE_UVLC(iNumHorizontalFilters, "num_horizontal_filters");
-    if(iNumHorizontalFilters > 0)
+    if(sei.m_horChromaFilterIdc == 1)
     {
-      for(Int i = 0; i < iNumHorizontalFilters; i ++)
+      const Int numHorizontalFilter = (Int) sei.m_horFilterCoeff.size();
+      WRITE_UVLC(numHorizontalFilter, "num_horizontal_filters");
+      if(numHorizontalFilter > 0)
       {
-        WRITE_UVLC(horizontalTapLength_minus1[i], "hor_tap_length_minus_1");
-        for(Int j = 0; j < horizontalTapLength_minus1[i]; j ++)
+        for(Int i = 0; i < numHorizontalFilter; i ++)
         {
-          WRITE_SVLC(userHorizontalCoefficients[i][j], "hor_filter_coeff");
+          const Int horTapLengthMinus1 = (Int) sei.m_horFilterCoeff[i].size() - 1;
+          WRITE_UVLC(horTapLengthMinus1, "hor_tap_length_minus_1");
+          for(Int j = 0; j < (horTapLengthMinus1 + 1); j ++)
+          {
+            WRITE_SVLC(sei.m_horFilterCoeff[i][j], "hor_filter_coeff");
+          }
         }
       }
     }
@@ -766,7 +719,6 @@ Void SEIWriter::xWriteSEIKneeFunctionInfo(const SEIKneeFunctionInfo &sei)
   if ( !sei.m_kneeCancelFlag )
   {
     WRITE_FLAG( sei.m_kneePersistenceFlag, "knee_function_persistence_flag" );
-    WRITE_FLAG( sei.m_kneeMappingFlag, "mapping_flag" );
     WRITE_CODE( (UInt)sei.m_kneeInputDrange , 32,  "input_d_range" );
     WRITE_CODE( (UInt)sei.m_kneeInputDispLuminance, 32,  "input_disp_luminance" );
     WRITE_CODE( (UInt)sei.m_kneeOutputDrange, 32,  "output_d_range" );
@@ -778,9 +730,64 @@ Void SEIWriter::xWriteSEIKneeFunctionInfo(const SEIKneeFunctionInfo &sei)
       WRITE_CODE( (UInt)sei.m_kneeOutputKneePoint[i], 10, "output_knee_point" );
     }
   }
-  xWriteByteAlign();
 }
 
+Void SEIWriter::xWriteSEIColourRemappingInfo(const SEIColourRemappingInfo& sei)
+{
+  WRITE_UVLC( sei.m_colourRemapId,                             "colour_remap_id" );
+  WRITE_FLAG( sei.m_colourRemapCancelFlag,                     "colour_remap_cancel_flag" );
+  if( !sei.m_colourRemapCancelFlag ) 
+  {
+    WRITE_FLAG( sei.m_colourRemapPersistenceFlag,              "colour_remap_persistence_flag" );
+    WRITE_FLAG( sei.m_colourRemapVideoSignalInfoPresentFlag,   "colour_remap_video_signal_info_present_flag" );
+    if ( sei.m_colourRemapVideoSignalInfoPresentFlag )
+    {
+      WRITE_FLAG( sei.m_colourRemapFullRangeFlag,              "colour_remap_full_range_flag" );
+      WRITE_CODE( sei.m_colourRemapPrimaries,               8, "colour_remap_primaries" );
+      WRITE_CODE( sei.m_colourRemapTransferFunction,        8, "colour_remap_transfer_function" );
+      WRITE_CODE( sei.m_colourRemapMatrixCoefficients,      8, "colour_remap_matrix_coefficients" );
+    }
+    WRITE_CODE( sei.m_colourRemapInputBitDepth,             8, "colour_remap_input_bit_depth" );
+    WRITE_CODE( sei.m_colourRemapBitDepth,                  8, "colour_remap_bit_depth" );
+    for( Int c=0 ; c<3 ; c++ )
+    {
+      WRITE_CODE( sei.m_preLutNumValMinus1[c],              8, "pre_lut_num_val_minus1[c]" );
+      if( sei.m_preLutNumValMinus1[c]>0 )
+      {
+        for( Int i=0 ; i<=sei.m_preLutNumValMinus1[c] ; i++ )
+        {
+          WRITE_CODE( sei.m_preLut[c][i].codedValue,  (( sei.m_colourRemapInputBitDepth + 7 ) >> 3 ) << 3, "pre_lut_coded_value[c][i]" );
+          WRITE_CODE( sei.m_preLut[c][i].targetValue, (( sei.m_colourRemapBitDepth      + 7 ) >> 3 ) << 3, "pre_lut_target_value[c][i]" );
+        }
+      }
+    }
+    WRITE_FLAG( sei.m_colourRemapMatrixPresentFlag,            "colour_remap_matrix_present_flag" );
+    if( sei.m_colourRemapMatrixPresentFlag )
+    {
+      WRITE_CODE( sei.m_log2MatrixDenom,                    4, "log2_matrix_denom" );
+      for( Int c=0 ; c<3 ; c++ )
+      {
+        for( Int i=0 ; i<3 ; i++ )
+        {
+          WRITE_SVLC( sei.m_colourRemapCoeffs[c][i],           "colour_remap_coeffs[c][i]" );
+        }
+      }
+    }
+
+    for( Int c=0 ; c<3 ; c++ )
+    {
+      WRITE_CODE( sei.m_postLutNumValMinus1[c],             8, "m_postLutNumValMinus1[c]" );
+      if( sei.m_postLutNumValMinus1[c]>0 )
+      {
+        for( Int i=0 ; i<=sei.m_postLutNumValMinus1[c] ; i++ )
+        {
+          WRITE_CODE( sei.m_postLut[c][i].codedValue, (( sei.m_colourRemapBitDepth + 7 ) >> 3 ) << 3, "post_lut_coded_value[c][i]" );
+          WRITE_CODE( sei.m_postLut[c][i].targetValue, (( sei.m_colourRemapBitDepth + 7 ) >> 3 ) << 3, "post_lut_target_value[c][i]" );
+        }
+      }
+    }
+  }
+}
 
 Void SEIWriter::xWriteSEIMasteringDisplayColourVolume(const SEIMasteringDisplayColourVolume& sei)
 {
@@ -798,8 +805,6 @@ Void SEIWriter::xWriteSEIMasteringDisplayColourVolume(const SEIMasteringDisplayC
     
   WRITE_CODE( sei.values.maxLuminance,     32,  "max_display_mastering_luminance" );
   WRITE_CODE( sei.values.minLuminance,     32,  "min_display_mastering_luminance" );
-    
-  xWriteByteAlign();
 }
 
 
@@ -807,12 +812,25 @@ Void SEIWriter::xWriteByteAlign()
 {
   if( m_pcBitIf->getNumberOfWrittenBits() % 8 != 0)
   {
-    WRITE_FLAG( 1, "bit_equal_to_one" );
+    WRITE_FLAG( 1, "payload_bit_equal_to_one" );
     while( m_pcBitIf->getNumberOfWrittenBits() % 8 != 0 )
     {
-      WRITE_FLAG( 0, "bit_equal_to_zero" );
+      WRITE_FLAG( 0, "payload_bit_equal_to_zero" );
     }
   }
+}
+
+Void SEIWriter::xWriteSEIAlternativeTransferCharacteristics(const SEIAlternativeTransferCharacteristics& sei)
+{
+  WRITE_CODE(sei.m_preferredTransferCharacteristics, 8, "preferred_transfer_characteristics");
+}
+
+Void SEIWriter::xWriteSEIGreenMetadataInfo(const SEIGreenMetadataInfo& sei)
+{
+  WRITE_CODE(sei.m_greenMetadataType, 8, "green_metadata_type");
+  
+  WRITE_CODE(sei.m_xsdMetricType, 8, "xsd_metric_type");
+  WRITE_CODE(sei.m_xsdMetricValue, 16, "xsd_metric_value");
 }
 
 //! \}

@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,6 +41,9 @@
 #include "TLibCommon/CommonDef.h"
 
 #include "TLibEncoder/TEncCfg.h"
+#if EXTENSION_360_VIDEO
+#include "TAppEncHelper360/TExt360AppEncCfg.h"
+#endif
 #include <sstream>
 #include <vector>
 //! \ingroup TAppEncoder
@@ -53,22 +56,43 @@
 /// encoder configuration class
 class TAppEncCfg
 {
+#if JVET_E0059_FLOATING_POINT_QP_FIX
+public:
+  template <class T>
+  struct OptionalValue
+  {
+    Bool bPresent;
+    T    value;
+    OptionalValue() : bPresent(false), value() { }
+  };
+#endif
+
 protected:
   // file I/O
-  Char*     m_pchInputFile;                                   ///< source file name
-  Char*     m_pchBitstreamFile;                               ///< output bitstream file
-  Char*     m_pchReconFile;                                   ///< output reconstruction file
+  std::string m_inputFileName;                                ///< source file name
+  std::string m_bitstreamFileName;                            ///< output bitstream file
+  std::string m_reconFileName;                                ///< output reconstruction file
+
+  // Lambda modifiers
   Double    m_adLambdaModifier[ MAX_TLAYER ];                 ///< Lambda modifier array for each temporal layer
+  std::vector<Double> m_adIntraLambdaModifier;                ///< Lambda modifier for Intra pictures, one for each temporal layer. If size>temporalLayer, then use [temporalLayer], else if size>0, use [size()-1], else use m_adLambdaModifier.
+  Double    m_dIntraQpFactor;                                 ///< Intra Q Factor. If negative, use a default equation: 0.57*(1.0 - Clip3( 0.0, 0.5, 0.05*(Double)(isField ? (GopSize-1)/2 : GopSize-1) ))
+
   // source specification
   Int       m_iFrameRate;                                     ///< source frame-rates (Hz)
-  UInt      m_FrameSkip;                                   ///< number of skipped frames from the beginning
+  UInt      m_FrameSkip;                                      ///< number of skipped frames from the beginning
+  UInt      m_temporalSubsampleRatio;                         ///< temporal subsample ratio, 2 means code every two frames
   Int       m_iSourceWidth;                                   ///< source width in pixel
   Int       m_iSourceHeight;                                  ///< source height in pixel (when interlaced = field height)
+  Int       m_inputFileWidth;                                 ///< width of image in input file  (this is equivalent to sourceWidth,  if sourceWidth  is not subsequently altered due to padding)
+  Int       m_inputFileHeight;                                ///< height of image in input file (this is equivalent to sourceHeight, if sourceHeight is not subsequently altered due to padding)
 
   Int       m_iSourceHeightOrg;                               ///< original source height in pixel (when interlaced = frame height)
 
   Bool      m_isField;                                        ///< enable field coding
   Bool      m_isTopFieldFirst;
+  Bool      m_bEfficientFieldIRAPEnabled;                     ///< enable an efficient field IRAP structure.
+  Bool      m_bHarmonizeGopFirstFieldCoupleEnabled;
 
   Int       m_conformanceWindowMode;
   Int       m_confWinLeft;
@@ -77,6 +101,7 @@ protected:
   Int       m_confWinBottom;
   Int       m_framesToBeEncoded;                              ///< number of encoded frames
   Int       m_aiPad[2];                                       ///< number of padded pixels for width and height
+  Bool      m_AccessUnitDelimiter;                            ///< add Access Unit Delimiter NAL units
   InputColourSpaceConversion m_inputColourSpaceConvert;       ///< colour space conversion to apply to input video
   Bool      m_snrInternalColourSpace;                       ///< if true, then no colour space conversion is applied for snr calculation, otherwise inverse of input is applied.
   Bool      m_outputInternalColourSpace;                    ///< if true, then no colour space conversion is applied for reconstructed video, otherwise inverse of input is applied.
@@ -85,6 +110,9 @@ protected:
   Bool      m_printMSEBasedSequencePSNR;
   Bool      m_printFrameMSE;
   Bool      m_printSequenceMSE;
+  Bool      m_cabacZeroWordPaddingEnabled;
+  Bool      m_bClipInputVideoToRec709Range;
+  Bool      m_bClipOutputVideoToRec709Range;
 
   // profile/level
   Profile::Name m_profile;
@@ -93,6 +121,7 @@ protected:
   UInt          m_bitDepthConstraint;
   ChromaFormat  m_chromaFormatConstraint;
   Bool          m_intraConstraintFlag;
+  Bool          m_onePictureOnlyConstraintFlag;
   Bool          m_lowerBitRateConstraintFlag;
   Bool m_progressiveSourceFlag;
   Bool m_interlacedSourceFlag;
@@ -103,36 +132,51 @@ protected:
   Int       m_iIntraPeriod;                                   ///< period of I-slice (random access period)
   Int       m_iDecodingRefreshType;                           ///< random access type
   Int       m_iGOPSize;                                       ///< GOP size of hierarchical structure
+#if JCTVC_Y0038_PARAMS
+  Bool      m_bReWriteParamSetsFlag;                          ///< Flag to enable rewriting of parameter sets at random access points
+#endif  
   Int       m_extraRPSs;                                      ///< extra RPSs added to handle CRA
   GOPEntry  m_GOPList[MAX_GOP];                               ///< the coding structure entries from the config file
   Int       m_numReorderPics[MAX_TLAYER];                     ///< total number of reorder pictures
   Int       m_maxDecPicBuffering[MAX_TLAYER];                 ///< total number of pictures in the decoded picture buffer
-  Bool      m_useCrossComponentPrediction;                    ///< flag enabling the use of cross-component prediction
+  Bool      m_crossComponentPredictionEnabledFlag;            ///< flag enabling the use of cross-component prediction
   Bool      m_reconBasedCrossCPredictionEstimate;             ///< causes the alpha calculation in encoder search to be based on the decoded residual rather than the pre-transform encoder-side residual
-  UInt      m_saoOffsetBitShift[MAX_NUM_CHANNEL_TYPE];        ///< number of bits for the upward bit shift operation on the decoded SAO offsets
+  UInt      m_log2SaoOffsetScale[MAX_NUM_CHANNEL_TYPE];       ///< number of bits for the upward bit shift operation on the decoded SAO offsets
   Bool      m_useTransformSkip;                               ///< flag for enabling intra transform skipping
   Bool      m_useTransformSkipFast;                           ///< flag for enabling fast intra transform skipping
-  UInt      m_transformSkipLog2MaxSize;                       ///< transform-skip maximum size (minimum of 2)
-  Bool      m_useResidualRotation;                            ///< control flag for transform-skip/transquant-bypass residual rotation
-  Bool      m_useSingleSignificanceMapContext;                ///< control flag for transform-skip/transquant-bypass single significance map context
-  Bool      m_useResidualDPCM[NUMBER_OF_RDPCM_SIGNALLING_MODES];///< control flags for residual DPCM
+  UInt      m_log2MaxTransformSkipBlockSize;                  ///< transform-skip maximum size (minimum of 2)
+  Bool      m_transformSkipRotationEnabledFlag;               ///< control flag for transform-skip/transquant-bypass residual rotation
+  Bool      m_transformSkipContextEnabledFlag;                ///< control flag for transform-skip/transquant-bypass single significance map context
+  Bool      m_rdpcmEnabledFlag[NUMBER_OF_RDPCM_SIGNALLING_MODES];///< control flags for residual DPCM
   Bool      m_enableAMP;
-  Bool      m_useGolombRiceParameterAdaptation;               ///< control flag for Golomb-Rice parameter adaptation over each slice
-  Bool      m_alignCABACBeforeBypass;
+  Bool      m_persistentRiceAdaptationEnabledFlag;            ///< control flag for Golomb-Rice parameter adaptation over each slice
+  Bool      m_cabacBypassAlignmentEnabledFlag;
 
   // coding quality
+#if JVET_E0059_FLOATING_POINT_QP_FIX
+  OptionalValue<UInt> m_qpIncrementAtSourceFrame;             ///< Optional source frame number at which all subsequent frames are to use an increased internal QP.
+#else
   Double    m_fQP;                                            ///< QP value of key-picture (floating point)
+#endif
   Int       m_iQP;                                            ///< QP value of key-picture (integer)
-  Char*     m_pchdQPFile;                                     ///< QP offset for each slice (initialized from external file)
+#if X0038_LAMBDA_FROM_QP_CAPABILITY
+  Int       m_intraQPOffset;                                  ///< QP offset for intra slice (integer)
+  Bool      m_lambdaFromQPEnable;                             ///< enable flag for QP:lambda fix
+#endif
+  std::string m_dQPFileName;                                  ///< QP offset for each slice (initialized from external file)
   Int*      m_aidQP;                                          ///< array of slice QP values
   Int       m_iMaxDeltaQP;                                    ///< max. |delta QP|
   UInt      m_uiDeltaQpRD;                                    ///< dQP range for multi-pass slice QP optimization
   Int       m_iMaxCuDQPDepth;                                 ///< Max. depth for a minimum CuDQPSize (0:default)
-  Int       m_maxCUChromaQpAdjustmentDepth;
+  Int       m_diffCuChromaQpOffsetDepth;                      ///< If negative, then do not apply chroma qp offsets.
+  Bool      m_bFastDeltaQP;                                   ///< Fast Delta QP (false:default)
 
   Int       m_cbQpOffset;                                     ///< Chroma Cb QP Offset (0:default)
   Int       m_crQpOffset;                                     ///< Chroma Cr QP Offset (0:default)
-
+  WCGChromaQPControl m_wcgChromaQpControl;                    ///< Wide-colour-gamut chroma QP control.
+  UInt      m_sliceChromaQpOffsetPeriodicity;                 ///< Used in conjunction with Slice Cb/Cr QpOffsetIntraOrPeriodic. Use 0 (default) to disable periodic nature.
+  Int       m_sliceChromaQpOffsetIntraOrPeriodic[2/*Cb,Cr*/]; ///< Chroma Cb QP Offset at slice level for I slice or for periodic inter slices as defined by SliceChromaQPOffsetPeriodicity. Replaces offset in the GOP table.
+  LumaLevelToDeltaQPMapping m_lumaLevelToDeltaQPMapping;      ///< mapping from luma level to Delta QP.
 #if ADAPTIVE_QP_SELECTION
   Bool      m_bUseAdaptQpSelect;
 #endif
@@ -144,9 +188,12 @@ protected:
   Int       m_maxTempLayer;                                  ///< Max temporal layer
 
   // coding unit (CU) definition
+  // TODO: Remove MaxCUWidth/MaxCUHeight and replace with MaxCUSize.
   UInt      m_uiMaxCUWidth;                                   ///< max. CU width in pixel
   UInt      m_uiMaxCUHeight;                                  ///< max. CU height in pixel
-  UInt      m_uiMaxCUDepth;                                   ///< max. CU depth
+  UInt      m_uiMaxCUDepth;                                   ///< max. CU depth (as specified by command line)
+  UInt      m_uiMaxTotalCUDepth;                              ///< max. total CU depth - includes depth of transform-block structure
+  UInt      m_uiLog2DiffMaxMinCodingBlockSize;                ///< difference between largest and smallest CU depth
 
   // transfom unit (TU) definition
   UInt      m_uiQuadtreeTULog2MaxSize;
@@ -160,8 +207,8 @@ protected:
   Int       m_outputBitDepth  [MAX_NUM_CHANNEL_TYPE];         ///< bit-depth of output file
   Int       m_MSBExtendedBitDepth[MAX_NUM_CHANNEL_TYPE];      ///< bit-depth of input samples after MSB extension
   Int       m_internalBitDepth[MAX_NUM_CHANNEL_TYPE];         ///< bit-depth codec operates at (input/output files will be converted)
-  Bool      m_useExtendedPrecision;
-  Bool      m_useHighPrecisionPredictionWeighting;
+  Bool      m_extendedPrecisionProcessingFlag;
+  Bool      m_highPrecisionOffsetsEnabledFlag;
 
   //coding tools (chroma format)
   ChromaFormat m_chromaFormatIDC;
@@ -171,16 +218,18 @@ protected:
 
   // coding tool (SAO)
   Bool      m_bUseSAO;
+  Bool      m_bTestSAODisableAtPictureLevel;
+  Double    m_saoEncodingRate;                                ///< When >0 SAO early picture termination is enabled for luma and chroma
+  Double    m_saoEncodingRateChroma;                          ///< The SAO early picture termination rate to use for chroma (when m_SaoEncodingRate is >0). If <=0, use results for luma.
   Int       m_maxNumOffsetsPerPic;                            ///< SAO maximun number of offset per picture
-  Bool      m_saoLcuBoundary;                                 ///< SAO parameter estimation using non-deblocked pixels for LCU bottom and right boundary areas
+  Bool      m_saoCtuBoundary;                                 ///< SAO parameter estimation using non-deblocked pixels for CTU bottom and right boundary areas
+  Bool      m_saoResetEncoderStateAfterIRAP;                  ///< When true, SAO encoder state will be reset following an IRAP.
   // coding tools (loop filter)
   Bool      m_bLoopFilterDisable;                             ///< flag for using deblocking filter
-  Bool      m_loopFilterOffsetInPPS;                         ///< offset for deblocking filter in 0 = slice header, 1 = PPS
-  Int       m_loopFilterBetaOffsetDiv2;                     ///< beta offset for deblocking filter
-  Int       m_loopFilterTcOffsetDiv2;                       ///< tc offset for deblocking filter
-  Bool      m_DeblockingFilterControlPresent;                 ///< deblocking filter control present flag in PPS
-  Bool      m_DeblockingFilterMetric;                         ///< blockiness metric in encoder
-
+  Bool      m_loopFilterOffsetInPPS;                          ///< offset for deblocking filter in 0 = slice header, 1 = PPS
+  Int       m_loopFilterBetaOffsetDiv2;                       ///< beta offset for deblocking filter
+  Int       m_loopFilterTcOffsetDiv2;                         ///< tc offset for deblocking filter
+  Int       m_deblockingFilterMetric;                         ///< blockiness metric in encoder
   // coding tools (PCM)
   Bool      m_usePCM;                                         ///< flag for using IPCM
   UInt      m_pcmLog2MaxSize;                                 ///< log2 of maximum PCM block size
@@ -191,23 +240,27 @@ protected:
   // coding tools (encoder-only parameters)
   Bool      m_bUseASR;                                        ///< flag for using adaptive motion search range
   Bool      m_bUseHADME;                                      ///< flag for using HAD in sub-pel ME
-  Bool      m_useRDOQ;                                       ///< flag for using RD optimized quantization
-  Bool      m_useRDOQTS;                                     ///< flag for using RD optimized quantization for transform skip
+  Bool      m_useRDOQ;                                        ///< flag for using RD optimized quantization
+  Bool      m_useRDOQTS;                                      ///< flag for using RD optimized quantization for transform skip
+  Bool      m_useSelectiveRDOQ;                               ///< flag for using selective RDOQ
   Int       m_rdPenalty;                                      ///< RD-penalty for 32x32 TU for intra in non-intra slices (0: no RD-penalty, 1: RD-penalty, 2: maximum RD-penalty)
-  Int       m_iFastSearch;                                    ///< ME mode, 0 = full, 1 = diamond, 2 = PMVFAST
+  Bool      m_bDisableIntraPUsInInterSlices;                  ///< Flag for disabling intra predicted PUs in inter slices.
+  MESearchMethod m_motionEstimationSearchMethod;
+  Bool      m_bRestrictMESampling;                            ///< Restrict sampling for the Selective ME
   Int       m_iSearchRange;                                   ///< ME search range
   Int       m_bipredSearchRange;                              ///< ME search range for bipred refinement
-  Bool      m_bUseFastEnc;                                    ///< flag for using fast encoder setting
+  Int       m_minSearchWindow;                                ///< ME minimum search window size for the Adaptive Window ME
+  Bool      m_bClipForBiPredMeEnabled;                        ///< Enables clipping for Bi-Pred ME.
+  Bool      m_bFastMEAssumingSmootherMVEnabled;               ///< Enables fast ME assuming a smoother MV.
+  FastInterSearchMode m_fastInterSearchMode;                  ///< Parameter that controls fast encoder settings
   Bool      m_bUseEarlyCU;                                    ///< flag for using Early CU setting
   Bool      m_useFastDecisionForMerge;                        ///< flag for using Fast Decision Merge RD-Cost
-  Bool      m_bUseCbfFastMode;                              ///< flag for using Cbf Fast PU Mode Decision
-  Bool      m_useEarlySkipDetection;                         ///< flag for using Early SKIP Detection
-  Int       m_sliceMode;                                     ///< 0: no slice limits, 1 : max number of CTBs per slice, 2: max number of bytes per slice,
-                                                             ///< 3: max number of tiles per slice
-  Int       m_sliceArgument;                                 ///< argument according to selected slice mode
-  Int       m_sliceSegmentMode;                              ///< 0: no slice segment limits, 1 : max number of CTBs per slice segment, 2: max number of bytes per slice segment,
-                                                             ///< 3: max number of tiles per slice segment
-  Int       m_sliceSegmentArgument;                          ///< argument according to selected slice segment mode
+  Bool      m_bUseCbfFastMode;                                ///< flag for using Cbf Fast PU Mode Decision
+  Bool      m_useEarlySkipDetection;                          ///< flag for using Early SKIP Detection
+  SliceConstraint m_sliceMode;
+  Int             m_sliceArgument;                            ///< argument according to selected slice mode
+  SliceConstraint m_sliceSegmentMode;
+  Int             m_sliceSegmentArgument;                     ///< argument according to selected slice segment mode
 
   Bool      m_bLFCrossSliceBoundaryFlag;  ///< 1: filter across slice boundaries 0: do not filter across slice boundaries
   Bool      m_bLFCrossTileBoundaryFlag;   ///< 1: filter across tile boundaries  0: do not filter across tile boundaries
@@ -216,20 +269,21 @@ protected:
   Int       m_numTileRowsMinus1;
   std::vector<Int> m_tileColumnWidth;
   std::vector<Int> m_tileRowHeight;
-  Int       m_iWaveFrontSynchro; //< 0: no WPP. >= 1: WPP is enabled, the "Top right" from which inheritance occurs is this LCU offset in the line above the current.
-  Int       m_iWaveFrontFlush; //< enable(1)/disable(0) the CABAC flush at the end of each line of LCUs.
-  Int       m_iWaveFrontSubstreams; //< If iWaveFrontSynchro, this is the number of substreams per frame (dependent tiles) or per tile (independent tiles).
+  Bool      m_entropyCodingSyncEnabledFlag;
 
   Bool      m_bUseConstrainedIntraPred;                       ///< flag for using constrained intra prediction
+  Bool      m_bFastUDIUseMPMEnabled;
+  Bool      m_bFastMEForGenBLowDelayEnabled;
+  Bool      m_bUseBLambdaForNonKeyLowDelayPictures;
 
-  Int       m_decodedPictureHashSEIEnabled;                    ///< Checksum(3)/CRC(2)/MD5(1)/disable(0) acting on decoded picture hash SEI message
-  Int       m_recoveryPointSEIEnabled;
-  Int       m_bufferingPeriodSEIEnabled;
-  Int       m_pictureTimingSEIEnabled;
+  HashType  m_decodedPictureHashSEIType;                      ///< Checksum mode for decoded picture hash SEI message
+  Bool      m_recoveryPointSEIEnabled;
+  Bool      m_bufferingPeriodSEIEnabled;
+  Bool      m_pictureTimingSEIEnabled;
   Bool      m_toneMappingInfoSEIEnabled;
-  Bool      m_chromaSamplingFilterSEIenabled;
-  Int       m_chromaSamplingHorFilterIdc;
-  Int       m_chromaSamplingVerFilterIdc;
+  Bool      m_chromaResamplingFilterSEIenabled;
+  Int       m_chromaResamplingHorFilterIdc;
+  Int       m_chromaResamplingVerFilterIdc;
   Int       m_toneMapId;
   Bool      m_toneMapCancelFlag;
   Bool      m_toneMapPersistenceFlag;
@@ -245,7 +299,7 @@ protected:
   Int       m_cameraIsoSpeedValue;
   Int       m_exposureIndexIdc;
   Int       m_exposureIndexValue;
-  Int       m_exposureCompensationValueSignFlag;
+  Bool      m_exposureCompensationValueSignFlag;
   Int       m_exposureCompensationValueNumerator;
   Int       m_exposureCompensationValueDenomIdc;
   Int       m_refScreenLuminanceWhite;
@@ -256,22 +310,22 @@ protected:
   Int*      m_startOfCodedInterval;
   Int*      m_codedPivotValue;
   Int*      m_targetPivotValue;
-  Int       m_framePackingSEIEnabled;
+  Bool      m_framePackingSEIEnabled;
   Int       m_framePackingSEIType;
   Int       m_framePackingSEIId;
   Int       m_framePackingSEIQuincunx;
   Int       m_framePackingSEIInterpretation;
-  Int       m_segmentedRectFramePackingSEIEnabled;
+  Bool      m_segmentedRectFramePackingSEIEnabled;
   Bool      m_segmentedRectFramePackingSEICancel;
   Int       m_segmentedRectFramePackingSEIType;
   Bool      m_segmentedRectFramePackingSEIPersistence;
   Int       m_displayOrientationSEIAngle;
-  Int       m_temporalLevel0IndexSEIEnabled;
-  Int       m_gradualDecodingRefreshInfoEnabled;
+  Bool      m_temporalLevel0IndexSEIEnabled;
+  Bool      m_gradualDecodingRefreshInfoEnabled;
   Int       m_noDisplaySEITLayer;
-  Int       m_decodingUnitInfoSEIEnabled;
-  Int       m_SOPDescriptionSEIEnabled;
-  Int       m_scalableNestingSEIEnabled;
+  Bool      m_decodingUnitInfoSEIEnabled;
+  Bool      m_SOPDescriptionSEIEnabled;
+  Bool      m_scalableNestingSEIEnabled;
   Bool      m_tmctsSEIEnabled;
   Bool      m_timeCodeSEIEnabled;
   Int       m_timeCodeSEINumTs;
@@ -280,7 +334,6 @@ protected:
   Int       m_kneeSEIId;
   Bool      m_kneeSEICancelFlag;
   Bool      m_kneeSEIPersistenceFlag;
-  Bool      m_kneeSEIMappingFlag;
   Int       m_kneeSEIInputDrange;
   Int       m_kneeSEIInputDispLuminance;
   Int       m_kneeSEIOutputDrange;
@@ -288,27 +341,35 @@ protected:
   Int       m_kneeSEINumKneePointsMinus1;
   Int*      m_kneeSEIInputKneePoint;
   Int*      m_kneeSEIOutputKneePoint;
+  Int       m_preferredTransferCharacteristics;
+  UInt      m_greenMetadataType;
+  UInt      m_xsdMetricType;
+
   // weighted prediction
   Bool      m_useWeightedPred;                    ///< Use of weighted prediction in P slices
   Bool      m_useWeightedBiPred;                  ///< Use of bi-directional weighted prediction in B slices
+  WeightedPredictionMethod m_weightedPredictionMethod;
 
   UInt      m_log2ParallelMergeLevel;                         ///< Parallel merge estimation region
   UInt      m_maxNumMergeCand;                                ///< Max number of merge candidates
 
   Int       m_TMVPModeId;
-  Int       m_signHideFlag;
+  Bool      m_signDataHidingEnabledFlag;
   Bool      m_RCEnableRateControl;                ///< enable rate control or not
   Int       m_RCTargetBitrate;                    ///< target bitrate when rate control is enabled
   Int       m_RCKeepHierarchicalBit;              ///< 0: equal bit allocation; 1: fixed ratio bit allocation; 2: adaptive ratio bit allocation
-  Bool      m_RCLCULevelRC;                       ///< true: LCU level rate control; false: picture level rate control
-  Bool      m_RCUseLCUSeparateModel;              ///< use separate R-lambda model at LCU level
+  Bool      m_RCLCULevelRC;                       ///< true: LCU level rate control; false: picture level rate control NOTE: code-tidy - rename to m_RCCtuLevelRC
+  Bool      m_RCUseLCUSeparateModel;              ///< use separate R-lambda model at LCU level                        NOTE: code-tidy - rename to m_RCUseCtuSeparateModel
   Int       m_RCInitialQP;                        ///< inital QP for rate control
   Bool      m_RCForceIntraQP;                     ///< force all intra picture to use initial QP or not
-  Int       m_useScalingListId;                               ///< using quantization matrix
-  Char*     m_scalingListFile;                                ///< quantization matrix file name
+  Bool      m_RCCpbSaturationEnabled;             ///< enable target bits saturation to avoid CPB overflow and underflow
+  UInt      m_RCCpbSize;                          ///< CPB size
+  Double    m_RCInitialCpbFullness;               ///< initial CPB fullness 
+  ScalingListMode m_useScalingListId;                         ///< using quantization matrix
+  std::string m_scalingListFileName;                          ///< quantization matrix file name
 
-  Bool      m_TransquantBypassEnableFlag;                     ///< transquant_bypass_enable_flag setting in PPS.
-  Bool      m_CUTransquantBypassFlagForce;                    ///< if transquant_bypass_enable_flag, then, if true, all CU transquant bypass flags will be set to true.
+  Bool      m_TransquantBypassEnabledFlag;                    ///< transquant_bypass_enabled_flag setting in PPS.
+  Bool      m_CUTransquantBypassFlagForce;                    ///< if transquant_bypass_enabled_flag, then, if true, all CU transquant bypass flags will be set to true.
   CostMode  m_costMode;                                       ///< Cost mode to use
 
   Bool      m_recalculateQPAccordingToLambda;                 ///< recalculate QP value according to the lambda value
@@ -349,9 +410,19 @@ protected:
   Int       m_maxBitsPerMinCuDenom;                           ///< Indicates an upper bound for the number of bits of coding_unit() data
   Int       m_log2MaxMvLengthHorizontal;                      ///< Indicate the maximum absolute value of a decoded horizontal MV component in quarter-pel luma units
   Int       m_log2MaxMvLengthVertical;                        ///< Indicate the maximum absolute value of a decoded vertical MV component in quarter-pel luma units
+  std::string m_colourRemapSEIFileRoot;
+
+  std::string m_summaryOutFilename;                           ///< filename to use for producing summary output file.
+  std::string m_summaryPicFilenameBase;                       ///< Base filename to use for producing summary picture output files. The actual filenames used will have I.txt, P.txt and B.txt appended.
+  UInt        m_summaryVerboseness;                           ///< Specifies the level of the verboseness of the text output.
+
+#if EXTENSION_360_VIDEO
+  TExt360AppEncCfg m_ext360;
+  friend class TExt360AppEncCfg;
+  friend class TExt360AppEncTop;
+#endif
 
   // internal member functions
-  Void  xSetGlobal      ();                                   ///< set global variables
   Void  xCheckParameter ();                                   ///< check validity of configuration values
   Void  xPrintParameter ();                                   ///< print configuration values
   Void  xPrintUsage     ();                                   ///< print usage
@@ -362,7 +433,7 @@ public:
 public:
   Void  create    ();                                         ///< create option handling class
   Void  destroy   ();                                         ///< destroy option handling class
-  Bool  parseCfg  ( Int argc, Char* argv[] );                 ///< parse configuration file to fill member variables
+  Bool  parseCfg  ( Int argc, TChar* argv[] );                ///< parse configuration file to fill member variables
 
 };// END CLASS DEFINITION TAppEncCfg
 

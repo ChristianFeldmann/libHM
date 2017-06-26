@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -43,6 +43,7 @@
 #include "TLibCommon/TComPicYuv.h"
 #include "TLibCommon/TComPic.h"
 #include "TLibCommon/TComTrQuant.h"
+#include "TLibCommon/TComPrediction.h"
 #include "TLibCommon/SEI.h"
 
 #include "TDecGop.h"
@@ -50,8 +51,9 @@
 #include "TDecSbac.h"
 #include "TDecCAVLC.h"
 #include "SEIread.h"
+#include "TDecConformance.h"
 
-struct InputNALUnit;
+class InputNALUnit;
 
 //! \ingroup TLibDecoder
 //! \{
@@ -71,10 +73,10 @@ private:
   Int                     m_pocRandomAccess;   ///< POC number of the random access point (the first IDR or CRA picture)
 
   TComList<TComPic*>      m_cListPic;         //  Dynamic buffer
-  ParameterSetManagerDecoder m_parameterSetManagerDecoder;  // storage for parameter sets
+  ParameterSetManager     m_parameterSetManager;  // storage for parameter sets
   TComSlice*              m_apcSlicePilot;
 
-  SEIMessages             m_SEIs; ///< List of SEI messages that have been received before the first slice and between slices
+  SEIMessages             m_SEIs; ///< List of SEI messages that have been received before the first slice and between slices, excluding prefix SEIs...
 
   // functional classes
   TComPrediction          m_cPrediction;
@@ -89,27 +91,30 @@ private:
   SEIReader               m_seiReader;
   TComLoopFilter          m_cLoopFilter;
   TComSampleAdaptiveOffset m_cSAO;
+  TDecConformanceCheck    m_conformanceCheck;
 
   Bool isSkipPictureForBLA(Int& iPOCLastDisplay);
   Bool isRandomAccessSkipPicture(Int& iSkipFrame,  Int& iPOCLastDisplay);
   TComPic*                m_pcPic;
   UInt                    m_uiSliceIdx;
   Int                     m_prevPOC;
+  Int                     m_prevTid0POC;
   Bool                    m_bFirstSliceInPicture;
   Bool                    m_bFirstSliceInSequence;
   Bool                    m_prevSliceSkipped;
   Int                     m_skippedPOC;
-#if SETTING_NO_OUT_PIC_PRIOR  
   Bool                    m_bFirstSliceInBitstream;
   Int                     m_lastPOCNoOutputPriorPics;
   Bool                    m_isNoOutputPriorPics;
   Bool                    m_craNoRaslOutputFlag;    //value of variable NoRaslOutputFlag of the last CRA pic
-#endif
-#if RExt__O0043_BEST_EFFORT_DECODING
+#if O0043_BEST_EFFORT_DECODING
   UInt                    m_forceDecodeBitDepth;
 #endif
   std::ostream           *m_pDecodedSEIOutputStream;
 
+  Bool                    m_warningMessageSkipPicture;
+
+  std::list<InputNALUnit*> m_prefixSEINALUs; /// Buffered up prefix SEI NAL Units.
 public:
   TDecTop();
   virtual ~TDecTop();
@@ -124,36 +129,32 @@ public:
   Void  deletePicBuffer();
 
   
-  TComSPS* getActiveSPS() { return m_parameterSetManagerDecoder.getActiveSPS(); }
-
-
-  Void executeLoopFilters(Int& poc, TComList<TComPic*>*& rpcListPic);
-#if SETTING_NO_OUT_PIC_PRIOR  
-  Void  checkNoOutputPriorPics (TComList<TComPic*>*& rpcListPic);
+  Void  executeLoopFilters(Int& poc, TComList<TComPic*>*& rpcListPic);
+  Void  checkNoOutputPriorPics (TComList<TComPic*>* rpcListPic);
 
   Bool  getNoOutputPriorPicsFlag () { return m_isNoOutputPriorPics; }
   Void  setNoOutputPriorPicsFlag (Bool val) { m_isNoOutputPriorPics = val; }
-#endif
-#if FIX_OUTPUT_ORDER_BEHAVIOR
   Void  setFirstSliceInPicture (bool val)  { m_bFirstSliceInPicture = val; }
   Bool  getFirstSliceInSequence ()         { return m_bFirstSliceInSequence; }
   Void  setFirstSliceInSequence (bool val) { m_bFirstSliceInSequence = val; }
-#endif
-#if RExt__O0043_BEST_EFFORT_DECODING
+#if O0043_BEST_EFFORT_DECODING
   Void  setForceDecodeBitDepth(UInt bitDepth) { m_forceDecodeBitDepth = bitDepth; }
 #endif
   Void  setDecodedSEIMessageOutputStream(std::ostream *pOpStream) { m_pDecodedSEIOutputStream = pOpStream; }
+  UInt  getNumberOfChecksumErrorsDetected() const { return m_cGopDecoder.getNumberOfChecksumErrorsDetected(); }
 
 protected:
-  Void  xGetNewPicBuffer  (TComSlice* pcSlice, TComPic*& rpcPic);
+  Void  xGetNewPicBuffer  (const TComSPS &sps, const TComPPS &pps, TComPic*& rpcPic, const UInt temporalLayer);
   Void  xCreateLostPicture (Int iLostPOC);
 
   Void      xActivateParameterSets();
   Bool      xDecodeSlice(InputNALUnit &nalu, Int &iSkipFrame, Int iPOCLastDisplay);
-  Void      xDecodeVPS();
-  Void      xDecodeSPS();
-  Void      xDecodePPS();
-  Void      xDecodeSEI( TComInputBitstream* bs, const NalUnitType nalUnitType );
+  Void      xDecodeVPS(const std::vector<UChar> &naluData);
+  Void      xDecodeSPS(const std::vector<UChar> &naluData);
+  Void      xDecodePPS(const std::vector<UChar> &naluData);
+  Void      xUpdatePreviousTid0POC( TComSlice *pSlice ) { if ((pSlice->getTLayer()==0) && (pSlice->isReferenceNalu() && (pSlice->getNalUnitType()!=NAL_UNIT_CODED_SLICE_RASL_R)&& (pSlice->getNalUnitType()!=NAL_UNIT_CODED_SLICE_RADL_R))) { m_prevTid0POC=pSlice->getPOC(); } }
+  Void      xParsePrefixSEImessages();
+  Void      xParsePrefixSEIsForUnknownVCLNal();
 
 };// END CLASS DEFINITION TDecTop
 

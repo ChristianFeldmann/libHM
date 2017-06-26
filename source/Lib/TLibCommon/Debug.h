@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,9 +46,9 @@
 #include <sstream>
 #include <TLibCommon/CommonDef.h>
 
-#ifdef DEBUG_STRING
-extern const Char *debug_reorder_data_inter_token[MAX_NUM_COMPONENT+1];
-extern const Char *partSizeToString[NUMBER_OF_PART_SIZES];
+#if DEBUG_STRING
+extern const TChar *debug_reorder_data_inter_token[MAX_NUM_COMPONENT+1];
+extern const TChar *partSizeToString[NUMBER_OF_PART_SIZES];
 #endif
 
 // ---------------------------------------------------------------------------------------------- //
@@ -102,7 +102,7 @@ namespace DebugOptionList
   extern EnvVar ForceLumaMode;
   extern EnvVar ForceChromaMode;
 
-#ifdef DEBUG_STRING
+#if DEBUG_STRING
   extern EnvVar DebugString_Structure;
   extern EnvVar DebugString_Pred;
   extern EnvVar DebugString_Resi;
@@ -113,23 +113,20 @@ namespace DebugOptionList
 
 // ---------------------------------------------------------------------------------------------- //
 
-Void printRExtMacroSettings();
+Void printMacroSettings();
 
 // ---------------------------------------------------------------------------------------------- //
 
 //Debugging
 
-extern Bool g_bFinalEncode;
 extern UInt g_debugCounter;
-extern Bool g_printDebug;
-extern Void* g_debugAddr;
 
-#ifdef DEBUG_ENCODER_SEARCH_BINS
+#if DEBUG_ENCODER_SEARCH_BINS
 extern const UInt debugEncoderSearchBinTargetLine;
 extern const UInt debugEncoderSearchBinWindow;
 #endif
 
-#ifdef DEBUG_CABAC_BINS
+#if DEBUG_CABAC_BINS
 extern const UInt debugCabacBinTargetLine;
 extern const UInt debugCabacBinWindow;
 #endif
@@ -152,9 +149,9 @@ Void printCbfArray( class TComDataCU* pcCU  );
 UInt getDecimalWidth(const Double value);
 UInt getZScanIndex(const UInt x, const UInt y);
 
-//template specialisation for Char types to get it to render as a number
+//template specialisation for SChar/UChar types to get it to render as a number
 template <typename ValueType> inline Void writeValueToStream       (const ValueType &value, std::ostream &stream, const UInt outputWidth) { stream << std::setw(outputWidth) <<      value;  }
-template <>                   inline Void writeValueToStream<Char >(const Char      &value, std::ostream &stream, const UInt outputWidth) { stream << std::setw(outputWidth) <<  Int(value); }
+template <>                   inline Void writeValueToStream<SChar>(const SChar     &value, std::ostream &stream, const UInt outputWidth) { stream << std::setw(outputWidth) <<  Int(value); }
 template <>                   inline Void writeValueToStream<UChar>(const UChar     &value, std::ostream &stream, const UInt outputWidth) { stream << std::setw(outputWidth) << UInt(value); }
 
 template <typename ValueType>
@@ -178,6 +175,7 @@ Void printBlock(const ValueType    *const source,
     ValueType maximumValue = minimumValue;
 
     for (UInt y = 0; y < height; y++)
+    {
       for (UInt x = 0; x < width; x++)
       {
         ValueType value = 0;
@@ -187,9 +185,16 @@ Void printBlock(const ValueType    *const source,
           value = leftShift(source[printInZScan ? getZScanIndex(x, y) : ((y * stride) + x)], shiftLeftBy);
         }
 
-        if      (value < minimumValue) minimumValue = value;
-        else if (value > maximumValue) maximumValue = value;
+        if (value < minimumValue)
+        {
+          minimumValue = value;
+        }
+        else if (value > maximumValue)
+        {
+          maximumValue = value;
+        }
       }
+    }
 
     outputWidth = std::max<UInt>(getDecimalWidth(Double(minimumValue)), getDecimalWidth(Double(maximumValue))) + 1; //+1 so the numbers don't run into each other
   }
@@ -217,24 +222,31 @@ Void printBlock(const ValueType    *const source,
   }
 
   const Int valueCount = onlyPrintEdges ? Int((width + height) - 1) : Int(width * height);
-  if (printAverage) stream << "Average: " << (valueSum / valueCount) << "\n";
+  if (printAverage)
+  {
+    stream << "Average: " << (valueSum / valueCount) << "\n";
+  }
   stream << "\n";
 }
 
 
 template <typename T>
-Void printBlockToStream( std::ostream &ss, const Char *pLinePrefix, const T * blkSrc, const UInt width, const UInt height, const UInt stride, const UInt subBlockWidth=0, const UInt subBlockHeight=0, const UInt defWidth=3 )
+Void printBlockToStream( std::ostream &ss, const TChar *pLinePrefix, const T * blkSrc, const UInt width, const UInt height, const UInt stride, const UInt subBlockWidth=0, const UInt subBlockHeight=0, const UInt defWidth=3 )
 {
   for (UInt y=0; y<height; y++)
   {
     if (subBlockHeight!=0 && (y%subBlockHeight)==0 && y!=0)
+    {
       ss << pLinePrefix << '\n';
+    }
 
     ss << pLinePrefix;
     for (UInt x=0; x<width; x++)
     {
       if (subBlockWidth!=0 && (x%subBlockWidth)==0 && x!=0)
+      {
         ss << std::setw(defWidth+2) << "";
+      }
 
       ss << std::setw(defWidth) << blkSrc[y*stride + x] << ' ';
     }
@@ -243,7 +255,7 @@ Void printBlockToStream( std::ostream &ss, const Char *pLinePrefix, const T * bl
 }
 
 class TComYuv;
-Void printBlockToStream( std::ostream &ss, const Char *pLinePrefix, TComYuv &src, const UInt numSubBlocksAcross=1, const UInt numSubBlocksUp=1, const UInt defWidth=3 );
+Void printBlockToStream( std::ostream &ss, const TChar *pLinePrefix, TComYuv &src, const UInt numSubBlocksAcross=1, const UInt numSubBlocksUp=1, const UInt defWidth=3 );
 
 // ---------------------------------------------------------------------------------------------- //
 
@@ -257,7 +269,7 @@ std::string indentNewLines(const std::string &input, const UInt indentBy);
 
 // ---------------------------------------------------------------------------------------------- //
 
-#ifdef DEBUG_STRING
+#if DEBUG_STRING
   Int DebugStringGetPredModeMask(PredMode mode);
   Void DebugInterPredResiReco(std::string &sDebug, TComYuv &pred, TComYuv &resi, TComYuv &reco, Int predmode_mask);
 #endif

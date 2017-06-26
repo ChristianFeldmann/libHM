@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -34,7 +34,7 @@
 #ifndef __TCOMCODINGSTATISTICS__
 #define __TCOMCODINGSTATISTICS__
 
-#include "TypeDef.h"
+#include "CommonDef.h"
 #include <stdio.h>
 #include <string>
 #include <map>
@@ -94,9 +94,9 @@ enum TComCodingStatisticsType
   STATS__NUM_STATS
 };
 
-static inline const Char* getName(TComCodingStatisticsType name)
+static inline const TChar* getName(TComCodingStatisticsType name)
 {
-  static const Char *statNames[]=
+  static const TChar *statNames[]=
   {
     "NAL_UNIT_TOTAL_BODY", // This is a special case and is not included in the total sums.
     "NAL_UNIT_PACKING",
@@ -142,7 +142,7 @@ static inline const Char* getName(TComCodingStatisticsType name)
     "CABAC_BITS__ALIGNED_SIGN_BIT",
     "CABAC_BITS__ALIGNED_ESCAPE_BITS"
   };
-  assert(STATS__NUM_STATS == sizeof(statNames)/sizeof(Char *) && name < STATS__NUM_STATS);
+  assert(STATS__NUM_STATS == sizeof(statNames)/sizeof(TChar *) && name < STATS__NUM_STATS);
   return statNames[name];
 }
 
@@ -182,10 +182,10 @@ public:
     return subClass%CODING_STATS_NUM_WIDTHS;
   }
 
-  static const Char *GetSubClassString(const UInt subClass)
+  static const TChar *GetSubClassString(const UInt subClass)
   {
     assert (subClass<CODING_STATS_NUM_SUBCLASSES);
-    static const Char *strings[1+MAX_NUM_COMPONENT+MAX_NUM_CHANNEL_TYPE]={"-", "Y", "Cb", "Cr", "Luma", "Chroma"};
+    static const TChar *strings[1+MAX_NUM_COMPONENT+MAX_NUM_CHANNEL_TYPE]={"-", "Y", "Cb", "Cr", "Luma", "Chroma"};
     return strings[subClass/CODING_STATS_NUM_WIDTHS];
   }
 
@@ -242,33 +242,38 @@ class TComCodingStatistics
     TComCodingStatistics() : data()
     { }
 
-    static Void OutputLine(const Char *pName, const Char sep, UInt width, const Char *pSubClassStr, const SStat &sCABAC, const SStat &sEP)
+    static Void OutputLine(const TChar *pName, const TChar sep, UInt width, const TChar *pSubClassStr, const SStat &sCABAC, const SStat &sEP)
     {
       if (width==0)
+      {
         OutputLine(pName, sep, "-", pSubClassStr, sCABAC, sEP);
+      }
       else
+      {
         printf("%c%-45s%c  %6d %6s %12lld %12lld %12lld %12lld %12lld %12lld %12lld (%12lld)%c\n",
           sep=='~'?'[':' ', pName, sep, 1<<width, pSubClassStr,
               sCABAC.count, sCABAC.sum, sCABAC.bits, sEP.count, sEP.sum, sEP.bits, sCABAC.bits+sEP.bits, (sCABAC.bits+sEP.bits)/8, sep=='~'?']':' ');
+      }
     }
-    static Void OutputLine(const Char *pName, const Char sep, const Char *pWidthString, const Char *pSubClassStr, const SStat &sCABAC, const SStat &sEP)
+    static Void OutputLine(const TChar *pName, const TChar sep, const TChar *pWidthString, const TChar *pSubClassStr, const SStat &sCABAC, const SStat &sEP)
     {
       printf("%c%-45s%c  %6s %6s %12lld %12lld %12lld %12lld %12lld %12lld %12lld (%12lld)%c\n",
           sep=='~'?'[':' ', pName, sep, pWidthString, pSubClassStr,
               sCABAC.count, sCABAC.sum, sCABAC.bits, sEP.count, sEP.sum, sEP.bits, sCABAC.bits+sEP.bits, (sCABAC.bits+sEP.bits)/8, sep=='~'?']':' ');
     }
-    static Void OutputLine(const Char *pName, const Char sep, const Char *pWidthString, const Char *pSubClassStr,  const SStat &sEP)
+    static Void OutputLine(const TChar *pName, const TChar sep, const TChar *pWidthString, const TChar *pSubClassStr,  const SStat &sEP)
     {
       printf("%c%-45s%c  %6s %6s %12s %12s %12s %12lld %12lld %12lld %12lld (%12lld)%c\n",
           sep=='~'?'[':' ', pName, sep, pWidthString, pSubClassStr,
               "", "", "", sEP.count, sEP.sum, sEP.bits, sEP.bits, (sEP.bits)/8, sep=='~'?']':' ');
     }
 
-    static Void OutputDashedLine(const Char *pText)
+    static Void OutputDashedLine(const TChar *pText)
     {
       printf("--%s",pText);
       UInt tot=0;
       for(;pText[tot]!=0; tot++);
+
       tot+=2;
       for (; tot<168; tot++)
       {
@@ -308,19 +313,29 @@ class TComCodingStatistics
       {
         SStat cabacSubTotal, epSubTotal;
         Bool bHadClassifiedEntry=false;
-        const Char *pName=getName(TComCodingStatisticsType(i));
+        const TChar *pName=getName(TComCodingStatisticsType(i));
 
         for(UInt c=0; c<CODING_STATS_NUM_SUBCLASSES; c++)
         {
           SStat &sCABACorig=data.statistics[i][c];
           SStat &sEP=data.statistics_ep[i][c];
 
-          if (sCABACorig.bits==0 && sEP.bits==0) continue;
+          if (sCABACorig.bits==0 && sEP.bits==0)
+          {
+            continue;
+          }
 
           SStat sCABAC;
           {
-            Int64 thisCABACbits=sCABACorig.bits/es; if (i==STATS__CABAC_INITIALISATION && sCABACorig.bits!=0) { thisCABACbits+=cr; cr=0; }
-            sCABAC.bits=thisCABACbits; sCABAC.count=sCABACorig.count; sCABAC.sum=sCABACorig.sum;
+            Int64 thisCABACbits=sCABACorig.bits/es;
+            if (i==STATS__CABAC_INITIALISATION && sCABACorig.bits!=0)
+            {
+              thisCABACbits+=cr;
+              cr=0;
+            }
+            sCABAC.bits=thisCABACbits;
+            sCABAC.count=sCABACorig.count;
+            sCABAC.sum=sCABACorig.sum;
           }
           UInt width=TComCodingStatisticsClassType::GetSubClassWidth(c);
           OutputLine(pName, ':', width, TComCodingStatisticsClassType::GetSubClassString(c), sCABAC, sEP);
@@ -426,7 +441,7 @@ class TComCodingStatistics
 
     static SStat &GetStatisticEP(const std::string &str) { return GetSingletonInstance().data.mappings_ep[str]; }
 
-    static SStat &GetStatisticEP(const Char *pKey) {return GetStatisticEP(std::string(pKey)); }
+    static SStat &GetStatisticEP(const TChar *pKey) {return GetStatisticEP(std::string(pKey)); }
 
     static Void IncrementStatisticEP(const TComCodingStatisticsClassType &stat, const Int numBits, const Int value)
     {
@@ -444,7 +459,7 @@ class TComCodingStatistics
       s.sum+=value;
     }
 
-    static Void IncrementStatisticEP(const Char *pKey, const Int numBits, const Int value)
+    static Void IncrementStatisticEP(const TChar *pKey, const Int numBits, const Int value)
     {
       SStat &s=GetStatisticEP(pKey);
       s.bits+=numBits;

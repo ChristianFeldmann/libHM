@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -71,25 +71,25 @@ protected:
   // filtering functions
   Void xSetEdgefilterTU           ( TComTU &rTu );
   Void xSetEdgefilterPU           ( TComDataCU* pcCU, UInt uiAbsZorderIdx );
-  Void xGetBoundaryStrengthSingle ( TComDataCU* pcCU, DeblockEdgeDir edgeDir, UInt uiPartIdx );
-  UInt xCalcBsIdx                 ( TComDataCU* pcCU, UInt absCUIdxInLCU, DeblockEdgeDir edgeDir, Int iEdgeIdx, Int iBaseUnitIdx, const struct TComRectangle *rect=NULL )
+  Void xGetBoundaryStrengthSingle ( TComDataCU* pCtu, DeblockEdgeDir edgeDir, UInt uiPartIdx );
+  UInt xCalcBsIdx                 ( TComDataCU* pcCU, UInt absZIdxInCtu, DeblockEdgeDir edgeDir, Int iEdgeIdx, Int iBaseUnitIdx, const struct TComRectangle *rect=NULL )
   {
     TComPic* const pcPic = pcCU->getPic();
-    const UInt uiLCUWidthInBaseUnits = pcPic->getNumPartInWidth();
+    const UInt ctuWidthInBaseUnits = pcPic->getNumPartInCtuWidth();
     Int rasterOffsetTU=0;
     if (rect != NULL)
     {
       const UInt minCuWidth =pcPic->getMinCUWidth();
       const UInt minCuHeight=pcPic->getMinCUHeight();
-      rasterOffsetTU = rect->x0/minCuWidth + (rect->y0/minCuHeight)*uiLCUWidthInBaseUnits;
+      rasterOffsetTU = rect->x0/minCuWidth + (rect->y0/minCuHeight)*ctuWidthInBaseUnits;
     }
     if( edgeDir == EDGE_VER )
     {
-      return g_auiRasterToZscan[g_auiZscanToRaster[absCUIdxInLCU] + iBaseUnitIdx * uiLCUWidthInBaseUnits + iEdgeIdx + rasterOffsetTU ];
+      return g_auiRasterToZscan[g_auiZscanToRaster[absZIdxInCtu] + iBaseUnitIdx * ctuWidthInBaseUnits + iEdgeIdx + rasterOffsetTU ];
     }
     else
     {
-      return g_auiRasterToZscan[g_auiZscanToRaster[absCUIdxInLCU] + iEdgeIdx * uiLCUWidthInBaseUnits + iBaseUnitIdx + rasterOffsetTU ];
+      return g_auiRasterToZscan[g_auiZscanToRaster[absZIdxInCtu] + iEdgeIdx * ctuWidthInBaseUnits + iBaseUnitIdx + rasterOffsetTU ];
     }
   }
 
@@ -104,11 +104,11 @@ protected:
                                const TComRectangle *rect = 0
                                );
 
-  Void xEdgeFilterLuma            ( TComDataCU* pcCU, UInt uiAbsZorderIdx, UInt uiDepth, DeblockEdgeDir edgeDir, Int iEdge );
-  Void xEdgeFilterChroma          ( TComDataCU* pcCU, UInt uiAbsZorderIdx, UInt uiDepth, DeblockEdgeDir edgeDir, Int iEdge );
+  Void xEdgeFilterLuma            ( TComDataCU* const pcCU, const UInt uiAbsZorderIdx, const UInt uiDepth, const DeblockEdgeDir edgeDir, const Int iEdge );
+  Void xEdgeFilterChroma          ( TComDataCU* const pcCU, const UInt uiAbsZorderIdx, const UInt uiDepth, const DeblockEdgeDir edgeDir, const Int iEdge );
 
-  __inline Void xPelFilterLuma( Pel* piSrc, Int iOffset, Int tc, Bool sw, Bool bPartPNoFilter, Bool bPartQNoFilter, Int iThrCut, Bool bFilterSecondP, Bool bFilterSecondQ);
-  __inline Void xPelFilterChroma( Pel* piSrc, Int iOffset, Int tc, Bool bPartPNoFilter, Bool bPartQNoFilter);
+  __inline Void xPelFilterLuma( Pel* piSrc, Int iOffset, Int tc, Bool sw, Bool bPartPNoFilter, Bool bPartQNoFilter, Int iThrCut, Bool bFilterSecondP, Bool bFilterSecondQ, const Int bitDepthLuma);
+  __inline Void xPelFilterChroma( Pel* piSrc, Int iOffset, Int tc, Bool bPartPNoFilter, Bool bPartQNoFilter, const Int bitDepthChroma);
 
 
   __inline Bool xUseStrongFiltering( Int offset, Int d, Int beta, Int tc, Pel* piSrc);

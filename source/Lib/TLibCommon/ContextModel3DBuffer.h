@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -39,7 +39,6 @@
 #define __CONTEXTMODEL3DBUFFER__
 
 #include <stdio.h>
-#include <assert.h>
 #include <memory.h>
 
 #include "CommonDef.h"
@@ -86,7 +85,7 @@ public:
   /** copy from another buffer
    * \param src buffer to copy from
    */
-  Void copyFrom( ContextModel3DBuffer* src )
+  Void copyFrom( const ContextModel3DBuffer* src )
   {
     assert( m_sizeXYZ == src->m_sizeXYZ );
     ::memcpy( m_contextModel, src->m_contextModel, sizeof(ContextModel) * m_sizeXYZ );

@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -126,9 +126,13 @@ static inline Bool enable4ChromaPUsInIntraNxNCU(const ChromaFormat chFmt)
 
 //returns the part index of the luma region that is co-located with the specified chroma region
 
-static inline UInt getChromasCorrespondingPULumaIdx(const UInt lumaLCUIdx, const ChromaFormat chFmt)
+static inline UInt
+getChromasCorrespondingPULumaIdx(const UInt lumaZOrderIdxInCtu,
+                                 const ChromaFormat chFmt,
+                                 const Int partsPerMinCU  // 1<<(2*(sps->getMaxTotalCUDepth() - sps->getLog2DiffMaxMinCodingBlockSize()))
+                                 )
 {
-  return enable4ChromaPUsInIntraNxNCU(chFmt) ? lumaLCUIdx : lumaLCUIdx & (~((1<<(2*g_uiAddCUDepth))-1)); //(lumaLCUIdx/numParts)*numParts;
+  return enable4ChromaPUsInIntraNxNCU(chFmt) ? lumaZOrderIdxInCtu : lumaZOrderIdxInCtu & (~(partsPerMinCU-1));
 }
 
 //------------------------------------------------
@@ -156,20 +160,15 @@ static inline Bool filterIntraReferenceSamples (const ChannelType chType, const 
 
 static inline Bool TUCompRectHasAssociatedTransformSkipFlag(const TComRectangle &rectSamples, const UInt transformSkipLog2MaxSize)
 {
-  return (rectSamples.width <= (1<<transformSkipLog2MaxSize)); // NOTE: RExt - Only width is checked. Allows Nx2N (for 4:2:2) and NxN only.
+  return (rectSamples.width <= (1<<transformSkipLog2MaxSize));
 }
 
 
 //------------------------------------------------
 
-// NOTE: RExt - Represents scaling through forward transform, although this is not exact for 422 with TransformSkip enabled.
-static inline Int getTransformShift(const ChannelType type, const UInt uiLog2TrSize)
+static inline Int getTransformShift(const Int channelBitDepth, const UInt uiLog2TrSize, const Int maxLog2TrDynamicRange)
 {
-#if RExt__O0043_BEST_EFFORT_DECODING
-  return g_maxTrDynamicRange[type] - g_bitDepthInStream[type] - uiLog2TrSize;
-#else
-  return g_maxTrDynamicRange[type] - g_bitDepth[type] - uiLog2TrSize;
-#endif
+  return maxLog2TrDynamicRange - channelBitDepth - uiLog2TrSize;
 }
 
 

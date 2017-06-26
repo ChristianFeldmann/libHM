@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -48,6 +48,9 @@
 #include "TLibCommon/CommonDef.h"
 #include "TLibCommon/TComChromaFormat.h"
 #include "math.h"
+#if EXTENSION_360_VIDEO
+#include "TAppEncHelper360/TExt360EncAnalyze.h"
+#endif
 
 //! \ingroup TLibEncoder
 //! \{
@@ -65,6 +68,10 @@ private:
   UInt      m_uiNumPic;
   Double    m_dFrmRate; //--CFG_KDY
   Double    m_MSEyuvframe[MAX_NUM_COMPONENT]; // sum of MSEs
+
+#if EXTENSION_360_VIDEO
+  TExt360EncAnalyze m_ext360;
+#endif
 
 public:
   virtual ~TEncAnalyze()  {}
@@ -86,6 +93,9 @@ public:
   Double  getBits()                   const { return  m_dAddBits;   }
   Void    setBits(Double numBits)     { m_dAddBits=numBits; }
   UInt    getNumPic()                 const { return  m_uiNumPic;   }
+#if EXTENSION_360_VIDEO
+  TExt360EncAnalyze& getExt360Info() { return m_ext360; }
+#endif
 
   Void    setFrmRate  (Double dFrameRate) { m_dFrmRate = dFrameRate; } //--CFG_KDY
   Void    clear()
@@ -97,18 +107,25 @@ public:
       m_MSEyuvframe[i] = 0;
     }
     m_uiNumPic = 0;
+#if EXTENSION_360_VIDEO
+    m_ext360.clear();
+#endif
   }
 
 
-  Void calculateCombinedValues(const ChromaFormat chFmt, Double &PSNRyuv, Double &MSEyuv)
+  Void calculateCombinedValues(const ChromaFormat chFmt, Double &PSNRyuv, Double &MSEyuv, const BitDepths &bitDepths)
   {
     MSEyuv    = 0;
     Int scale = 0;
 
-    Int maximumBitDepth = g_bitDepth[0];
+    Int maximumBitDepth = bitDepths.recon[CHANNEL_TYPE_LUMA];
     for (UInt channelTypeIndex = 1; channelTypeIndex < MAX_NUM_CHANNEL_TYPE; channelTypeIndex++)
-      if (g_bitDepth[channelTypeIndex] > maximumBitDepth)
-        maximumBitDepth = g_bitDepth[channelTypeIndex];
+    {
+      if (bitDepths.recon[channelTypeIndex] > maximumBitDepth)
+      {
+        maximumBitDepth = bitDepths.recon[channelTypeIndex];
+      }
+    }
 
     const UInt maxval                = 255 << (maximumBitDepth - 8);
     const UInt numberValidComponents = getNumberValidComponents(chFmt);
@@ -119,7 +136,7 @@ public:
       const UInt        csx           = getComponentScaleX(compID, chFmt);
       const UInt        csy           = getComponentScaleY(compID, chFmt);
       const Int         scaleChan     = (4>>(csx+csy));
-      const UInt        bitDepthShift = 2 * (maximumBitDepth - g_bitDepth[toChannelType(compID)]); //*2 because this is a squared number
+      const UInt        bitDepthShift = 2 * (maximumBitDepth - bitDepths.recon[toChannelType(compID)]); //*2 because this is a squared number
 
       const Double      channelMSE    = (m_MSEyuvframe[compID] * Double(1 << bitDepthShift)) / Double(getNumPic());
 
@@ -132,7 +149,7 @@ public:
   }
 
 
-  Void    printOut ( Char cDelim, const ChromaFormat chFmt, const Bool printMSEBasedSNR, const Bool printSequenceMSE )
+  Void    printOut ( TChar cDelim, const ChromaFormat chFmt, const Bool printMSEBasedSNR, const Bool printSequenceMSE, const BitDepths &bitDepths )
   {
     Double dFps     =   m_dFrmRate; //--CFG_KDY
     Double dScale   = dFps / 1000 / (Double)m_uiNumPic;
@@ -144,11 +161,14 @@ public:
       {
         const ComponentID compID = ComponentID(componentIndex);
 
-        if (getNumPic() == 0) MSEBasedSNR[compID] = 0 * dScale; //NOTE: RExt - this is the same calculation that will be evaluated for any other statistic when there are no frames (it should result in NaN). We use it here so all the output is consistent.
+        if (getNumPic() == 0)
+        {
+          MSEBasedSNR[compID] = 0 * dScale; // this is the same calculation that will be evaluated for any other statistic when there are no frames (it should result in NaN). We use it here so all the output is consistent.
+        }
         else
         {
-          //NOTE: RExt - this is not the true maximum value for any bitDepth other than 8. It comes from the original HM PSNR calculation
-          const UInt maxval = 255 << (g_bitDepth[toChannelType(compID)] - 8);
+          //NOTE: this is not the true maximum value for any bitDepth other than 8. It comes from the original HM PSNR calculation
+          const UInt maxval = 255 << (bitDepths.recon[toChannelType(compID)] - 8);
           const Double MSE = m_MSEyuvframe[compID];
 
           MSEBasedSNR[compID] = (MSE == 0) ? 999.99 : (10 * log10((maxval * maxval) / (MSE / (Double)getNumPic())));
@@ -163,8 +183,14 @@ public:
         {
           printf( "         \tTotal Frames |   "   "Bitrate     "  "Y-PSNR" );
 
-          if (printSequenceMSE) printf( "    Y-MSE\n" );
-          else printf("\n");
+          if (printSequenceMSE)
+          {
+            printf( "    Y-MSE\n" );
+          }
+          else
+          {
+            printf("\n");
+          }
 
           //printf( "\t------------ "  " ----------"   " -------- "  " -------- "  " --------\n" );
           printf( "Average: \t %8d    %c "          "%12.4lf  "    "%8.4lf",
@@ -176,7 +202,10 @@ public:
           {
             printf( "  %8.4lf\n", m_MSEyuvframe[COMPONENT_Y ] / (Double)getNumPic() );
           }
-          else printf("\n");
+          else
+          {
+            printf("\n");
+          }
 
           printf( "From MSE:\t %8d    %c "          "%12.4lf  "    "%8.4lf\n",
                  getNumPic(), cDelim,
@@ -187,8 +216,14 @@ public:
         {
           printf( "\tTotal Frames |   "   "Bitrate     "  "Y-PSNR" );
 
-          if (printSequenceMSE) printf( "    Y-MSE\n" );
-          else printf("\n");
+          if (printSequenceMSE)
+          {
+            printf( "    Y-MSE\n" );
+          }
+          else
+          {
+            printf("\n");
+          }
 
           //printf( "\t------------ "  " ----------"   " -------- "  " -------- "  " --------\n" );
           printf( "\t %8d    %c "          "%12.4lf  "    "%8.4lf",
@@ -200,7 +235,10 @@ public:
           {
             printf( "  %8.4lf\n", m_MSEyuvframe[COMPONENT_Y ] / (Double)getNumPic() );
           }
-          else printf("\n");
+          else
+          {
+            printf("\n");
+          }
         }
         break;
       case CHROMA_420:
@@ -210,14 +248,20 @@ public:
           Double PSNRyuv = MAX_DOUBLE;
           Double MSEyuv  = MAX_DOUBLE;
           
-          calculateCombinedValues(chFmt, PSNRyuv, MSEyuv);
+          calculateCombinedValues(chFmt, PSNRyuv, MSEyuv, bitDepths);
 
           if (printMSEBasedSNR)
           {
             printf( "         \tTotal Frames |   "   "Bitrate     "  "Y-PSNR    "  "U-PSNR    "  "V-PSNR    "  "YUV-PSNR " );
 
-            if (printSequenceMSE) printf( " Y-MSE     "  "U-MSE     "  "V-MSE    "  "YUV-MSE \n" );
-            else printf("\n");
+            if (printSequenceMSE)
+            {
+              printf( " Y-MSE     "  "U-MSE     "  "V-MSE    "  "YUV-MSE \n" );
+            }
+            else
+            {
+              printf("\n");
+            }
 
             //printf( "\t------------ "  " ----------"   " -------- "  " -------- "  " --------\n" );
             printf( "Average: \t %8d    %c "          "%12.4lf  "    "%8.4lf  "   "%8.4lf  "    "%8.4lf  "   "%8.4lf",
@@ -236,7 +280,10 @@ public:
                      m_MSEyuvframe[COMPONENT_Cr] / (Double)getNumPic(),
                      MSEyuv );
             }
-            else printf("\n");
+            else
+            {
+              printf("\n");
+            }
 
             printf( "From MSE:\t %8d    %c "          "%12.4lf  "    "%8.4lf  "   "%8.4lf  "    "%8.4lf  "   "%8.4lf\n",
                    getNumPic(), cDelim,
@@ -250,8 +297,18 @@ public:
           {
             printf( "\tTotal Frames |   "   "Bitrate     "  "Y-PSNR    "  "U-PSNR    "  "V-PSNR    "  "YUV-PSNR " );
             
-            if (printSequenceMSE) printf( " Y-MSE     "  "U-MSE     "  "V-MSE    "  "YUV-MSE \n" );
-            else printf("\n");
+#if EXTENSION_360_VIDEO
+            m_ext360.printHeader();
+#endif
+
+            if (printSequenceMSE)
+            {
+              printf( " Y-MSE     "  "U-MSE     "  "V-MSE    "  "YUV-MSE \n" );
+            }
+            else
+            {
+              printf("\n");
+            }
 
             //printf( "\t------------ "  " ----------"   " -------- "  " -------- "  " --------\n" );
             printf( "\t %8d    %c "          "%12.4lf  "    "%8.4lf  "   "%8.4lf  "    "%8.4lf  "   "%8.4lf",
@@ -262,6 +319,10 @@ public:
                    getPsnr(COMPONENT_Cr) / (Double)getNumPic(),
                    PSNRyuv );
 
+#if EXTENSION_360_VIDEO
+            m_ext360.printPSNRs(getNumPic());
+#endif
+
             if (printSequenceMSE)
             {
               printf( "  %8.4lf  "   "%8.4lf  "    "%8.4lf  "   "%8.4lf\n",
@@ -270,7 +331,10 @@ public:
                      m_MSEyuvframe[COMPONENT_Cr] / (Double)getNumPic(),
                      MSEyuv );
             }
-            else printf("\n");
+            else
+            {
+              printf("\n");
+            }
           }
         }
         break;
@@ -282,29 +346,9 @@ public:
   }
 
 
-  Void    printSummary(const ChromaFormat chFmt, const Bool printSequenceMSE, Char ch='T')
+  Void    printSummary(const ChromaFormat chFmt, const Bool printSequenceMSE, const BitDepths &bitDepths, const std::string &sFilename)
   {
-    FILE* pFile = NULL;
-
-    switch( ch )
-    {
-      case 'T':
-        pFile = fopen ("summaryTotal.txt", "at");
-        break;
-      case 'I':
-        pFile = fopen ("summary_I.txt", "at");
-        break;
-      case 'P':
-        pFile = fopen ("summary_P.txt", "at");
-        break;
-      case 'B':
-        pFile = fopen ("summary_B.txt", "at");
-        break;
-      default:
-        assert(0);
-        return;
-        break;
-    }
+    FILE* pFile = fopen (sFilename.c_str(), "at");
 
     Double dFps     =   m_dFrmRate; //--CFG_KDY
     Double dScale   = dFps / 1000 / (Double)m_uiNumPic;
@@ -322,7 +366,7 @@ public:
           Double PSNRyuv = MAX_DOUBLE;
           Double MSEyuv  = MAX_DOUBLE;
           
-          calculateCombinedValues(chFmt, PSNRyuv, MSEyuv);
+          calculateCombinedValues(chFmt, PSNRyuv, MSEyuv, bitDepths);
 
           fprintf(pFile, "%f\t %f\t %f\t %f\t %f",
               getBits() * dScale,
@@ -339,7 +383,10 @@ public:
                 m_MSEyuvframe[COMPONENT_Cr] / (Double)getNumPic(),
                 MSEyuv );
           }
-          else fprintf(pFile, "\n");
+          else
+          {
+            fprintf(pFile, "\n");
+          }
 
           break;
         }

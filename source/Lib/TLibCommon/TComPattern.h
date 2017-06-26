@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -39,9 +39,7 @@
 #define __TCOMPATTERN__
 
 // Include files
-#include <stdio.h>
 #include "CommonDef.h"
-#include <string>
 
 //! \ingroup TLibCommon
 //! \{
@@ -63,19 +61,20 @@ public:
   Int   m_iROIWidth;
   Int   m_iROIHeight;
   Int   m_iPatternStride;
+  Int   m_bitDepth;
 
   /// return starting position of ROI (ROI = &pattern[AboveOffset][LeftOffset])
   __inline Pel*  getROIOrigin()
   {
     return  m_piROIOrigin;
   }
+  __inline const Pel*  getROIOrigin() const
+  {
+    return  m_piROIOrigin;
+  }
 
   /// set parameters from Pel buffer for accessing neighbouring pixels
-  Void setPatternParamPel (Pel*        piTexture,
-                           Int         iRoiWidth,
-                           Int         iRoiHeight,
-                           Int         iStride
-                           );
+  Void setPatternParamPel( Pel* piTexture, Int iRoiWidth, Int iRoiHeight, Int iStride, Int bitDepth );
 };
 
 /// neighbouring pixel access class for all components
@@ -90,23 +89,18 @@ public:
 
   // ROI & pattern information, (ROI = &pattern[AboveOffset][LeftOffset])
   Pel*  getROIY()                 { return m_cPatternY.getROIOrigin();    }
-  Int   getROIYWidth()            { return m_cPatternY.m_iROIWidth;       }
-  Int   getROIYHeight()           { return m_cPatternY.m_iROIHeight;      }
-  Int   getPatternLStride()       { return m_cPatternY.m_iPatternStride;  }
+  const Pel*  getROIY() const     { return m_cPatternY.getROIOrigin();    }
+  Int   getROIYWidth() const      { return m_cPatternY.m_iROIWidth;       }
+  Int   getROIYHeight() const     { return m_cPatternY.m_iROIHeight;      }
+  Int   getPatternLStride() const { return m_cPatternY.m_iPatternStride;  }
+  Int   getBitDepthY() const      { return m_cPatternY.m_bitDepth;        }
 
   // -------------------------------------------------------------------------------------------------------------------
   // initialization functions
   // -------------------------------------------------------------------------------------------------------------------
 
   /// set parameters from Pel buffers for accessing neighbouring pixels
-  Void initPattern            (Pel*        piY,
-                               Int         iRoiWidth,
-                               Int         iRoiHeight,
-                               Int         iStride );
-
-
-
-
+  Void initPattern( Pel* piY, Int iRoiWidth, Int iRoiHeight, Int iStride, Int bitDepthLuma );
 };
 
 //! \}

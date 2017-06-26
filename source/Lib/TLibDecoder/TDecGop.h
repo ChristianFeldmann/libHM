@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -72,8 +72,6 @@ private:
   TDecEntropy*          m_pcEntropyDecoder;
   TDecSbac*             m_pcSbacDecoder;
   TDecBinCABAC*         m_pcBinCABAC;
-  TDecSbac*             m_pcSbacDecoders; // independant CABAC decoders
-  TDecBinCABAC*         m_pcBinCABACs;
   TDecCavlc*            m_pcCavlcDecoder;
   TDecSlice*            m_pcSliceDecoder;
   TComLoopFilter*       m_pcLoopFilter;
@@ -81,6 +79,7 @@ private:
   TComSampleAdaptiveOffset*     m_pcSAO;
   Double                m_dDecTime;
   Int                   m_decodedPictureHashSEIEnabled;  ///< Checksum(3)/CRC(2)/MD5(1)/disable(0) acting on decoded picture hash SEI message
+  UInt                  m_numberOfChecksumErrorsDetected;
 
 public:
   TDecGop();
@@ -96,10 +95,11 @@ public:
                  );
   Void  create  ();
   Void  destroy ();
-  Void  decompressSlice(TComInputBitstream* pcBitstream, TComPic*& rpcPic );
-  Void  filterPicture  (TComPic*& rpcPic );
+  Void  decompressSlice(TComInputBitstream* pcBitstream, TComPic* pcPic );
+  Void  filterPicture  (TComPic* pcPic );
 
   Void setDecodedPictureHashSEIEnabled(Int enabled) { m_decodedPictureHashSEIEnabled = enabled; }
+  UInt getNumberOfChecksumErrorsDetected() const { return m_numberOfChecksumErrorsDetected; }
 
 };
 

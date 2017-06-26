@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -47,19 +47,6 @@
 //! \{
 
 // ====================================================================================================================
-// Macros
-// ====================================================================================================================
-
-#define     MAX_CU_DEPTH             6                          // log2(LCUSize)
-#define     MAX_CU_SIZE             (1<<(MAX_CU_DEPTH))         // maximum allowable size of CU, surely 64? (not 1<<7 = 128)
-#define     MIN_PU_SIZE              4
-#define     MIN_TU_SIZE              4
-#define     MAX_TU_SIZE             32
-#define     MAX_NUM_SPU_W           (MAX_CU_SIZE/MIN_PU_SIZE)   // maximum number of SPU in horizontal line
-
-#define     SCALING_LIST_REM_NUM     6
-
-// ====================================================================================================================
 // Initialize / destroy functions
 // ====================================================================================================================
 
@@ -71,44 +58,23 @@ Void         destroyROM();
 // ====================================================================================================================
 
 // flexible conversion from relative to absolute index
-extern       UInt   g_auiZscanToRaster[ MAX_NUM_SPU_W*MAX_NUM_SPU_W ];
-extern       UInt   g_auiRasterToZscan[ MAX_NUM_SPU_W*MAX_NUM_SPU_W ];
+extern       UInt   g_auiZscanToRaster[ MAX_NUM_PART_IDXS_IN_CTU_WIDTH*MAX_NUM_PART_IDXS_IN_CTU_WIDTH ];
+extern       UInt   g_auiRasterToZscan[ MAX_NUM_PART_IDXS_IN_CTU_WIDTH*MAX_NUM_PART_IDXS_IN_CTU_WIDTH ];
 extern       UInt*  g_scanOrder[SCAN_NUMBER_OF_GROUP_TYPES][SCAN_NUMBER_OF_TYPES][ MAX_CU_DEPTH ][ MAX_CU_DEPTH ];
 
 Void         initZscanToRaster ( Int iMaxDepth, Int iDepth, UInt uiStartVal, UInt*& rpuiCurrIdx );
 Void         initRasterToZscan ( UInt uiMaxCUWidth, UInt uiMaxCUHeight, UInt uiMaxDepth         );
 
 // conversion of partition index to picture pel position
-extern       UInt   g_auiRasterToPelX[ MAX_NUM_SPU_W*MAX_NUM_SPU_W ];
-extern       UInt   g_auiRasterToPelY[ MAX_NUM_SPU_W*MAX_NUM_SPU_W ];
+extern       UInt   g_auiRasterToPelX[ MAX_NUM_PART_IDXS_IN_CTU_WIDTH*MAX_NUM_PART_IDXS_IN_CTU_WIDTH ];
+extern       UInt   g_auiRasterToPelY[ MAX_NUM_PART_IDXS_IN_CTU_WIDTH*MAX_NUM_PART_IDXS_IN_CTU_WIDTH ];
 
 Void         initRasterToPelXY ( UInt uiMaxCUWidth, UInt uiMaxCUHeight, UInt uiMaxDepth );
 
-// global variable (LCU width/height, max. CU depth)
-extern       UInt g_uiMaxCUWidth;
-extern       UInt g_uiMaxCUHeight;
-extern       UInt g_uiMaxCUDepth;
-extern       UInt g_uiAddCUDepth;
+extern const UInt g_auiPUOffset[NUMBER_OF_PART_SIZES];
 
-extern       UInt g_auiPUOffset[NUMBER_OF_PART_SIZES];
-
-#define QUANT_SHIFT                14 // Q(4) = 2^14
-#define IQUANT_SHIFT                6
-#define SCALE_BITS                 15 // Inherited from TMuC, pressumably for fractional bit estimates in RDOQ
-
-extern Int g_maxTrDynamicRange[MAX_NUM_CHANNEL_TYPE];
-
-#define SQRT2                      11585
-#define SQRT2_SHIFT                13
-#define INVSQRT2                   11585
-#define INVSQRT2_SHIFT             14
-#define ADDITIONAL_MULTIPLIER_BITS 14
-
-#define SHIFT_INV_1ST               7 // Shift after first inverse transform stage
-#define SHIFT_INV_2ND              12 // Shift after second inverse transform stage
-
-extern Int g_quantScales[SCALING_LIST_REM_NUM];             // Q(QP%6)
-extern Int g_invQuantScales[SCALING_LIST_REM_NUM];          // IQ(QP%6)
+extern const Int g_quantScales[SCALING_LIST_REM_NUM];             // Q(QP%6)
+extern const Int g_invQuantScales[SCALING_LIST_REM_NUM];          // IQ(QP%6)
 
 #if RExt__HIGH_PRECISION_FORWARD_TRANSFORM
 static const Int g_transformMatrixShift[TRANSFORM_NUMBER_OF_DIRECTIONS] = { 14, 6 };
@@ -129,12 +95,6 @@ static const Int chromaQPMappingTableSize = 58;
 
 extern const UChar  g_aucChromaScale[NUM_CHROMA_FORMAT][chromaQPMappingTableSize];
 
-// ====================================================================================================================
-// Entropy Coding
-// ====================================================================================================================
-
-#define CONTEXT_STATE_BITS             6
-#define LAST_SIGNIFICANT_GROUPS       10
 
 // ====================================================================================================================
 // Scanning order & context mapping table
@@ -146,22 +106,13 @@ extern const UInt   g_uiGroupIdx[ MAX_TU_SIZE ];
 extern const UInt   g_uiMinInGroup[ LAST_SIGNIFICANT_GROUPS ];
 
 // ====================================================================================================================
-// ADI table
+// Intra prediction table
 // ====================================================================================================================
 
-extern const UChar  g_aucIntraModeNumFast[MAX_CU_DEPTH];
+extern const UChar  g_aucIntraModeNumFast_UseMPM[MAX_CU_DEPTH];
+extern const UChar  g_aucIntraModeNumFast_NotUseMPM[MAX_CU_DEPTH];
 
 extern const UChar  g_chroma422IntraAngleMappingTable[NUM_INTRA_MODE];
-
-// ====================================================================================================================
-// Bit-depth
-// ====================================================================================================================
-
-extern        Int g_bitDepth   [MAX_NUM_CHANNEL_TYPE];
-extern        Int g_PCMBitDepth[MAX_NUM_CHANNEL_TYPE];
-#if RExt__O0043_BEST_EFFORT_DECODING
-extern        Int g_bitDepthInStream   [MAX_NUM_CHANNEL_TYPE]; // In the encoder, this is the same as g_bitDepth. In the decoder, this can vary from g_bitDepth if the decoder is forced to use 'best-effort decoding' at a particular bit-depth.
-#endif
 
 // ====================================================================================================================
 // Mode-Dependent DST Matrices
@@ -173,11 +124,7 @@ extern const TMatrixCoeff g_as_DST_MAT_4 [TRANSFORM_NUMBER_OF_DIRECTIONS][4][4];
 // Misc.
 // ====================================================================================================================
 
-extern       Char   g_aucConvertToBit  [ MAX_CU_SIZE+1 ];   // from width to log2(width)-2
-
-#ifndef ENC_DEC_TRACE
-#define ENC_DEC_TRACE 0
-#endif
+extern       SChar   g_aucConvertToBit  [ MAX_CU_SIZE+1 ];   // from width to log2(width)-2
 
 
 #if ENC_DEC_TRACE
@@ -191,13 +138,13 @@ extern UInt64 g_nSymbolCounter;
 #define COUNTER_START    1
 #define COUNTER_END      0 //( UInt64(1) << 63 )
 
-#define DTRACE_CABAC_F(x)     if ( ( g_nSymbolCounter >= COUNTER_START && g_nSymbolCounter <= COUNTER_END )|| g_bJustDoIt ) printf(  "%f", x );
-#define DTRACE_CABAC_V(x)     if ( ( g_nSymbolCounter >= COUNTER_START && g_nSymbolCounter <= COUNTER_END )|| g_bJustDoIt ) printf(  "%d", x );
-#define DTRACE_CABAC_VL(x)    if ( ( g_nSymbolCounter >= COUNTER_START && g_nSymbolCounter <= COUNTER_END )|| g_bJustDoIt ) printf(  "%lld", x );
-#define DTRACE_CABAC_T(x)     if ( ( g_nSymbolCounter >= COUNTER_START && g_nSymbolCounter <= COUNTER_END )|| g_bJustDoIt ) printf(  "%s", x );
-#define DTRACE_CABAC_X(x)     if ( ( g_nSymbolCounter >= COUNTER_START && g_nSymbolCounter <= COUNTER_END )|| g_bJustDoIt ) printf(  "%x", x );
-#define DTRACE_CABAC_R( x,y ) if ( ( g_nSymbolCounter >= COUNTER_START && g_nSymbolCounter <= COUNTER_END )|| g_bJustDoIt ) printf(  x,    y );
-#define DTRACE_CABAC_N        if ( ( g_nSymbolCounter >= COUNTER_START && g_nSymbolCounter <= COUNTER_END )|| g_bJustDoIt ) printf(  "\n"    );
+#define DTRACE_CABAC_F(x)     if ( ( g_nSymbolCounter >= COUNTER_START && g_nSymbolCounter <= COUNTER_END )|| g_bJustDoIt ) fprintf( g_hTrace, "%f", x );
+#define DTRACE_CABAC_V(x)     if ( ( g_nSymbolCounter >= COUNTER_START && g_nSymbolCounter <= COUNTER_END )|| g_bJustDoIt ) fprintf( g_hTrace, "%d", x );
+#define DTRACE_CABAC_VL(x)    if ( ( g_nSymbolCounter >= COUNTER_START && g_nSymbolCounter <= COUNTER_END )|| g_bJustDoIt ) fprintf( g_hTrace, "%lld", x );
+#define DTRACE_CABAC_T(x)     if ( ( g_nSymbolCounter >= COUNTER_START && g_nSymbolCounter <= COUNTER_END )|| g_bJustDoIt ) fprintf( g_hTrace, "%s", x );
+#define DTRACE_CABAC_X(x)     if ( ( g_nSymbolCounter >= COUNTER_START && g_nSymbolCounter <= COUNTER_END )|| g_bJustDoIt ) fprintf( g_hTrace, "%x", x );
+#define DTRACE_CABAC_R( x,y ) if ( ( g_nSymbolCounter >= COUNTER_START && g_nSymbolCounter <= COUNTER_END )|| g_bJustDoIt ) fprintf( g_hTrace, x,    y );
+#define DTRACE_CABAC_N        if ( ( g_nSymbolCounter >= COUNTER_START && g_nSymbolCounter <= COUNTER_END )|| g_bJustDoIt ) fprintf( g_hTrace, "\n"    );
 
 #else
 
@@ -211,26 +158,17 @@ extern UInt64 g_nSymbolCounter;
 
 #endif
 
+const TChar* nalUnitTypeToString(NalUnitType type);
 
-#define SCALING_LIST_NUM (MAX_NUM_COMPONENT * NUMBER_OF_PREDICTION_MODES) ///< list number for quantization matrix
+extern const TChar *MatrixType[SCALING_LIST_SIZE_NUM][SCALING_LIST_NUM];
+extern const TChar *MatrixType_DC[SCALING_LIST_SIZE_NUM][SCALING_LIST_NUM];
 
-#define SCALING_LIST_START_VALUE 8                                        ///< start value for dpcm mode
-#define MAX_MATRIX_COEF_NUM 64                                            ///< max coefficient number for quantization matrix
-#define MAX_MATRIX_SIZE_NUM 8                                             ///< max size number for quantization matrix
-#define SCALING_LIST_BITS 8                                               ///< bit depth of scaling list entries
-#define LOG2_SCALING_LIST_NEUTRAL_VALUE 4                                 ///< log2 of the value that, when used in a scaling list, has no effect on quantisation
-#define SCALING_LIST_DC 16                                                ///< default DC value
+extern const Int g_quantTSDefault4x4[4*4];
+extern const Int g_quantIntraDefault8x8[8*8];
+extern const Int g_quantInterDefault8x8[8*8];
 
-extern const Char *MatrixType[SCALING_LIST_SIZE_NUM][SCALING_LIST_NUM];
-extern const Char *MatrixType_DC[SCALING_LIST_SIZE_NUM][SCALING_LIST_NUM];
-
-extern Int g_quantTSDefault4x4[4*4];
-extern Int g_quantIntraDefault8x8[8*8];
-extern Int g_quantInterDefault8x8[8*8];
-
-extern UInt g_scalingListSize [SCALING_LIST_SIZE_NUM];
-extern UInt g_scalingListSizeX[SCALING_LIST_SIZE_NUM];
-extern UInt g_scalingListNum  [SCALING_LIST_SIZE_NUM];
+extern const UInt g_scalingListSize [SCALING_LIST_SIZE_NUM];
+extern const UInt g_scalingListSizeX[SCALING_LIST_SIZE_NUM];
 //! \}
 
 #endif  //__TCOMROM__

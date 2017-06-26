@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -72,8 +72,12 @@ static Void scalePlane(Pel* img, const UInt stride, const UInt width, const UInt
   if (shiftbits > 0)
   {
     for (UInt y = 0; y < height; y++, img+=stride)
+    {
       for (UInt x = 0; x < width; x++)
+      {
         img[x] <<= shiftbits;
+      }
+    }
   }
   else if (shiftbits < 0)
   {
@@ -81,11 +85,17 @@ static Void scalePlane(Pel* img, const UInt stride, const UInt width, const UInt
 
     Pel rounding = 1 << (shiftbits-1);
     for (UInt y = 0; y < height; y++, img+=stride)
+    {
       for (UInt x = 0; x < width; x++)
+      {
         img[x] = Clip3(minval, maxval, Pel((img[x] + rounding) >> shiftbits));
+      }
+    }
   }
 }
 
+static Void
+copyPlane(const TComPicYuv &src, const ComponentID srcPlane, TComPicYuv &dest, const ComponentID destPlane);
 
 // ====================================================================================================================
 // Public member functions
@@ -102,13 +112,14 @@ static Void scalePlane(Pel* img, const UInt stride, const UInt width, const UInt
  * further details).
  *
  * \param pchFile          file name string
- * \param bWriteMode       file open mode: true=read, false=write
+ * \param bWriteMode       file open mode: true=write, false=read
  * \param fileBitDepth     bit-depth array of input/output file data.
+ * \param MSBExtendedBitDepth
  * \param internalBitDepth bit-depth array to scale image data to/from when reading/writing.
  */
-Void TVideoIOYuv::open( Char* pchFile, Bool bWriteMode, const Int fileBitDepth[MAX_NUM_CHANNEL_TYPE], const Int MSBExtendedBitDepth[MAX_NUM_CHANNEL_TYPE], const Int internalBitDepth[MAX_NUM_CHANNEL_TYPE] )
+Void TVideoIOYuv::open( const std::string &fileName, Bool bWriteMode, const Int fileBitDepth[MAX_NUM_CHANNEL_TYPE], const Int MSBExtendedBitDepth[MAX_NUM_CHANNEL_TYPE], const Int internalBitDepth[MAX_NUM_CHANNEL_TYPE] )
 {
-  //NOTE: RExt - files cannot have bit depth greater than 16
+  //NOTE: files cannot have bit depth greater than 16
   for(UInt ch=0; ch<MAX_NUM_CHANNEL_TYPE; ch++)
   {
     m_fileBitdepth       [ch] = std::min<UInt>(fileBitDepth[ch], 16);
@@ -131,7 +142,7 @@ Void TVideoIOYuv::open( Char* pchFile, Bool bWriteMode, const Int fileBitDepth[M
 
   if ( bWriteMode )
   {
-    m_cHandle.open( pchFile, ios::binary | ios::out );
+    m_cHandle.open( fileName.c_str(), ios::binary | ios::out );
 
     if( m_cHandle.fail() )
     {
@@ -141,7 +152,7 @@ Void TVideoIOYuv::open( Char* pchFile, Bool bWriteMode, const Int fileBitDepth[M
   }
   else
   {
-    m_cHandle.open( pchFile, ios::binary | ios::in );
+    m_cHandle.open( fileName.c_str(), ios::binary | ios::in );
 
     if( m_cHandle.fail() )
     {
@@ -174,10 +185,12 @@ Bool TVideoIOYuv::isFail()
  * This function correctly handles cases where the input file is not
  * seekable, by consuming bytes.
  */
-Void TVideoIOYuv::skipFrames(UInt numFrames, UInt width, UInt height, ChromaFormat format)
+Void TVideoIOYuv::skipFrames(Int numFrames, UInt width, UInt height, ChromaFormat format)
 {
-  if (!numFrames)
+  if (numFrames==0)
+  {
     return;
+  }
 
   //------------------
   //set the frame size according to the chroma format
@@ -187,7 +200,10 @@ Void TVideoIOYuv::skipFrames(UInt numFrames, UInt width, UInt height, ChromaForm
   {
     ComponentID compID=ComponentID(component);
     frameSize += (width >> getComponentScaleX(compID, format)) * (height >> getComponentScaleY(compID, format));
-    if (m_fileBitdepth[toChannelType(compID)] > 8) wordsize=2;
+    if (m_fileBitdepth[toChannelType(compID)] > 8)
+    {
+      wordsize=2;
+    }
   }
   frameSize *= wordsize;
   //------------------
@@ -196,12 +212,14 @@ Void TVideoIOYuv::skipFrames(UInt numFrames, UInt width, UInt height, ChromaForm
 
   /* attempt to seek */
   if (!!m_cHandle.seekg(offset, ios::cur))
+  {
     return; /* success */
+  }
   m_cHandle.clear();
 
   /* fall back to consuming the input */
-  Char buf[512];
-  const UInt offset_mod_bufsize = offset % sizeof(buf);
+  TChar buf[512];
+  const streamoff offset_mod_bufsize = offset % sizeof(buf);
   for (streamoff i = 0; i < offset - offset_mod_bufsize; i += sizeof(buf))
   {
     m_cHandle.read(buf, sizeof(buf));
@@ -214,14 +232,18 @@ Void TVideoIOYuv::skipFrames(UInt numFrames, UInt width, UInt height, ChromaForm
  * padding the left and right edges by edge-extension.  Input may be
  * either 8bit or 16bit little-endian lsb-aligned words.
  *
- * @param dst     destination image
- * @param fd      input file stream
- * @param is16bit true if input file carries > 8bit data, false otherwise.
- * @param stride  distance between vertically adjacent pixels of dst.
- * @param width   width of active area in dst.
- * @param height  height of active area in dst.
- * @param pad_x   length of horizontal padding.
- * @param pad_y   length of vertical padding.
+ * @param dst          destination image plane
+ * @param fd           input file stream
+ * @param is16bit      true if input file carries > 8bit data, false otherwise.
+ * @param stride444    distance between vertically adjacent pixels of dst.
+ * @param width444     width of active area in dst.
+ * @param height444    height of active area in dst.
+ * @param pad_x444     length of horizontal padding.
+ * @param pad_y444     length of vertical padding.
+ * @param compID       chroma component
+ * @param destFormat   chroma format of image
+ * @param fileFormat   chroma format of file
+ * @param fileBitDepth component bit depth in file
  * @return true for success, false in case of error
  */
 static Bool readPlane(Pel* dst,
@@ -252,8 +274,8 @@ static Bool readPlane(Pel* dst,
   const UInt full_height_dest = height_dest+pad_y_dest;
 
   const UInt stride_file      = (width444 * (is16bit ? 2 : 1)) >> csx_file;
-
-  UChar  *buf   = new UChar[stride_file];
+  std::vector<UChar> bufVec(stride_file);
+  UChar *buf=&(bufVec[0]);
 
   if (compID!=COMPONENT_Y && (fileFormat==CHROMA_400 || destFormat==CHROMA_400))
   {
@@ -262,8 +284,12 @@ static Bool readPlane(Pel* dst,
       // set chrominance data to mid-range: (1<<(fileBitDepth-1))
       const Pel value=Pel(1<<(fileBitDepth-1));
       for (UInt y = 0; y < full_height_dest; y++, dst+=stride_dest)
+      {
         for (UInt x = 0; x < full_width_dest; x++)
+        {
           dst[x] = value;
+        }
+      }
     }
 
     if (fileFormat!=CHROMA_400)
@@ -272,7 +298,6 @@ static Bool readPlane(Pel* dst,
       fd.seekg(height_file*stride_file, ios::cur);
       if (fd.eof() || fd.fail() )
       {
-        delete[] buf;
         return false;
       }
     }
@@ -286,10 +311,9 @@ static Bool readPlane(Pel* dst,
       if ((y444&mask_y_file)==0)
       {
         // read a new line
-        fd.read(reinterpret_cast<Char*>(buf), stride_file);
+        fd.read(reinterpret_cast<TChar*>(buf), stride_file);
         if (fd.eof() || fd.fail() )
         {
-          delete[] buf;
           return false;
         }
       }
@@ -304,7 +328,9 @@ static Bool readPlane(Pel* dst,
           if (!is16bit)
           {
             for (UInt x = 0; x < width_dest; x++)
+            {
               dst[x] = buf[x<<sx];
+            }
           }
           else
           {
@@ -321,19 +347,25 @@ static Bool readPlane(Pel* dst,
           if (!is16bit)
           {
             for (UInt x = 0; x < width_dest; x++)
+            {
               dst[x] = buf[x>>sx];
+            }
           }
           else
           {
             for (UInt x = 0; x < width_dest; x++)
+            {
               dst[x] = Pel(buf[(x>>sx)*2+0]) | (Pel(buf[(x>>sx)*2+1])<<8);
+            }
           }
         }
 
         // process right hand side padding
         const Pel val=dst[width_dest-1];
         for (UInt x = width_dest; x < full_width_dest; x++)
+        {
           dst[x] = val;
+        }
 
         dst += stride_dest;
       }
@@ -341,22 +373,29 @@ static Bool readPlane(Pel* dst,
 
     // process lower padding
     for (UInt y = height_dest; y < full_height_dest; y++, dst+=stride_dest)
+    {
       for (UInt x = 0; x < full_width_dest; x++)
+      {
         dst[x] = (dst - stride_dest)[x];
+      }
+    }
   }
-  delete[] buf;
   return true;
 }
 
 /**
- * Write width*height pixels info fd from src.
+ * Write an image plane (width444*height444 pixels) from src into output stream fd.
  *
- * @param fd      output file stream
- * @param src     source image
- * @param is16bit true if input file carries > 8bit data, false otherwise.
- * @param stride  distance between vertically adjacent pixels of src.
- * @param width   width of active area in src.
- * @param height  height of active area in src.
+ * @param fd         output file stream
+ * @param src        source image
+ * @param is16bit    true if input file carries > 8bit data, false otherwise.
+ * @param stride444  distance between vertically adjacent pixels of src.
+ * @param width444   width of active area in src.
+ * @param height444  height of active area in src.
+ * @param compID       chroma component
+ * @param srcFormat    chroma format of image
+ * @param fileFormat   chroma format of file
+ * @param fileBitDepth component bit depth in file
  * @return true for success, false in case of error
  */
 static Bool writePlane(ostream& fd, Pel* src, Bool is16bit,
@@ -378,7 +417,8 @@ static Bool writePlane(ostream& fd, Pel* src, Bool is16bit,
   const UInt width_file       = width444 >>csx_file;
   const UInt height_file      = height444>>csy_file;
 
-  UChar  *buf   = new UChar[stride_file];
+  std::vector<UChar> bufVec(stride_file);
+  UChar *buf=&(bufVec[0]);
 
   if (compID!=COMPONENT_Y && (fileFormat==CHROMA_400 || srcFormat==CHROMA_400))
   {
@@ -392,7 +432,9 @@ static Bool writePlane(ostream& fd, Pel* src, Bool is16bit,
         {
           UChar val(value);
           for (UInt x = 0; x < width_file; x++)
+          {
             buf[x]=val;
+          }
         }
         else
         {
@@ -404,10 +446,9 @@ static Bool writePlane(ostream& fd, Pel* src, Bool is16bit,
           }
         }
 
-        fd.write(reinterpret_cast<Char*>(buf), stride_file);
+        fd.write(reinterpret_cast<const TChar*>(buf), stride_file);
         if (fd.eof() || fd.fail() )
         {
-          delete[] buf;
           return false;
         }
       }
@@ -463,10 +504,9 @@ static Bool writePlane(ostream& fd, Pel* src, Bool is16bit,
           }
         }
 
-        fd.write(reinterpret_cast<Char*>(buf), stride_file);
+        fd.write(reinterpret_cast<const TChar*>(buf), stride_file);
         if (fd.eof() || fd.fail() )
         {
-          delete[] buf;
           return false;
         }
       }
@@ -478,7 +518,6 @@ static Bool writePlane(ostream& fd, Pel* src, Bool is16bit,
 
     }
   }
-  delete[] buf;
   return true;
 }
 
@@ -501,7 +540,8 @@ static Bool writeField(ostream& fd, Pel* top, Pel* bottom, Bool is16bit,
   const UInt width_file       = width444 >>csx_file;
   const UInt height_file      = height444>>csy_file;
 
-  UChar  *buf   = new UChar[stride_file * 2];
+  std::vector<UChar> bufVec(stride_file * 2);
+  UChar *buf=&(bufVec[0]);
 
   if (compID!=COMPONENT_Y && (fileFormat==CHROMA_400 || srcFormat==CHROMA_400))
   {
@@ -519,7 +559,9 @@ static Bool writeField(ostream& fd, Pel* top, Pel* bottom, Bool is16bit,
           {
             UChar val(value);
             for (UInt x = 0; x < width_file; x++)
+            {
               fieldBuffer[x]=val;
+            }
           }
           else
           {
@@ -532,10 +574,9 @@ static Bool writeField(ostream& fd, Pel* top, Pel* bottom, Bool is16bit,
           }
         }
 
-        fd.write(reinterpret_cast<Char*>(buf), (stride_file * 2));
+        fd.write(reinterpret_cast<const TChar*>(buf), (stride_file * 2));
         if (fd.eof() || fd.fail() )
         {
-          delete[] buf;
           return false;
         }
       }
@@ -597,10 +638,9 @@ static Bool writeField(ostream& fd, Pel* top, Pel* bottom, Bool is16bit,
           }
         }
 
-        fd.write(reinterpret_cast<Char*>(buf), (stride_file * 2));
+        fd.write(reinterpret_cast<const TChar*>(buf), (stride_file * 2));
         if (fd.eof() || fd.fail() )
         {
-          delete[] buf;
           return false;
         }
       }
@@ -613,7 +653,6 @@ static Bool writeField(ostream& fd, Pel* top, Pel* bottom, Bool is16bit,
 
     }
   }
-  delete[] buf;
   return true;
 }
 
@@ -626,22 +665,34 @@ static Bool writeField(ostream& fd, Pel* top, Pel* bottom, Bool is16bit,
  * resulting data is clipped to the appropriate legal range, as if the
  * file had been provided at the lower-bitdepth compliant to Rec601/709.
  *
- * @param pPicYuv      input picture YUV buffer class pointer
- * @param aiPad        source padding size, aiPad[0] = horizontal, aiPad[1] = vertical
+ * @param pPicYuvUser      input picture YUV buffer class pointer
+ * @param pPicYuvTrueOrg
+ * @param ipcsc
+ * @param aiPad            source padding size, aiPad[0] = horizontal, aiPad[1] = vertical
+ * @param format           chroma format
  * @return true for success, false in case of error
  */
-Bool TVideoIOYuv::read ( TComPicYuv*  pPicYuvUser, TComPicYuv* pPicYuvTrueOrg, const InputColourSpaceConversion ipcsc, Int aiPad[2], ChromaFormat format )
+Bool TVideoIOYuv::read ( TComPicYuv*  pPicYuvUser, TComPicYuv* pPicYuvTrueOrg, const InputColourSpaceConversion ipcsc, Int aiPad[2], ChromaFormat format, const Bool bClipToRec709 )
 {
   // check end-of-file
-  if ( isEof() ) return false;
+  if ( isEof() )
+  {
+    return false;
+  }
   TComPicYuv *pPicYuv=pPicYuvTrueOrg;
-  if (format>=NUM_CHROMA_FORMAT) format=pPicYuv->getChromaFormat();
+  if (format>=NUM_CHROMA_FORMAT)
+  {
+    format=pPicYuv->getChromaFormat();
+  }
 
   Bool is16bit = false;
 
   for(UInt ch=0; ch<MAX_NUM_CHANNEL_TYPE; ch++)
   {
-    if (m_fileBitdepth[ch] > 8) is16bit=true;
+    if (m_fileBitdepth[ch] > 8)
+    {
+      is16bit=true;
+    }
   }
 
   const UInt stride444      = pPicYuv->getStride(COMPONENT_Y);
@@ -663,14 +714,9 @@ Bool TVideoIOYuv::read ( TComPicYuv*  pPicYuvUser, TComPicYuv* pPicYuvTrueOrg, c
 
     const Int desired_bitdepth = m_MSBExtendedBitDepth[chType] + m_bitdepthShift[chType];
 
-#if !CLIP_TO_709_RANGE
-    const Pel minval = 0;
-    const Pel maxval = (1 << desired_bitdepth) - 1;
-#else
-    const Bool b709Compliance=(m_bitdepthShift[chType] < 0 && desired_bitdepth >= 8);     /* ITU-R BT.709 compliant clipping for converting say 10b to 8b */
+    const Bool b709Compliance=(bClipToRec709) && (m_bitdepthShift[chType] < 0 && desired_bitdepth >= 8);     /* ITU-R BT.709 compliant clipping for converting say 10b to 8b */
     const Pel minval = b709Compliance? ((   1 << (desired_bitdepth - 8))   ) : 0;
     const Pel maxval = b709Compliance? ((0xff << (desired_bitdepth - 8)) -1) : (1 << desired_bitdepth) - 1;
-#endif
 
     if (! readPlane(pPicYuv->getAddr(compID), m_cHandle, is16bit, stride444, width444, height444, pad_h444, pad_v444, compID, pPicYuv->getChromaFormat(), format, m_fileBitdepth[chType]))
     {
@@ -685,12 +731,10 @@ Bool TVideoIOYuv::read ( TComPicYuv*  pPicYuvUser, TComPicYuv* pPicYuvTrueOrg, c
     }
   }
 
-  Int internalBitDepth[MAX_NUM_CHANNEL_TYPE];
-  for(UInt chType=0; chType<MAX_NUM_CHANNEL_TYPE; chType++)
+  if(pPicYuvUser)
   {
-    internalBitDepth[chType] = m_bitdepthShift[chType] + m_MSBExtendedBitDepth[chType];
+    ColourSpaceConvert(*pPicYuvTrueOrg, *pPicYuvUser, ipcsc, true);
   }
-  ColourSpaceConvert(*pPicYuvTrueOrg, *pPicYuvUser, ipcsc, internalBitDepth, true);
 
   return true;
 }
@@ -699,66 +743,62 @@ Bool TVideoIOYuv::read ( TComPicYuv*  pPicYuvUser, TComPicYuv* pPicYuvTrueOrg, c
  * Write one Y'CbCr frame. No bit-depth conversion is performed, pcPicYuv is
  * assumed to be at TVideoIO::m_fileBitdepth depth.
  *
- * @param pPicYuv     input picture YUV buffer class pointer
- * @param aiPad       source padding size, aiPad[0] = horizontal, aiPad[1] = vertical
+ * @param pPicYuvUser      input picture YUV buffer class pointer
+ * @param ipCSC
+ * @param confLeft         conformance window left border
+ * @param confRight        conformance window right border
+ * @param confTop          conformance window top border
+ * @param confBottom       conformance window bottom border
+ * @param format           chroma format
  * @return true for success, false in case of error
  */
-Bool TVideoIOYuv::write( TComPicYuv* pPicYuvUser, const InputColourSpaceConversion ipCSC, Int confLeft, Int confRight, Int confTop, Int confBottom, ChromaFormat format )
+Bool TVideoIOYuv::write( TComPicYuv* pPicYuvUser, const InputColourSpaceConversion ipCSC, Int confLeft, Int confRight, Int confTop, Int confBottom, ChromaFormat format, const Bool bClipToRec709 )
 {
   TComPicYuv cPicYuvCSCd;
   if (ipCSC!=IPCOLOURSPACE_UNCHANGED)
   {
-    cPicYuvCSCd.create(pPicYuvUser->getWidth(COMPONENT_Y), pPicYuvUser->getHeight(COMPONENT_Y), pPicYuvUser->getChromaFormat(), g_uiMaxCUWidth, g_uiMaxCUHeight, g_uiMaxCUDepth);
-    Int internalBitDepth[MAX_NUM_CHANNEL_TYPE];
-    for(UInt chType=0; chType<MAX_NUM_CHANNEL_TYPE; chType++)
-    {
-      internalBitDepth[chType] = m_bitdepthShift[chType] + m_MSBExtendedBitDepth[chType];
-    }
-    ColourSpaceConvert(*pPicYuvUser, cPicYuvCSCd, ipCSC, internalBitDepth, false);
+    cPicYuvCSCd.createWithoutCUInfo(pPicYuvUser->getWidth(COMPONENT_Y), pPicYuvUser->getHeight(COMPONENT_Y), pPicYuvUser->getChromaFormat() );
+    ColourSpaceConvert(*pPicYuvUser, cPicYuvCSCd, ipCSC, false);
   }
   TComPicYuv *pPicYuv=(ipCSC==IPCOLOURSPACE_UNCHANGED) ? pPicYuvUser : &cPicYuvCSCd;
 
   // compute actual YUV frame size excluding padding size
-  const Int   iStride444 = pPicYuv->getStride(COMPONENT_Y);
-  const UInt width444  = pPicYuv->getWidth(COMPONENT_Y) - confLeft - confRight;
-  const UInt height444 = pPicYuv->getHeight(COMPONENT_Y) -  confTop  - confBottom;
   Bool is16bit = false;
   Bool nonZeroBitDepthShift=false;
 
-  if ((width444 == 0) || (height444 == 0))
-  {
-    printf ("\nWarning: writing %d x %d luma sample output picture!", width444, height444);
-  }
-
   for(UInt ch=0; ch<MAX_NUM_CHANNEL_TYPE; ch++)
   {
-    if (m_fileBitdepth[ch] > 8) is16bit=true;
-    if (m_bitdepthShift[ch] != 0) nonZeroBitDepthShift=true;
+    if (m_fileBitdepth[ch] > 8)
+    {
+      is16bit=true;
+    }
+    if (m_bitdepthShift[ch] != 0)
+    {
+      nonZeroBitDepthShift=true;
+    }
   }
 
   TComPicYuv *dstPicYuv = NULL;
   Bool retval = true;
-  if (format>=NUM_CHROMA_FORMAT) format=pPicYuv->getChromaFormat();
+  if (format>=NUM_CHROMA_FORMAT)
+  {
+    format=pPicYuv->getChromaFormat();
+  }
 
   if (nonZeroBitDepthShift)
   {
     dstPicYuv = new TComPicYuv;
-    dstPicYuv->create( pPicYuv->getWidth(COMPONENT_Y), pPicYuv->getHeight(COMPONENT_Y), pPicYuv->getChromaFormat(), 1, 1, 0 );
-    pPicYuv->copyToPic(dstPicYuv);
+    dstPicYuv->createWithoutCUInfo( pPicYuv->getWidth(COMPONENT_Y), pPicYuv->getHeight(COMPONENT_Y), pPicYuv->getChromaFormat() );
 
     for(UInt comp=0; comp<dstPicYuv->getNumberValidComponents(); comp++)
     {
       const ComponentID compID=ComponentID(comp);
       const ChannelType ch=toChannelType(compID);
-#if !CLIP_TO_709_RANGE
-      const Pel minval = 0;
-      const Pel maxval = (1 << m_MSBExtendedBitDepth[ch]) - 1;
-#else
-      const Bool b709Compliance=(-m_bitdepthShift[ch] < 0 && m_MSBExtendedBitDepth[ch] >= 8);     /* ITU-R BT.709 compliant clipping for converting say 10b to 8b */
+      const Bool b709Compliance = bClipToRec709 && (-m_bitdepthShift[ch] < 0 && m_MSBExtendedBitDepth[ch] >= 8);     /* ITU-R BT.709 compliant clipping for converting say 10b to 8b */
       const Pel minval = b709Compliance? ((   1 << (m_MSBExtendedBitDepth[ch] - 8))   ) : 0;
       const Pel maxval = b709Compliance? ((0xff << (m_MSBExtendedBitDepth[ch] - 8)) -1) : (1 << m_MSBExtendedBitDepth[ch]) - 1;
-#endif
 
+      copyPlane(*pPicYuv, compID, *dstPicYuv, compID);
       scalePlane(dstPicYuv->getAddr(compID), dstPicYuv->getStride(compID), dstPicYuv->getWidth(compID), dstPicYuv->getHeight(compID), -m_bitdepthShift[ch], minval, maxval);
     }
   }
@@ -767,14 +807,23 @@ Bool TVideoIOYuv::write( TComPicYuv* pPicYuvUser, const InputColourSpaceConversi
     dstPicYuv = pPicYuv;
   }
 
+  const Int  stride444 = dstPicYuv->getStride(COMPONENT_Y);
+  const UInt width444  = dstPicYuv->getWidth(COMPONENT_Y) - confLeft - confRight;
+  const UInt height444 = dstPicYuv->getHeight(COMPONENT_Y) -  confTop  - confBottom;
+
+  if ((width444 == 0) || (height444 == 0))
+  {
+    printf ("\nWarning: writing %d x %d luma sample output picture!", width444, height444);
+  }
+
   for(UInt comp=0; retval && comp<dstPicYuv->getNumberValidComponents(); comp++)
   {
     const ComponentID compID = ComponentID(comp);
     const ChannelType ch=toChannelType(compID);
-    const UInt csx = pPicYuv->getComponentScaleX(compID);
-    const UInt csy = pPicYuv->getComponentScaleY(compID);
-    const Int planeOffset =  (confLeft>>csx) + (confTop>>csy) * pPicYuv->getStride(compID);
-    if (! writePlane(m_cHandle, dstPicYuv->getAddr(compID) + planeOffset, is16bit, iStride444, width444, height444, compID, dstPicYuv->getChromaFormat(), format, m_fileBitdepth[ch]))
+    const UInt csx = dstPicYuv->getComponentScaleX(compID);
+    const UInt csy = dstPicYuv->getComponentScaleY(compID);
+    const Int planeOffset =  (confLeft>>csx) + (confTop>>csy) * dstPicYuv->getStride(compID);
+    if (! writePlane(m_cHandle, dstPicYuv->getAddr(compID) + planeOffset, is16bit, stride444, width444, height444, compID, dstPicYuv->getChromaFormat(), format, m_fileBitdepth[ch]))
     {
       retval=false;
     }
@@ -791,22 +840,17 @@ Bool TVideoIOYuv::write( TComPicYuv* pPicYuvUser, const InputColourSpaceConversi
   return retval;
 }
 
-Bool TVideoIOYuv::write( TComPicYuv* pPicYuvUserTop, TComPicYuv* pPicYuvUserBottom, const InputColourSpaceConversion ipCSC, Int confLeft, Int confRight, Int confTop, Int confBottom, ChromaFormat format, const Bool isTff )
+Bool TVideoIOYuv::write( TComPicYuv* pPicYuvUserTop, TComPicYuv* pPicYuvUserBottom, const InputColourSpaceConversion ipCSC, Int confLeft, Int confRight, Int confTop, Int confBottom, ChromaFormat format, const Bool isTff, const Bool bClipToRec709 )
 {
 
   TComPicYuv cPicYuvTopCSCd;
   TComPicYuv cPicYuvBottomCSCd;
   if (ipCSC!=IPCOLOURSPACE_UNCHANGED)
   {
-    cPicYuvTopCSCd   .create(pPicYuvUserTop   ->getWidth(COMPONENT_Y), pPicYuvUserTop   ->getHeight(COMPONENT_Y), pPicYuvUserTop   ->getChromaFormat(), g_uiMaxCUWidth, g_uiMaxCUHeight, g_uiMaxCUDepth);
-    cPicYuvBottomCSCd.create(pPicYuvUserBottom->getWidth(COMPONENT_Y), pPicYuvUserBottom->getHeight(COMPONENT_Y), pPicYuvUserBottom->getChromaFormat(), g_uiMaxCUWidth, g_uiMaxCUHeight, g_uiMaxCUDepth);
-    Int internalBitDepth[MAX_NUM_CHANNEL_TYPE];
-    for(UInt chType=0; chType<MAX_NUM_CHANNEL_TYPE; chType++)
-    {
-      internalBitDepth[chType] = m_bitdepthShift[chType] + m_MSBExtendedBitDepth[chType];
-    }
-    ColourSpaceConvert(*pPicYuvUserTop,    cPicYuvTopCSCd,    ipCSC, internalBitDepth, false);
-    ColourSpaceConvert(*pPicYuvUserBottom, cPicYuvBottomCSCd, ipCSC, internalBitDepth, false);
+    cPicYuvTopCSCd   .createWithoutCUInfo(pPicYuvUserTop   ->getWidth(COMPONENT_Y), pPicYuvUserTop   ->getHeight(COMPONENT_Y), pPicYuvUserTop   ->getChromaFormat() );
+    cPicYuvBottomCSCd.createWithoutCUInfo(pPicYuvUserBottom->getWidth(COMPONENT_Y), pPicYuvUserBottom->getHeight(COMPONENT_Y), pPicYuvUserBottom->getChromaFormat() );
+    ColourSpaceConvert(*pPicYuvUserTop,    cPicYuvTopCSCd,    ipCSC, false);
+    ColourSpaceConvert(*pPicYuvUserBottom, cPicYuvBottomCSCd, ipCSC, false);
   }
   TComPicYuv *pPicYuvTop    = (ipCSC==IPCOLOURSPACE_UNCHANGED) ? pPicYuvUserTop    : &cPicYuvTopCSCd;
   TComPicYuv *pPicYuvBottom = (ipCSC==IPCOLOURSPACE_UNCHANGED) ? pPicYuvUserBottom : &cPicYuvBottomCSCd;
@@ -816,8 +860,14 @@ Bool TVideoIOYuv::write( TComPicYuv* pPicYuvUserTop, TComPicYuv* pPicYuvUserBott
 
   for(UInt ch=0; ch<MAX_NUM_CHANNEL_TYPE; ch++)
   {
-    if (m_fileBitdepth[ch] > 8) is16bit=true;
-    if (m_bitdepthShift[ch] != 0) nonZeroBitDepthShift=true;
+    if (m_fileBitdepth[ch] > 8)
+    {
+      is16bit=true;
+    }
+    if (m_bitdepthShift[ch] != 0)
+    {
+      nonZeroBitDepthShift=true;
+    }
   }
 
   TComPicYuv *dstPicYuvTop    = NULL;
@@ -827,29 +877,27 @@ Bool TVideoIOYuv::write( TComPicYuv* pPicYuvUserTop, TComPicYuv* pPicYuvUserBott
   {
     TComPicYuv *pPicYuv = (field == 0) ? pPicYuvTop : pPicYuvBottom;
 
-    if (format>=NUM_CHROMA_FORMAT) format=pPicYuv->getChromaFormat();
+    if (format>=NUM_CHROMA_FORMAT)
+    {
+      format=pPicYuv->getChromaFormat();
+    }
 
     TComPicYuv* &dstPicYuv = (field == 0) ? dstPicYuvTop : dstPicYuvBottom;
 
     if (nonZeroBitDepthShift)
     {
       dstPicYuv = new TComPicYuv;
-      dstPicYuv->create( pPicYuv->getWidth(COMPONENT_Y), pPicYuv->getHeight(COMPONENT_Y), pPicYuv->getChromaFormat(), 1, 1, 0 );
-      pPicYuv->copyToPic(dstPicYuv);
+      dstPicYuv->createWithoutCUInfo( pPicYuv->getWidth(COMPONENT_Y), pPicYuv->getHeight(COMPONENT_Y), pPicYuv->getChromaFormat() );
 
       for(UInt comp=0; comp<dstPicYuv->getNumberValidComponents(); comp++)
       {
         const ComponentID compID=ComponentID(comp);
         const ChannelType ch=toChannelType(compID);
-#if !CLIP_TO_709_RANGE
-        const Pel minval = 0;
-        const Pel maxval = (1 << m_MSBExtendedBitDepth[ch]) - 1;
-#else
-        const Bool b709Compliance=(-m_bitdepthShift[ch] < 0 && m_MSBExtendedBitDepth[ch] >= 8);     /* ITU-R BT.709 compliant clipping for converting say 10b to 8b */
+        const Bool b709Compliance=bClipToRec709 && (-m_bitdepthShift[ch] < 0 && m_MSBExtendedBitDepth[ch] >= 8);     /* ITU-R BT.709 compliant clipping for converting say 10b to 8b */
         const Pel minval = b709Compliance? ((   1 << (m_MSBExtendedBitDepth[ch] - 8))   ) : 0;
         const Pel maxval = b709Compliance? ((0xff << (m_MSBExtendedBitDepth[ch] - 8)) -1) : (1 << m_MSBExtendedBitDepth[ch]) - 1;
-#endif
 
+        copyPlane(*pPicYuv, compID, *dstPicYuv, compID);
         scalePlane(dstPicYuv->getAddr(compID), dstPicYuv->getStride(compID), dstPicYuv->getWidth(compID), dstPicYuv->getHeight(compID), -m_bitdepthShift[ch], minval, maxval);
       }
     }
@@ -863,21 +911,20 @@ Bool TVideoIOYuv::write( TComPicYuv* pPicYuvUserTop, TComPicYuv* pPicYuvUserBott
 
   assert(dstPicYuvTop->getNumberValidComponents() == dstPicYuvBottom->getNumberValidComponents());
   assert(dstPicYuvTop->getChromaFormat()          == dstPicYuvBottom->getChromaFormat()         );
-  assert(dstPicYuvTop->getWidth(COMPONENT_Y)      == dstPicYuvBottom->getWidth(COMPONENT_Y)    );
-  assert(dstPicYuvTop->getHeight(COMPONENT_Y)     == dstPicYuvBottom->getHeight(COMPONENT_Y)    );
-  assert(dstPicYuvTop->getStride(COMPONENT_Y)     == dstPicYuvBottom->getStride(COMPONENT_Y)    );
 
   for(UInt comp=0; retval && comp<dstPicYuvTop->getNumberValidComponents(); comp++)
   {
     const ComponentID compID = ComponentID(comp);
     const ChannelType ch=toChannelType(compID);
 
+    assert(dstPicYuvTop->getWidth          (compID) == dstPicYuvBottom->getWidth          (compID));
+    assert(dstPicYuvTop->getHeight         (compID) == dstPicYuvBottom->getHeight         (compID));
     assert(dstPicYuvTop->getComponentScaleX(compID) == dstPicYuvBottom->getComponentScaleX(compID));
     assert(dstPicYuvTop->getComponentScaleY(compID) == dstPicYuvBottom->getComponentScaleY(compID));
     assert(dstPicYuvTop->getStride         (compID) == dstPicYuvBottom->getStride         (compID));
 
     const UInt width444   = dstPicYuvTop->getWidth(COMPONENT_Y)  - (confLeft + confRight);
-    const UInt height444  = dstPicYuvTop->getHeight(COMPONENT_Y) - ((confTop + confBottom + 1) >> 1); //height of one field
+    const UInt height444  = dstPicYuvTop->getHeight(COMPONENT_Y) - (confTop + confBottom);
 
     if ((width444 == 0) || (height444 == 0))
     {
@@ -886,12 +933,11 @@ Bool TVideoIOYuv::write( TComPicYuv* pPicYuvUserTop, TComPicYuv* pPicYuvUserBott
 
     const UInt csx = dstPicYuvTop->getComponentScaleX(compID);
     const UInt csy = dstPicYuvTop->getComponentScaleY(compID);
-    const Int planeOffsetTop    = (confLeft>>csx) + ( (confTop>>csy)      >> 1) * dstPicYuvTop->getStride(compID); //offset is for entire frame - round up for top field and down for bottom field
-    const Int planeOffsetBottom = (confLeft>>csx) + (((confTop>>csy) + 1) >> 1) * dstPicYuvTop->getStride(compID); //offset is for entire frame - round up for top field and down for bottom field
+    const Int planeOffset  = (confLeft>>csx) + ( confTop>>csy) * dstPicYuvTop->getStride(compID); //offset is for entire frame - round up for top field and down for bottom field
 
     if (! writeField(m_cHandle,
-                     (dstPicYuvTop   ->getAddr(compID) + planeOffsetTop),
-                     (dstPicYuvBottom->getAddr(compID) + planeOffsetBottom),
+                     (dstPicYuvTop   ->getAddr(compID) + planeOffset),
+                     (dstPicYuvBottom->getAddr(compID) + planeOffset),
                      is16bit,
                      dstPicYuvTop->getStride(COMPONENT_Y),
                      width444, height444, compID, dstPicYuvTop->getChromaFormat(), format, m_fileBitdepth[ch], isTff))
@@ -932,7 +978,7 @@ copyPlane(const TComPicYuv &src, const ComponentID srcPlane, TComPicYuv &dest, c
 }
 
 // static member
-Void TVideoIOYuv::ColourSpaceConvert(const TComPicYuv &src, TComPicYuv &dest, const InputColourSpaceConversion conversion, const Int bitDepths[MAX_NUM_CHANNEL_TYPE], Bool bIsForwards)
+Void TVideoIOYuv::ColourSpaceConvert(const TComPicYuv &src, TComPicYuv &dest, const InputColourSpaceConversion conversion, Bool bIsForwards)
 {
   const ChromaFormat  format=src.getChromaFormat();
   const UInt          numValidComp=src.getNumberValidComponents();
@@ -949,13 +995,17 @@ Void TVideoIOYuv::ColourSpaceConvert(const TComPicYuv &src, TComPicYuv &dest, co
 
       {
         for(UInt comp=0; comp<numValidComp; comp++)
+        {
           copyPlane(src, ComponentID(bIsForwards?0:comp), dest, ComponentID(comp));
+        }
       }
       break;
     case IPCOLOURSPACE_YCbCrtoYCrCb:
       {
         for(UInt comp=0; comp<numValidComp; comp++)
+        {
           copyPlane(src, ComponentID(comp), dest, ComponentID((numValidComp-comp)%numValidComp));
+        }
       }
       break;
 
@@ -982,7 +1032,9 @@ Void TVideoIOYuv::ColourSpaceConvert(const TComPicYuv &src, TComPicYuv &dest, co
     default:
       {
         for(UInt comp=0; comp<numValidComp; comp++)
+        {
           copyPlane(src, ComponentID(comp), dest, ComponentID(comp));
+        }
       }
       break;
   }

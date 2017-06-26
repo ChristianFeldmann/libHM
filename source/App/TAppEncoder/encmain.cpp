@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -70,7 +70,7 @@ int main(int argc, char* argv[])
     if(!cTAppEncTop.parseCfg( argc, argv ))
     {
       cTAppEncTop.destroy();
-#if RExt__ENVIRONMENT_VARIABLE_DEBUG_AND_TEST
+#if ENVIRONMENT_VARIABLE_DEBUG_AND_TEST
       EnvVar::printEnvVar();
 #endif
       return 1;
@@ -82,11 +82,11 @@ int main(int argc, char* argv[])
     return 1;
   }
 
-#if RExt__PRINT_MACRO_VALUES
-  printRExtMacroSettings();
+#if PRINT_MACRO_VALUES
+  printMacroSettings();
 #endif
 
-#if RExt__ENVIRONMENT_VARIABLE_DEBUG_AND_TEST
+#if ENVIRONMENT_VARIABLE_DEBUG_AND_TEST
   EnvVar::printEnvVarInUse();
 #endif
 

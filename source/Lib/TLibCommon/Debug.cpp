@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,11 +46,11 @@ static const UInt settingNameWidth  = 66;
 static const UInt settingHelpWidth  = 84;
 static const UInt settingValueWidth = 3;
 
-#ifdef DEBUG_STRING
+#if DEBUG_STRING
 // these strings are used to reorder the debug output so that the encoder and decoder match.
-const Char *debug_reorder_data_inter_token[MAX_NUM_COMPONENT+1]
+const TChar *debug_reorder_data_inter_token[MAX_NUM_COMPONENT+1]
  = {"Start of channel 0 inter debug\n", "Start of channel 1 inter debug\n", "Start of channel 2 inter debug\n", "End of inter residual debug\n"} ;
-const Char *partSizeToString[NUMBER_OF_PART_SIZES]={"2Nx2N(0)", "2NxN(1)", "Nx2N(2)", "NxN(3)", "2Nx(N/2+3N/2)(4)", "2Nx(3N/2+N/2)(5)", "(N/2+3N/2)x2N(6)", "(3N/2+N/2)x2N(7)"};
+const TChar *partSizeToString[NUMBER_OF_PART_SIZES]={"2Nx2N(0)", "2NxN(1)", "Nx2N(2)", "NxN(3)", "2Nx(N/2+3N/2)(4)", "2Nx(3N/2+N/2)(5)", "(N/2+3N/2)x2N(6)", "(3N/2+N/2)x2N(7)"};
 #endif
 
 // --------------------------------------------------------------------------------------------------------------------- //
@@ -128,7 +128,10 @@ EnvVar::EnvVar(const std::string &sName, const std::string &sDefault, const std:
     m_bSet = true;
     getEnvVarInUse().push_back(this);
   }
-  else m_sVal = sDefault;
+  else
+  {
+    m_sVal = sDefault;
+  }
 
   m_dVal = strtod(m_sVal.c_str(), 0);
   m_iVal = Int(m_dVal);
@@ -149,7 +152,7 @@ EnvVar DebugOptionList::DebugPred             ("DEBUG_PRED",        "0", "Output
 EnvVar DebugOptionList::ForceLumaMode         ("FORCE_LUMA_MODE",   "0", "Force a particular intra direction for Luma (0-34)"                                             );
 EnvVar DebugOptionList::ForceChromaMode       ("FORCE_CHROMA_MODE", "0", "Force a particular intra direction for chroma (0-5)"                                            );
 
-#ifdef DEBUG_STRING
+#if DEBUG_STRING
 EnvVar DebugOptionList::DebugString_Structure ("DEBUG_STRUCTURE",   "0", "Produce output on chosen structure                        bit0=intra, bit1=inter");
 EnvVar DebugOptionList::DebugString_Pred      ("DEBUG_PRED",        "0", "Produce output on prediction data.                        bit0=intra, bit1=inter");
 EnvVar DebugOptionList::DebugString_Resi      ("DEBUG_RESI",        "0", "Produce output on residual data.                          bit0=intra, bit1=inter");
@@ -161,9 +164,9 @@ EnvVar DebugOptionList::DebugString_InvTran   ("DEBUG_INV_QT",      "0", "Produc
 
 //macro value printing function
 
-Void printRExtMacroSettings()
+Void printMacroSettings()
 {
-  std::cout << "RExt Non-environment-variable-controlled macros set as follows: \n" << std::endl;
+  std::cout << "Non-environment-variable-controlled macros set as follows: \n" << std::endl;
 
   //------------------------------------------------
 
@@ -173,12 +176,9 @@ Void printRExtMacroSettings()
   PRINT_CONSTANT(RExt__HIGH_BIT_DEPTH_SUPPORT,                                      settingNameWidth, settingValueWidth);
   PRINT_CONSTANT(RExt__HIGH_PRECISION_FORWARD_TRANSFORM,                            settingNameWidth, settingValueWidth);
 
-  PRINT_CONSTANT(RExt__O0043_BEST_EFFORT_DECODING,                                  settingNameWidth, settingValueWidth);
+  PRINT_CONSTANT(O0043_BEST_EFFORT_DECODING,                                        settingNameWidth, settingValueWidth);
 
-  PRINT_CONSTANT(RExt__BACKWARDS_COMPATIBILITY_HM_TICKET_1149,                      settingNameWidth, settingValueWidth);
-  PRINT_CONSTANT(RExt__BACKWARDS_COMPATIBILITY_HM_TICKET_1298,                      settingNameWidth, settingValueWidth);
-  PRINT_CONSTANT(RExt__BACKWARDS_COMPATIBILITY_RBSP_EMULATION_PREVENTION,           settingNameWidth, settingValueWidth);
-  PRINT_CONSTANT(RExt__BACKWARDS_COMPATIBILITY_MOTION_ESTIMATION_R0105,             settingNameWidth, settingValueWidth);
+  PRINT_CONSTANT(ME_ENABLE_ROUNDING_OF_MVS,                                         settingNameWidth, settingValueWidth);
 
   //------------------------------------------------
 
@@ -191,15 +191,13 @@ Void printRExtMacroSettings()
 //Debugging
 
 UInt  g_debugCounter  = 0;
-Bool  g_printDebug    = false;
-Void* g_debugAddr     = NULL;
 
-#ifdef DEBUG_ENCODER_SEARCH_BINS
+#if DEBUG_ENCODER_SEARCH_BINS
 const UInt debugEncoderSearchBinTargetLine = 0;
 const UInt debugEncoderSearchBinWindow     = 1000000;
 #endif
 
-#ifdef DEBUG_CABAC_BINS
+#if DEBUG_CABAC_BINS
 const UInt debugCabacBinTargetLine = 0;
 const UInt debugCabacBinWindow     = 1000000;
 #endif
@@ -217,12 +215,18 @@ Void printSBACCoeffData(  const UInt          lastX,
 {
   if (DebugOptionList::DebugSBAC.getInt()!=0 && finalEncode)
   {
-    std::cout << "Size: " << width << "x" << height << ", Last X/Y: (" << lastX << ", " << lastY << "), absPartIdx: " << absPart << ", scanIdx: " << scanIdx << ", chan: " << chan << std::endl;
+    std::cout << "Size: " << width << "x" << height << ", Last X/Y: (" << lastX << ", " << lastY << "), absPartIdx: " << absPart << ", scanIdx: " << scanIdx << ", chan: " << chan << "\n";
     for (Int i=0; i<width*height; i++)
     {
       std::cout << std::setw(3) << pCoeff[i];// + dcVal;
-      if (i%width == width-1) std::cout << std::endl;
-      else                    std::cout << ",";
+      if (i%width == width-1)
+      {
+        std::cout << "\n";
+      }
+      else
+      {
+        std::cout << ",";
+      }
     }
     std::cout << std::endl;
   }
@@ -288,16 +292,25 @@ std::string splitOnSettings(const std::string &input)
     //find the " = " that is used to define each setting
     std::string::size_type equalsPosition = result.find(" = ", searchFromPosition);
 
-    if (equalsPosition == std::string::npos) break;
+    if (equalsPosition == std::string::npos)
+    {
+      break;
+    }
 
     //then find the end of the numeric characters
     std::string::size_type splitPosition = result.find_last_of("1234567890", equalsPosition);
 
     //then find the last space before the first numeric character...
-    if (splitPosition != std::string::npos) splitPosition = result.find_last_of(' ', splitPosition);
+    if (splitPosition != std::string::npos)
+    {
+      splitPosition = result.find_last_of(' ', splitPosition);
+    }
 
     //...and replace it with a new line
-    if (splitPosition != std::string::npos) result.replace(splitPosition, 1, 1, '\n');
+    if (splitPosition != std::string::npos)
+    {
+      result.replace(splitPosition, 1, 1, '\n');
+    }
 
     //start the next search from the end of the " = " string
     searchFromPosition = (equalsPosition + 3);
@@ -309,7 +322,10 @@ std::string splitOnSettings(const std::string &input)
 
 std::string lineWrap(const std::string &input, const UInt maximumLineLength)
 {
-  if (maximumLineLength == 0) return input;
+  if (maximumLineLength == 0)
+  {
+    return input;
+  }
   std::string result = input;
 
   std::string::size_type lineStartPosition = result.find_first_not_of(' '); //don't wrap any leading spaces in the string
@@ -320,7 +336,10 @@ std::string lineWrap(const std::string &input, const UInt maximumLineLength)
 
     const std::string::size_type searchFromPosition = lineStartPosition + maximumLineLength;
 
-    if (searchFromPosition >= result.length()) break;
+    if (searchFromPosition >= result.length())
+    {
+      break;
+    }
 
     //------------------------------------------------
 
@@ -329,13 +348,20 @@ std::string lineWrap(const std::string &input, const UInt maximumLineLength)
     std::string::size_type nextLineStartPosition = std::string::npos;
     for (std::string::size_type currentPosition = lineStartPosition; currentPosition <= searchFromPosition; currentPosition++)
     {
-      if (result[currentPosition] == '\n') { nextLineStartPosition = currentPosition + 1; break; }
+      if (result[currentPosition] == '\n')
+      {
+        nextLineStartPosition = currentPosition + 1;
+        break;
+      }
     }
 
     //------------------------------------------------
 
     //if there ia another new line character before the maximum line length, we need to start this loop again from that position
-    if (nextLineStartPosition != std::string::npos) lineStartPosition = nextLineStartPosition;
+    if (nextLineStartPosition != std::string::npos)
+    {
+      lineStartPosition = nextLineStartPosition;
+    }
     else
     {
       std::string::size_type spacePosition = std::string::npos;
@@ -343,7 +369,11 @@ std::string lineWrap(const std::string &input, const UInt maximumLineLength)
       //search backwards for the last space character (must use signed Int because lineStartPosition can be 0)
       for (Int currentPosition = Int(searchFromPosition); currentPosition >= Int(lineStartPosition); currentPosition--)
       {
-        if (result[currentPosition] == ' ') { spacePosition = currentPosition; break; }
+        if (result[currentPosition] == ' ')
+        {
+          spacePosition = currentPosition;
+          break;
+        }
       }
 
       //if we didn't find a space searching backwards, we must hyphenate
@@ -375,7 +405,10 @@ std::string indentNewLines(const std::string &input, const UInt indentBy)
 
   while ((offset = result.find('\n', offset)) != std::string::npos)
   {
-    if ((++offset) >= result.length()) break; //increment offset so we don't find the same \n again and do no indentation at the end
+    if ((++offset) >= result.length())
+    {
+      break; //increment offset so we don't find the same \n again and do no indentation at the end
+    }
     result.insert(offset, indentString);
   }
 
@@ -386,7 +419,7 @@ std::string indentNewLines(const std::string &input, const UInt indentBy)
 // --------------------------------------------------------------------------------------------------------------------- //
 
 
-Void printBlockToStream( std::ostream &ss, const Char *pLinePrefix, TComYuv &src, const UInt numSubBlocksAcross, const UInt numSubBlocksUp, const UInt defWidth )
+Void printBlockToStream( std::ostream &ss, const TChar *pLinePrefix, TComYuv &src, const UInt numSubBlocksAcross, const UInt numSubBlocksUp, const UInt defWidth )
 {
   const UInt numValidComp=src.getNumberValidComponents();
 
@@ -404,13 +437,17 @@ Void printBlockToStream( std::ostream &ss, const Char *pLinePrefix, TComYuv &src
     for (UInt y=0; y<height; y++)
     {
       if ((y%subBlockHeight)==0 && y!=0)
+      {
         ss << pLinePrefix << '\n';
+      }
 
       ss << pLinePrefix;
       for (UInt x=0; x<width; x++)
       {
         if ((x%subBlockWidth)==0 && x!=0)
+        {
           ss << std::setw(defWidth+2) << "";
+        }
 
         ss << std::setw(defWidth) << blkSrc[y*stride + x] << ' ';
       }
@@ -420,7 +457,7 @@ Void printBlockToStream( std::ostream &ss, const Char *pLinePrefix, TComYuv &src
   }
 }
 
-#ifdef DEBUG_STRING
+#if DEBUG_STRING
 Int DebugStringGetPredModeMask(PredMode mode)
 {
   return (mode==MODE_INTRA)?1:2;

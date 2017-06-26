@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -37,6 +37,7 @@
 
 #include "TDecSbac.h"
 #include "TLibCommon/TComTU.h"
+#include "TLibCommon/TComTrQuant.h"
 
 #if RExt__DECODER_DEBUG_BIT_STATISTICS
 #include "TLibCommon/TComCodingStatistics.h"
@@ -49,7 +50,7 @@
 //! \ingroup TLibDecoder
 //! \{
 
-#if RExt__ENVIRONMENT_VARIABLE_DEBUG_AND_TEST
+#if ENVIRONMENT_VARIABLE_DEBUG_AND_TEST
 #include "../TLibCommon/Debug.h"
 #endif
 
@@ -69,7 +70,7 @@ TDecSbac::TDecSbac()
 , m_cCUMergeIdxExtSCModel                    ( 1,             1,                      NUM_MERGE_IDX_EXT_CTX                , m_contextModels + m_numContextModels, m_numContextModels)
 , m_cCUPartSizeSCModel                       ( 1,             1,                      NUM_PART_SIZE_CTX                    , m_contextModels + m_numContextModels, m_numContextModels)
 , m_cCUPredModeSCModel                       ( 1,             1,                      NUM_PRED_MODE_CTX                    , m_contextModels + m_numContextModels, m_numContextModels)
-, m_cCUIntraPredSCModel                      ( 1,             1,                      NUM_ADI_CTX                          , m_contextModels + m_numContextModels, m_numContextModels)
+, m_cCUIntraPredSCModel                      ( 1,             1,                      NUM_INTRA_PREDICT_CTX                , m_contextModels + m_numContextModels, m_numContextModels)
 , m_cCUChromaPredSCModel                     ( 1,             1,                      NUM_CHROMA_PRED_CTX                  , m_contextModels + m_numContextModels, m_numContextModels)
 , m_cCUDeltaQpSCModel                        ( 1,             1,                      NUM_DELTA_QP_CTX                     , m_contextModels + m_numContextModels, m_numContextModels)
 , m_cCUInterDirSCModel                       ( 1,             1,                      NUM_INTER_DIR_CTX                    , m_contextModels + m_numContextModels, m_numContextModels)
@@ -159,66 +160,6 @@ Void TDecSbac::resetEntropy(TComSlice* pSlice)
   m_ChromaQpAdjFlagSCModel.initBuffer             ( sliceType, qp, (UChar*)INIT_CHROMA_QP_ADJ_FLAG );
   m_ChromaQpAdjIdcSCModel.initBuffer              ( sliceType, qp, (UChar*)INIT_CHROMA_QP_ADJ_IDC );
 
-  m_uiLastDQpNonZero  = 0;
-
-  // new structure
-  m_uiLastQp          = qp;
-
-  for (UInt statisticIndex = 0; statisticIndex < RExt__GOLOMB_RICE_ADAPTATION_STATISTICS_SETS ; statisticIndex++)
-  {
-    m_golombRiceAdaptationStatistics[statisticIndex] = 0;
-  }
-
-  m_pcTDecBinIf->start();
-}
-
-/** The function does the following: Read out terminate bit. Flush CABAC. Byte-align for next tile.
- *  Intialize CABAC states. Start CABAC.
- */
-Void TDecSbac::updateContextTables( SliceType eSliceType, Int iQp )
-{
-  UInt uiBit;
-  m_pcTDecBinIf->decodeBinTrm(uiBit);
-  assert(uiBit == 1); // end_of_sub_stream_one_bit must be equal to 1
-  m_pcTDecBinIf->finish();
-
-#if RExt__DECODER_DEBUG_BIT_STATISTICS
-  TComCodingStatistics::IncrementStatisticEP(STATS__TRAILING_BITS, m_pcBitstream->readOutTrailingBits(),0);
-#else
-  m_pcBitstream->readOutTrailingBits();
-#endif
-  m_cCUSplitFlagSCModel.initBuffer                ( eSliceType, iQp, (UChar*)INIT_SPLIT_FLAG );
-  m_cCUSkipFlagSCModel.initBuffer                 ( eSliceType, iQp, (UChar*)INIT_SKIP_FLAG );
-  m_cCUMergeFlagExtSCModel.initBuffer             ( eSliceType, iQp, (UChar*)INIT_MERGE_FLAG_EXT );
-  m_cCUMergeIdxExtSCModel.initBuffer              ( eSliceType, iQp, (UChar*)INIT_MERGE_IDX_EXT );
-  m_cCUPartSizeSCModel.initBuffer                 ( eSliceType, iQp, (UChar*)INIT_PART_SIZE );
-  m_cCUPredModeSCModel.initBuffer                 ( eSliceType, iQp, (UChar*)INIT_PRED_MODE );
-  m_cCUIntraPredSCModel.initBuffer                ( eSliceType, iQp, (UChar*)INIT_INTRA_PRED_MODE );
-  m_cCUChromaPredSCModel.initBuffer               ( eSliceType, iQp, (UChar*)INIT_CHROMA_PRED_MODE );
-  m_cCUInterDirSCModel.initBuffer                 ( eSliceType, iQp, (UChar*)INIT_INTER_DIR );
-  m_cCUMvdSCModel.initBuffer                      ( eSliceType, iQp, (UChar*)INIT_MVD );
-  m_cCURefPicSCModel.initBuffer                   ( eSliceType, iQp, (UChar*)INIT_REF_PIC );
-  m_cCUDeltaQpSCModel.initBuffer                  ( eSliceType, iQp, (UChar*)INIT_DQP );
-  m_cCUQtCbfSCModel.initBuffer                    ( eSliceType, iQp, (UChar*)INIT_QT_CBF );
-  m_cCUQtRootCbfSCModel.initBuffer                ( eSliceType, iQp, (UChar*)INIT_QT_ROOT_CBF );
-  m_cCUSigCoeffGroupSCModel.initBuffer            ( eSliceType, iQp, (UChar*)INIT_SIG_CG_FLAG );
-  m_cCUSigSCModel.initBuffer                      ( eSliceType, iQp, (UChar*)INIT_SIG_FLAG );
-  m_cCuCtxLastX.initBuffer                        ( eSliceType, iQp, (UChar*)INIT_LAST );
-  m_cCuCtxLastY.initBuffer                        ( eSliceType, iQp, (UChar*)INIT_LAST );
-  m_cCUOneSCModel.initBuffer                      ( eSliceType, iQp, (UChar*)INIT_ONE_FLAG );
-  m_cCUAbsSCModel.initBuffer                      ( eSliceType, iQp, (UChar*)INIT_ABS_FLAG );
-  m_cMVPIdxSCModel.initBuffer                     ( eSliceType, iQp, (UChar*)INIT_MVP_IDX );
-  m_cSaoMergeSCModel.initBuffer                   ( eSliceType, iQp, (UChar*)INIT_SAO_MERGE_FLAG );
-  m_cSaoTypeIdxSCModel.initBuffer                 ( eSliceType, iQp, (UChar*)INIT_SAO_TYPE_IDX );
-  m_cCUTransSubdivFlagSCModel.initBuffer          ( eSliceType, iQp, (UChar*)INIT_TRANS_SUBDIV_FLAG );
-  m_cTransformSkipSCModel.initBuffer              ( eSliceType, iQp, (UChar*)INIT_TRANSFORMSKIP_FLAG );
-  m_CUTransquantBypassFlagSCModel.initBuffer      ( eSliceType, iQp, (UChar*)INIT_CU_TRANSQUANT_BYPASS_FLAG );
-  m_explicitRdpcmFlagSCModel.initBuffer           ( eSliceType, iQp, (UChar*)INIT_EXPLICIT_RDPCM_FLAG );
-  m_explicitRdpcmDirSCModel.initBuffer            ( eSliceType, iQp, (UChar*)INIT_EXPLICIT_RDPCM_DIR );
-  m_cCrossComponentPredictionSCModel.initBuffer   ( eSliceType, iQp, (UChar*)INIT_CROSS_COMPONENT_PREDICTION );
-  m_ChromaQpAdjFlagSCModel.initBuffer             ( eSliceType, iQp, (UChar*)INIT_CHROMA_QP_ADJ_FLAG );
-  m_ChromaQpAdjIdcSCModel.initBuffer              ( eSliceType, iQp, (UChar*)INIT_CHROMA_QP_ADJ_IDC );
-
   for (UInt statisticIndex = 0; statisticIndex < RExt__GOLOMB_RICE_ADAPTATION_STATISTICS_SETS ; statisticIndex++)
   {
     m_golombRiceAdaptationStatistics[statisticIndex] = 0;
@@ -233,9 +174,35 @@ Void TDecSbac::parseTerminatingBit( UInt& ruiBit )
   if ( ruiBit == 1 )
   {
     m_pcTDecBinIf->finish();
+
+#if RExt__DECODER_DEBUG_BIT_STATISTICS
+    TComCodingStatistics::IncrementStatisticEP(STATS__TRAILING_BITS, m_pcBitstream->readOutTrailingBits(),0);
+#else
+    m_pcBitstream->readOutTrailingBits();
+#endif
   }
 }
 
+Void TDecSbac::parseRemainingBytes( Bool noTrailingBytesExpected )
+{
+  if (noTrailingBytesExpected)
+  {
+    const UInt numberOfRemainingSubstreamBytes=m_pcBitstream->getNumBitsLeft();
+    assert (numberOfRemainingSubstreamBytes == 0);
+  }
+  else
+  {
+    while (m_pcBitstream->getNumBitsLeft())
+    {
+      UInt trailingNullByte=m_pcBitstream->readByte();
+      if (trailingNullByte!=0)
+      {
+        printf("Trailing byte should be 0, but has value %02x\n", trailingNullByte);
+        assert(trailingNullByte==0);
+      }
+    }
+  }
+}
 
 #if RExt__DECODER_DEBUG_BIT_STATISTICS
 Void TDecSbac::xReadUnaryMaxSymbol( UInt& ruiSymbol, ContextModel* pcSCModel, Int iOffset, UInt uiMaxSymbol, const class TComCodingStatisticsClassType &whichStat )
@@ -263,8 +230,7 @@ Void TDecSbac::xReadUnaryMaxSymbol( UInt& ruiSymbol, ContextModel* pcSCModel, In
   {
     m_pcTDecBinIf->decodeBin( uiCont, pcSCModel[ iOffset ] RExt__DECODER_DEBUG_BIT_STATISTICS_PASS_OPT_ARG(whichStat) );
     uiSymbol++;
-  }
-  while( uiCont && ( uiSymbol < uiMaxSymbol - 1 ) );
+  } while( uiCont && ( uiSymbol < uiMaxSymbol - 1 ) );
 
   if( uiCont && ( uiSymbol == uiMaxSymbol - 1 ) )
   {
@@ -319,22 +285,22 @@ Void TDecSbac::xReadUnarySymbol( UInt& ruiSymbol, ContextModel* pcSCModel, Int i
   {
     m_pcTDecBinIf->decodeBin( uiCont, pcSCModel[ iOffset ] RExt__DECODER_DEBUG_BIT_STATISTICS_PASS_OPT_ARG(whichStat));
     uiSymbol++;
-  }
-  while( uiCont );
+  } while( uiCont );
 
   ruiSymbol = uiSymbol;
 }
 
 
 /** Parsing of coeff_abs_level_remaing
- * \param ruiSymbol reference to coeff_abs_level_remaing
- * \param ruiParam reference to parameter
- * \returns Void
+ * \param rSymbol                 reference to coeff_abs_level_remaing
+ * \param rParam                  reference to parameter
+ * \param useLimitedPrefixLength
+ * \param maxLog2TrDynamicRange
  */
 #if RExt__DECODER_DEBUG_BIT_STATISTICS
-Void TDecSbac::xReadCoefRemainExGolomb ( UInt &rSymbol, UInt &rParam, const Bool useLimitedPrefixLength, const ChannelType channelType, const class TComCodingStatisticsClassType &whichStat )
+Void TDecSbac::xReadCoefRemainExGolomb ( UInt &rSymbol, UInt &rParam, const Bool useLimitedPrefixLength, const Int maxLog2TrDynamicRange, const class TComCodingStatisticsClassType &whichStat )
 #else
-Void TDecSbac::xReadCoefRemainExGolomb ( UInt &rSymbol, UInt &rParam, const Bool useLimitedPrefixLength, const ChannelType channelType )
+Void TDecSbac::xReadCoefRemainExGolomb ( UInt &rSymbol, UInt &rParam, const Bool useLimitedPrefixLength, const Int maxLog2TrDynamicRange )
 #endif
 {
   UInt prefix   = 0;
@@ -342,14 +308,13 @@ Void TDecSbac::xReadCoefRemainExGolomb ( UInt &rSymbol, UInt &rParam, const Bool
 
   if (useLimitedPrefixLength)
   {
-    const UInt longestPossiblePrefix = (32 - (COEF_REMAIN_BIN_REDUCTION + g_maxTrDynamicRange[channelType])) + COEF_REMAIN_BIN_REDUCTION;
+    const UInt longestPossiblePrefix = (32 - (COEF_REMAIN_BIN_REDUCTION + maxLog2TrDynamicRange)) + COEF_REMAIN_BIN_REDUCTION;
 
     do
     {
       prefix++;
       m_pcTDecBinIf->decodeBinEP( codeWord RExt__DECODER_DEBUG_BIT_STATISTICS_PASS_OPT_ARG(whichStat) );
-    }
-    while((codeWord != 0) && (prefix < longestPossiblePrefix));
+    } while((codeWord != 0) && (prefix < longestPossiblePrefix));
   }
   else
   {
@@ -357,8 +322,7 @@ Void TDecSbac::xReadCoefRemainExGolomb ( UInt &rSymbol, UInt &rParam, const Bool
     {
       prefix++;
       m_pcTDecBinIf->decodeBinEP( codeWord RExt__DECODER_DEBUG_BIT_STATISTICS_PASS_OPT_ARG(whichStat) );
-    }
-    while( codeWord);
+    } while( codeWord);
   }
 
   codeWord  = 1 - codeWord;
@@ -372,10 +336,10 @@ Void TDecSbac::xReadCoefRemainExGolomb ( UInt &rSymbol, UInt &rParam, const Bool
   }
   else if (useLimitedPrefixLength)
   {
-    const UInt maximumPrefixLength = (32 - (COEF_REMAIN_BIN_REDUCTION + g_maxTrDynamicRange[channelType]));
+    const UInt maximumPrefixLength = (32 - (COEF_REMAIN_BIN_REDUCTION + maxLog2TrDynamicRange));
 
     const UInt prefixLength = prefix - COEF_REMAIN_BIN_REDUCTION;
-    const UInt suffixLength = (prefixLength == maximumPrefixLength) ? (g_maxTrDynamicRange[channelType] - rParam) : prefixLength;
+    const UInt suffixLength = (prefixLength == maximumPrefixLength) ? (maxLog2TrDynamicRange - rParam) : prefixLength;
 
     m_pcTDecBinIf->decodeBinsEP(codeWord, (suffixLength + rParam) RExt__DECODER_DEBUG_BIT_STATISTICS_PASS_OPT_ARG(whichStat));
 
@@ -406,9 +370,10 @@ Void TDecSbac::parseIPCMInfo ( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth
   if (uiSymbol == 1)
   {
     Bool bIpcmFlag = true;
+    const TComSPS &sps=*(pcCU->getSlice()->getSPS());
 
     pcCU->setPartSizeSubParts  ( SIZE_2Nx2N, uiAbsPartIdx, uiDepth );
-    pcCU->setSizeSubParts      ( g_uiMaxCUWidth>>uiDepth, g_uiMaxCUHeight>>uiDepth, uiAbsPartIdx, uiDepth );
+    pcCU->setSizeSubParts      ( sps.getMaxCUWidth()>>uiDepth, sps.getMaxCUHeight()>>uiDepth, uiAbsPartIdx, uiDepth );
     pcCU->setTrIdxSubParts     ( 0, uiAbsPartIdx, uiDepth );
     pcCU->setIPCMFlagSubParts  ( bIpcmFlag, uiAbsPartIdx, uiDepth );
 
@@ -474,7 +439,7 @@ Void TDecSbac::parseSkipFlag( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth 
     pcCU->setSkipFlagSubParts( true,        uiAbsPartIdx, uiDepth );
     pcCU->setPredModeSubParts( MODE_INTER,  uiAbsPartIdx, uiDepth );
     pcCU->setPartSizeSubParts( SIZE_2Nx2N, uiAbsPartIdx, uiDepth );
-    pcCU->setSizeSubParts( g_uiMaxCUWidth>>uiDepth, g_uiMaxCUHeight>>uiDepth, uiAbsPartIdx, uiDepth );
+    pcCU->setSizeSubParts( pcCU->getSlice()->getSPS()->getMaxCUWidth()>>uiDepth, pcCU->getSlice()->getSPS()->getMaxCUHeight()>>uiDepth, uiAbsPartIdx, uiDepth );
     pcCU->setMergeFlagSubParts( true , uiAbsPartIdx, 0, uiDepth );
   }
 }
@@ -497,7 +462,7 @@ Void TDecSbac::parseMergeFlag ( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDept
   DTRACE_CABAC_T( "\tMergeFlag: " );
   DTRACE_CABAC_V( uiSymbol );
   DTRACE_CABAC_T( "\tAddress: " );
-  DTRACE_CABAC_V( pcCU->getAddr() );
+  DTRACE_CABAC_V( pcCU->getCtuRsAddr() );
   DTRACE_CABAC_T( "\tuiAbsPartIdx: " );
   DTRACE_CABAC_V( uiAbsPartIdx );
   DTRACE_CABAC_T( "\n" );
@@ -544,13 +509,13 @@ Void TDecSbac::parseMVPIdx      ( Int& riMVPIdx )
 
 Void TDecSbac::parseSplitFlag     ( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth )
 {
-  if( uiDepth == g_uiMaxCUDepth - g_uiAddCUDepth )
+  if( uiDepth == pcCU->getSlice()->getSPS()->getLog2DiffMaxMinCodingBlockSize() )
   {
     pcCU->setDepthSubParts( uiDepth, uiAbsPartIdx );
     return;
   }
 #if RExt__DECODER_DEBUG_BIT_STATISTICS
-  const TComCodingStatisticsClassType ctype(STATS__CABAC_BITS__SPLIT_FLAG, g_aucConvertToBit[g_uiMaxCUWidth>>uiDepth]+2);
+  const TComCodingStatisticsClassType ctype(STATS__CABAC_BITS__SPLIT_FLAG, g_aucConvertToBit[pcCU->getSlice()->getSPS()->getMaxCUWidth()>>uiDepth]+2);
 #endif
 
   UInt uiSymbol;
@@ -572,15 +537,19 @@ Void TDecSbac::parsePartSize( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth 
 {
   UInt uiSymbol, uiMode = 0;
   PartSize eMode;
+  const UChar cuWidth =UChar(pcCU->getSlice()->getSPS()->getMaxCUWidth()>>uiDepth);
+  const UChar cuHeight=UChar(pcCU->getSlice()->getSPS()->getMaxCUHeight()>>uiDepth);
+  const Int log2DiffMaxMinCodingBlockSize = pcCU->getSlice()->getSPS()->getLog2DiffMaxMinCodingBlockSize();
 
 #if RExt__DECODER_DEBUG_BIT_STATISTICS
-  const TComCodingStatisticsClassType ctype(STATS__CABAC_BITS__PART_SIZE, g_aucConvertToBit[g_uiMaxCUWidth>>uiDepth]+2);
+  const TComCodingStatisticsClassType ctype(STATS__CABAC_BITS__PART_SIZE, g_aucConvertToBit[cuWidth]+2);
 #endif
 
+  assert ( pcCU->getSlice()->getSPS()->getLog2DiffMaxMinCodingBlockSize() == log2DiffMaxMinCodingBlockSize);
   if ( pcCU->isIntra( uiAbsPartIdx ) )
   {
     uiSymbol = 1;
-    if( uiDepth == g_uiMaxCUDepth - g_uiAddCUDepth )
+    if( uiDepth == log2DiffMaxMinCodingBlockSize )
     {
       m_pcTDecBinIf->decodeBin( uiSymbol, m_cCUPartSizeSCModel.get( 0, 0, 0) RExt__DECODER_DEBUG_BIT_STATISTICS_PASS_OPT_ARG(ctype) );
     }
@@ -602,7 +571,7 @@ Void TDecSbac::parsePartSize( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth 
   {
     UInt uiMaxNumBits = 2;
 
-    if( uiDepth == g_uiMaxCUDepth - g_uiAddCUDepth && !( (g_uiMaxCUWidth>>uiDepth) == 8 && (g_uiMaxCUHeight>>uiDepth) == 8 ) )
+    if( uiDepth == log2DiffMaxMinCodingBlockSize && !( cuWidth == 8 && cuHeight == 8 ) )
     {
       uiMaxNumBits ++;
     }
@@ -617,7 +586,7 @@ Void TDecSbac::parsePartSize( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth 
       uiMode++;
     }
     eMode = (PartSize) uiMode;
-    if ( pcCU->getSlice()->getSPS()->getAMPAcc( uiDepth ) )
+    if ( pcCU->getSlice()->getSPS()->getUseAMP() && uiDepth < log2DiffMaxMinCodingBlockSize )
     {
       if (eMode == SIZE_2NxN)
       {
@@ -640,7 +609,7 @@ Void TDecSbac::parsePartSize( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth 
     }
   }
   pcCU->setPartSizeSubParts( eMode, uiAbsPartIdx, uiDepth );
-  pcCU->setSizeSubParts( g_uiMaxCUWidth>>uiDepth, g_uiMaxCUHeight>>uiDepth, uiAbsPartIdx, uiDepth );
+  pcCU->setSizeSubParts( cuWidth, cuHeight, uiAbsPartIdx, uiDepth );
 }
 
 
@@ -670,7 +639,7 @@ Void TDecSbac::parseIntraDirLumaAng  ( TComDataCU* pcCU, UInt absPartIdx, UInt d
 {
   PartSize mode = pcCU->getPartitionSize( absPartIdx );
   UInt partNum = mode==SIZE_NxN?4:1;
-  UInt partOffset = ( pcCU->getPic()->getNumPartInCU() >> ( pcCU->getDepth(absPartIdx) << 1 ) ) >> 2;
+  UInt partOffset = ( pcCU->getPic()->getNumPartitionsInCtu() >> ( pcCU->getDepth(absPartIdx) << 1 ) ) >> 2;
   UInt mpmPred[4],symbol;
   Int j,intraPredMode;
   if (mode==SIZE_NxN)
@@ -678,7 +647,7 @@ Void TDecSbac::parseIntraDirLumaAng  ( TComDataCU* pcCU, UInt absPartIdx, UInt d
     depth++;
   }
 #if RExt__DECODER_DEBUG_BIT_STATISTICS
-  const TComCodingStatisticsClassType ctype(STATS__CABAC_BITS__INTRA_DIR_ANG, g_aucConvertToBit[g_uiMaxCUWidth>>depth]+2, CHANNEL_TYPE_LUMA);
+  const TComCodingStatisticsClassType ctype(STATS__CABAC_BITS__INTRA_DIR_ANG, g_aucConvertToBit[pcCU->getSlice()->getSPS()->getMaxCUWidth()>>depth]+2, CHANNEL_TYPE_LUMA);
 #endif
   for (j=0;j<partNum;j++)
   {
@@ -688,7 +657,7 @@ Void TDecSbac::parseIntraDirLumaAng  ( TComDataCU* pcCU, UInt absPartIdx, UInt d
   for (j=0;j<partNum;j++)
   {
     Int preds[NUM_MOST_PROBABLE_MODES] = {-1, -1, -1};
-    Int predNum = pcCU->getIntraDirPredictor(absPartIdx+partOffset*j, preds, COMPONENT_Y);
+    pcCU->getIntraDirPredictor(absPartIdx+partOffset*j, preds, COMPONENT_Y);
     if (mpmPred[j])
     {
       m_pcTDecBinIf->decodeBinEP( symbol RExt__DECODER_DEBUG_BIT_STATISTICS_PASS_OPT_ARG(ctype) );
@@ -705,7 +674,6 @@ Void TDecSbac::parseIntraDirLumaAng  ( TComDataCU* pcCU, UInt absPartIdx, UInt d
       intraPredMode = symbol;
 
       //postponed sorting of MPMs (only in remaining branch)
-      assert(predNum>=3); // It is currently always 3!
       if (preds[0] > preds[1])
       {
         std::swap(preds[0], preds[1]);
@@ -718,7 +686,7 @@ Void TDecSbac::parseIntraDirLumaAng  ( TComDataCU* pcCU, UInt absPartIdx, UInt d
       {
         std::swap(preds[1], preds[2]);
       }
-      for ( Int i = 0; i < predNum; i++ )
+      for ( UInt i = 0; i < NUM_MOST_PROBABLE_MODES; i++ )
       {
         intraPredMode += ( intraPredMode >= preds[i] );
       }
@@ -732,7 +700,7 @@ Void TDecSbac::parseIntraDirChroma( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt ui
 {
   UInt uiSymbol;
 #if RExt__DECODER_DEBUG_BIT_STATISTICS
-  const TComCodingStatisticsClassType ctype(STATS__CABAC_BITS__INTRA_DIR_ANG, g_aucConvertToBit[g_uiMaxCUWidth>>uiDepth]+2, CHANNEL_TYPE_CHROMA);
+  const TComCodingStatisticsClassType ctype(STATS__CABAC_BITS__INTRA_DIR_ANG, g_aucConvertToBit[pcCU->getSlice()->getSPS()->getMaxCUWidth()>>uiDepth]+2, CHANNEL_TYPE_CHROMA);
 #endif
 
   m_pcTDecBinIf->decodeBin( uiSymbol, m_cCUChromaPredSCModel.get( 0, 0, 0 ) RExt__DECODER_DEBUG_BIT_STATISTICS_PASS_OPT_ARG(ctype) );
@@ -882,13 +850,16 @@ Void TDecSbac::parseCrossComponentPrediction( TComTU &rTu, ComponentID compID )
 {
   TComDataCU *pcCU = rTu.getCU();
 
-  if( isLuma(compID) || !pcCU->getSlice()->getPPS()->getUseCrossComponentPrediction() ) return;
+  if( isLuma(compID) || !pcCU->getSlice()->getPPS()->getPpsRangeExtension().getCrossComponentPredictionEnabledFlag() )
+  {
+    return;
+  }
 
   const UInt uiAbsPartIdx = rTu.GetAbsPartIdxTU();
 
   if (!pcCU->isIntra(uiAbsPartIdx) || (pcCU->getIntraDir( CHANNEL_TYPE_CHROMA, uiAbsPartIdx ) == DM_CHROMA_IDX))
   {
-    Char alpha  = 0;
+    SChar alpha = 0;
     UInt symbol = 0;
 
     DTRACE_CABAC_VL( g_nSymbolCounter++ )
@@ -1004,17 +975,18 @@ Void TDecSbac::parseChromaQpAdjustment( TComDataCU* cu, UInt absPartIdx, UInt de
 {
   UInt symbol;
 #if RExt__DECODER_DEBUG_BIT_STATISTICS
-  const TComCodingStatisticsClassType ctype(STATS__CABAC_BITS__CHROMA_QP_ADJUSTMENT, g_aucConvertToBit[g_uiMaxCUWidth>>depth]+2, CHANNEL_TYPE_CHROMA);
+  const TComCodingStatisticsClassType ctype(STATS__CABAC_BITS__CHROMA_QP_ADJUSTMENT, g_aucConvertToBit[cu->getSlice()->getSPS()->getMaxCUWidth()>>depth]+2, CHANNEL_TYPE_CHROMA);
 #endif
 
-  Int tableSize = cu->getSlice()->getPPS()->getChromaQpAdjTableSize();
+  Int chromaQpOffsetListLen = cu->getSlice()->getPPS()->getPpsRangeExtension().getChromaQpOffsetListLen();
 
-  /* cu_chroma_qp_adjustment_flag */
+  // cu_chroma_qp_offset_flag
   m_pcTDecBinIf->decodeBin( symbol, m_ChromaQpAdjFlagSCModel.get( 0, 0, 0 ) RExt__DECODER_DEBUG_BIT_STATISTICS_PASS_OPT_ARG(ctype) );
 
-  if (symbol && tableSize > 1) {
-    /* cu_chroma_qp_adjustment_idc */
-    xReadUnaryMaxSymbol( symbol,  &m_ChromaQpAdjIdcSCModel.get( 0, 0, 0 ), 0, tableSize - 1 RExt__DECODER_DEBUG_BIT_STATISTICS_PASS_OPT_ARG(ctype) );
+  if (symbol && chromaQpOffsetListLen > 1)
+  {
+    // cu_chroma_qp_offset_idx
+    xReadUnaryMaxSymbol( symbol,  &m_ChromaQpAdjIdcSCModel.get( 0, 0, 0 ), 0, chromaQpOffsetListLen - 1 RExt__DECODER_DEBUG_BIT_STATISTICS_PASS_OPT_ARG(ctype) );
     symbol++;
   }
   /* NB, symbol = 0 if outer flag is not set,
@@ -1038,7 +1010,7 @@ Void TDecSbac::parseQtCbf( TComTU &rTu, const ComponentID compID, const Bool low
   const Bool canQuadSplit     = (width >= (MIN_TU_SIZE * 2)) && (height >= (MIN_TU_SIZE * 2));
   const UInt coveredPartIdxes = rTu.GetAbsPartIdxNumParts(compID);
 
-  //NOTE: RExt - since the CBF for chroma is coded at the highest level possible, if sub-TUs are
+  //             Since the CBF for chroma is coded at the highest level possible, if sub-TUs are
   //             to be coded for a 4x8 chroma TU, their CBFs must be coded at the highest 4x8 level
   //             (i.e. where luma TUs are 8x8 rather than 4x4)
   //    ___ ___
@@ -1136,7 +1108,7 @@ Void TDecSbac::parseTransformSkipFlags (TComTU &rTu, ComponentID component)
     return;
   }
 
-  if (!TUCompRectHasAssociatedTransformSkipFlag(rTu.getRect(component), pcCU->getSlice()->getPPS()->getTransformSkipLog2MaxSize()))
+  if (!TUCompRectHasAssociatedTransformSkipFlag(rTu.getRect(component), pcCU->getSlice()->getPPS()->getPpsRangeExtension().getLog2MaxTransformSkipBlockSize()))
   {
     return;
   }
@@ -1152,11 +1124,11 @@ Void TDecSbac::parseTransformSkipFlags (TComTU &rTu, ComponentID component)
   DTRACE_CABAC_T( "\tsymbol=" )
   DTRACE_CABAC_V( useTransformSkip )
   DTRACE_CABAC_T( "\tAddr=" )
-  DTRACE_CABAC_V( pcCU->getAddr() )
+  DTRACE_CABAC_V( pcCU->getCtuRsAddr() )
   DTRACE_CABAC_T( "\tetype=" )
   DTRACE_CABAC_V( component )
   DTRACE_CABAC_T( "\tuiAbsPartIdx=" )
-  DTRACE_CABAC_V( uiAbsPartIdx )
+  DTRACE_CABAC_V( rTu.GetAbsPartIdxTU() )
   DTRACE_CABAC_T( "\n" )
 
   pcCU->setTransformSkipPartRange( useTransformSkip, component, uiAbsPartIdx, rTu.GetAbsPartIdxNumParts(component));
@@ -1168,7 +1140,7 @@ Void TDecSbac::parseTransformSkipFlags (TComTU &rTu, ComponentID component)
  * \param uiPosLastY reference to Y component of last coefficient
  * \param width  Block width
  * \param height Block height
- * \param eTType plane type / luminance or chrominance
+ * \param component chroma compinent ID
  * \param uiScanIdx scan type (zig-zag, hor, ver)
  *
  * This method decodes the X and Y component within a block of the last significant coefficient.
@@ -1258,6 +1230,7 @@ Void TDecSbac::parseCoeffNxN(  TComTU &rTu, ComponentID compID )
   const UInt uiWidth=rRect.width;
   const UInt uiHeight=rRect.height;
   TCoeff* pcCoef=(pcCU->getCoeff(compID)+rTu.getCoefficientOffset(compID));
+  const TComSPS &sps=*(pcCU->getSlice()->getSPS());
 
   DTRACE_CABAC_VL( g_nSymbolCounter++ )
   DTRACE_CABAC_T( "\tparseCoeffNxN()\teType=" )
@@ -1277,7 +1250,7 @@ Void TDecSbac::parseCoeffNxN(  TComTU &rTu, ComponentID compID )
   DTRACE_CABAC_T( "\ttoCU-Y=" )
   DTRACE_CABAC_V( pcCU->getCUPelY() )
   DTRACE_CABAC_T( "\tCU-addr=" )
-  DTRACE_CABAC_V(  pcCU->getAddr() )
+  DTRACE_CABAC_V(  pcCU->getCtuRsAddr() )
   DTRACE_CABAC_T( "\tinCU-X=" )
 //  DTRACE_CABAC_V( g_auiRasterToPelX[ g_auiZscanToRaster[uiAbsPartIdx] ] )
   DTRACE_CABAC_V( g_auiRasterToPelX[ g_auiZscanToRaster[rTu.GetAbsPartIdxTU(compID)] ] )
@@ -1290,7 +1263,7 @@ Void TDecSbac::parseCoeffNxN(  TComTU &rTu, ComponentID compID )
 
   //--------------------------------------------------------------------------------------------------
 
-  if( uiWidth > pcCU->getSlice()->getSPS()->getMaxTrSize() )
+  if( uiWidth > sps.getMaxTrSize() )
   {
     std::cerr << "ERROR: parseCoeffNxN was passed a TU with dimensions larger than the maximum allowed size" << std::endl;
     assert(false);
@@ -1308,9 +1281,10 @@ Void TDecSbac::parseCoeffNxN(  TComTU &rTu, ComponentID compID )
   const UInt         uiMaxNumCoeffM1   = uiMaxNumCoeff - 1;
 
   const ChannelType  channelType       = toChannelType(compID);
-  const Bool         extendedPrecision = pcCU->getSlice()->getSPS()->getUseExtendedPrecision();
+  const Bool         extendedPrecision = sps.getSpsRangeExtension().getExtendedPrecisionProcessingFlag();
 
-  const Bool         alignCABACBeforeBypass = pcCU->getSlice()->getSPS()->getAlignCABACBeforeBypass();
+  const Bool         alignCABACBeforeBypass = sps.getSpsRangeExtension().getCabacBypassAlignmentEnabledFlag();
+  const Int          maxLog2TrDynamicRange  = sps.getMaxLog2TrDynamicRange(channelType);
 
 #if RExt__DECODER_DEBUG_BIT_STATISTICS
   TComCodingStatisticsClassType ctype_group(STATS__CABAC_BITS__SIG_COEFF_GROUP_FLAG, uiLog2BlockWidth, compID);
@@ -1324,11 +1298,13 @@ Void TDecSbac::parseCoeffNxN(  TComTU &rTu, ComponentID compID )
   {
     beValid = false;
     if((!pcCU->isIntra(uiAbsPartIdx)) && pcCU->isRDPCMEnabled(uiAbsPartIdx))
+    {
       parseExplicitRdpcmMode(rTu, compID);
+    }
   }
   else
   {
-    beValid = pcCU->getSlice()->getPPS()->getSignHideFlag() > 0;
+    beValid = pcCU->getSlice()->getPPS()->getSignDataHidingEnabledFlag();
   }
 
   UInt absSum = 0;
@@ -1355,8 +1331,9 @@ Void TDecSbac::parseCoeffNxN(  TComTU &rTu, ComponentID compID )
   Int isIntra = pcCU->isIntra(uiAbsPartIdx) ? 1 : 0;
   if ( isIntra && pcCU->isRDPCMEnabled(uiAbsPartIdx) )
   {
+    const UInt partsPerMinCU = 1<<(2*(sps.getMaxTotalCUDepth() - sps.getLog2DiffMaxMinCodingBlockSize()));
     uiIntraMode = pcCU->getIntraDir( toChannelType(compID), uiAbsPartIdx );
-    uiIntraMode = (uiIntraMode==DM_CHROMA_IDX && !bIsLuma) ? pcCU->getIntraDir(CHANNEL_TYPE_LUMA, getChromasCorrespondingPULumaIdx(uiAbsPartIdx, rTu.GetChromaFormat())) : uiIntraMode;
+    uiIntraMode = (uiIntraMode==DM_CHROMA_IDX && !bIsLuma) ? pcCU->getIntraDir(CHANNEL_TYPE_LUMA, getChromasCorrespondingPULumaIdx(uiAbsPartIdx, rTu.GetChromaFormat(), partsPerMinCU)) : uiIntraMode;
     uiIntraMode = ((rTu.GetChromaFormat() == CHROMA_422) && !bIsLuma) ? g_chroma422IntraAngleMappingTable[uiIntraMode] : uiIntraMode;
 
     Bool transformSkip = pcCU->getTransformSkip( uiAbsPartIdx,compID);
@@ -1369,7 +1346,7 @@ Void TDecSbac::parseCoeffNxN(  TComTU &rTu, ComponentID compID )
 
   //--------------------------------------------------------------------------------------------------
 
-  const Bool  bUseGolombRiceParameterAdaptation = pcCU->getSlice()->getSPS()->getUseGolombRiceParameterAdaptation();
+  const Bool  bUseGolombRiceParameterAdaptation = sps.getSpsRangeExtension().getPersistentRiceAdaptationEnabledFlag();
         UInt &currentGolombRiceStatistic        = m_golombRiceAdaptationStatistics[rTu.getGolombRiceStatisticsIndex(compID)];
 
   //select scans
@@ -1493,7 +1470,10 @@ Void TDecSbac::parseCoeffNxN(  TComTU &rTu, ComponentID compID )
 
       Int absCoeff[1 << MLS_CG_SIZE];
 
-      for ( Int i = 0; i < numNonZero; i++) absCoeff[i] = 1;
+      for ( Int i = 0; i < numNonZero; i++)
+      {
+        absCoeff[i] = 1;
+      }
       Int numC1Flag = min(numNonZero, C1FLAG_NUMBER);
       Int firstC2FlagIdx = -1;
 
@@ -1569,7 +1549,7 @@ Void TDecSbac::parseCoeffNxN(  TComTU &rTu, ComponentID compID )
           if( absCoeff[ idx ] == baseLevel)
           {
             UInt uiLevel;
-            xReadCoefRemainExGolomb( uiLevel, uiGoRiceParam, extendedPrecision, channelType RExt__DECODER_DEBUG_BIT_STATISTICS_PASS_OPT_ARG(ctype_escs) );
+            xReadCoefRemainExGolomb( uiLevel, uiGoRiceParam, extendedPrecision, maxLog2TrDynamicRange RExt__DECODER_DEBUG_BIT_STATISTICS_PASS_OPT_ARG(ctype_escs) );
 
             absCoeff[ idx ] = uiLevel + baseLevel;
 
@@ -1612,7 +1592,10 @@ Void TDecSbac::parseCoeffNxN(  TComTU &rTu, ComponentID compID )
         if ( idx == numNonZero-1 && signHidden && beValid )
         {
           // Infer sign of 1st element.
-          if (absSum&0x1) pcCoef[ blkPos ] = -pcCoef[ blkPos ];
+          if (absSum&0x1)
+          {
+            pcCoef[ blkPos ] = -pcCoef[ blkPos ];
+          }
         }
         else
         {
@@ -1624,7 +1607,7 @@ Void TDecSbac::parseCoeffNxN(  TComTU &rTu, ComponentID compID )
     }
   }
 
-#if RExt__ENVIRONMENT_VARIABLE_DEBUG_AND_TEST
+#if ENVIRONMENT_VARIABLE_DEBUG_AND_TEST
   printSBACCoeffData(uiPosLastX, uiPosLastY, uiWidth, uiHeight, compID, uiAbsPartIdx, codingParameters.scanType, pcCoef);
 #endif
 
@@ -1709,6 +1692,7 @@ Void TDecSbac::parseSAOBlkParam (SAOBlkParam& saoBlkParam
                                 , Bool* sliceEnabled
                                 , Bool leftMergeAvail
                                 , Bool aboveMergeAvail
+                                , const BitDepths &bitDepths
                                 )
 {
   UInt uiSymbol;
@@ -1743,7 +1727,13 @@ Void TDecSbac::parseSAOBlkParam (SAOBlkParam& saoBlkParam
       const ComponentID compIdx=ComponentID(compId);
       const ComponentID firstCompOfChType = getFirstComponentOfChannel(toChannelType(compIdx));
       SAOOffset& ctbParam = saoBlkParam[compIdx];
-
+#if O0043_BEST_EFFORT_DECODING
+      const Int bitDepthOrig = bitDepths.stream[toChannelType(compIdx)];
+      const Int forceBitDepthAdjust = bitDepthOrig - bitDepths.recon[toChannelType(compIdx)];
+#else
+      const Int bitDepthOrig = bitDepths.recon[toChannelType(compIdx)];
+#endif
+      const Int maxOffsetQVal=TComSampleAdaptiveOffset::getMaxOffsetQVal(bitDepthOrig);
       if(!sliceEnabled[compIdx])
       {
         //off
@@ -1782,19 +1772,10 @@ Void TDecSbac::parseSAOBlkParam (SAOBlkParam& saoBlkParam
 
       if(ctbParam.modeIdc == SAO_MODE_NEW)
       {
-#if RExt__O0043_BEST_EFFORT_DECODING
-        Int bitDepthOrig = g_bitDepthInStream[toChannelType(compIdx)];
-        Int forceBitDepthAdjust = bitDepthOrig - g_bitDepth[toChannelType(compIdx)];
-#endif
         Int offset[4];
         for(Int i=0; i< 4; i++)
         {
-#if RExt__O0043_BEST_EFFORT_DECODING
-          Int saoMaxOffsetQVal = (1<<(min(bitDepthOrig, MAX_SAO_TRUNCATED_BITDEPTH)-5))-1;
-          parseSaoMaxUvlc(uiSymbol, saoMaxOffsetQVal); //sao_offset_abs
-#else
-          parseSaoMaxUvlc(uiSymbol,  g_saoMaxOffsetQVal[compIdx] ); //sao_offset_abs
-#endif
+          parseSaoMaxUvlc(uiSymbol, maxOffsetQVal ); //sao_offset_abs
           offset[i] = (Int)uiSymbol;
         }
 
@@ -1807,7 +1788,7 @@ Void TDecSbac::parseSAOBlkParam (SAOBlkParam& saoBlkParam
               parseSaoSign(uiSymbol); //sao_offset_sign
               if(uiSymbol)
               {
-#if RExt__O0043_BEST_EFFORT_DECODING
+#if O0043_BEST_EFFORT_DECODING
                 offset[i] >>= forceBitDepthAdjust;
 #endif
                 offset[i] = -offset[i];
@@ -1852,29 +1833,26 @@ Void TDecSbac::parseSAOBlkParam (SAOBlkParam& saoBlkParam
  .
  \param pSrc Contexts to be copied.
  */
-Void TDecSbac::xCopyContextsFrom( TDecSbac* pSrc )
+Void TDecSbac::xCopyContextsFrom( const TDecSbac* pSrc )
 {
   memcpy(m_contextModels, pSrc->m_contextModels, m_numContextModels*sizeof(m_contextModels[0]));
   memcpy(m_golombRiceAdaptationStatistics, pSrc->m_golombRiceAdaptationStatistics, (sizeof(UInt) * RExt__GOLOMB_RICE_ADAPTATION_STATISTICS_SETS));
 }
 
-Void TDecSbac::xCopyFrom( TDecSbac* pSrc )
+Void TDecSbac::xCopyFrom( const TDecSbac* pSrc )
 {
   m_pcTDecBinIf->copyState( pSrc->m_pcTDecBinIf );
-
-  m_uiLastQp           = pSrc->m_uiLastQp;
   xCopyContextsFrom( pSrc );
-
 }
 
-Void TDecSbac::load ( TDecSbac* pScr )
+Void TDecSbac::load ( const TDecSbac* pSrc )
 {
-  xCopyFrom(pScr);
+  xCopyFrom(pSrc);
 }
 
-Void TDecSbac::loadContexts ( TDecSbac* pScr )
+Void TDecSbac::loadContexts ( const TDecSbac* pSrc )
 {
-  xCopyContextsFrom(pScr);
+  xCopyContextsFrom(pSrc);
 }
 
 /** Performs CABAC decoding of the explicit RDPCM mode
@@ -1893,7 +1871,7 @@ Void TDecSbac::parseExplicitRdpcmMode( TComTU &rTu, ComponentID compID )
   assert(tuHeight == tuWidth);
 
 #if RExt__DECODER_DEBUG_BIT_STATISTICS
-  const TComCodingStatisticsClassType ctype(STATS__EXPLICIT_RDPCM_BITS, g_aucConvertToBit[g_uiMaxCUWidth>>rTu.GetTransformDepthTotal()]+2);
+  const TComCodingStatisticsClassType ctype(STATS__EXPLICIT_RDPCM_BITS, g_aucConvertToBit[cu->getSlice()->getSPS()->getMaxCUWidth()>>rTu.GetTransformDepthTotal()]+2);
 #endif
 
   m_pcTDecBinIf->decodeBin(code, m_explicitRdpcmFlagSCModel.get (0, toChannelType(compID), 0) RExt__DECODER_DEBUG_BIT_STATISTICS_PASS_OPT_ARG(ctype));

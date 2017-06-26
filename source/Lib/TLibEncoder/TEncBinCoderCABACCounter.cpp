@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -73,7 +73,7 @@ UInt TEncBinCABACCounter::getNumWrittenBits()
  */
 Void TEncBinCABACCounter::encodeBin( UInt binValue, ContextModel &rcCtxModel )
 {
-#ifdef DEBUG_ENCODER_SEARCH_BINS
+#if DEBUG_ENCODER_SEARCH_BINS
   const UInt64 startingFracBits = m_fracBits;
 #endif
 
@@ -81,16 +81,21 @@ Void TEncBinCABACCounter::encodeBin( UInt binValue, ContextModel &rcCtxModel )
   m_fracBits += rcCtxModel.getEntropyBits( binValue );
   rcCtxModel.update( binValue );
 
-#ifdef DEBUG_ENCODER_SEARCH_BINS
+#if DEBUG_ENCODER_SEARCH_BINS
   if ((g_debugCounter + debugEncoderSearchBinWindow) >= debugEncoderSearchBinTargetLine)
+  {
     std::cout << g_debugCounter << ": coding bin value " << binValue << ", fracBits = [" << startingFracBits << "->" << m_fracBits << "]\n";
+  }
 
   if (g_debugCounter >= debugEncoderSearchBinTargetLine)
   {
-    Char breakPointThis;
+    UChar breakPointThis;
     breakPointThis = 7;
   }
-  if (g_debugCounter >= (debugEncoderSearchBinTargetLine + debugEncoderSearchBinWindow)) exit(0);
+  if (g_debugCounter >= (debugEncoderSearchBinTargetLine + debugEncoderSearchBinWindow))
+  {
+    exit(0);
+  }
   g_debugCounter++;
 #endif
 }
@@ -100,7 +105,7 @@ Void TEncBinCABACCounter::encodeBin( UInt binValue, ContextModel &rcCtxModel )
  *
  * \param binValue bin value
  */
-Void TEncBinCABACCounter::encodeBinEP( UInt binValue )
+Void TEncBinCABACCounter::encodeBinEP( UInt /*binValue*/ )
 {
   m_uiBinsCoded += m_binCountIncrement;
   m_fracBits += 32768;
@@ -112,7 +117,7 @@ Void TEncBinCABACCounter::encodeBinEP( UInt binValue )
  * \param binValues bin values
  * \param numBins number of bins
  */
-Void TEncBinCABACCounter::encodeBinsEP( UInt binValues, Int numBins )
+Void TEncBinCABACCounter::encodeBinsEP( UInt /*binValues*/, Int numBins )
 {
   m_uiBinsCoded += numBins & -m_binCountIncrement;
   m_fracBits += 32768 * numBins;

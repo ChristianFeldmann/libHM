@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -39,7 +39,7 @@
 #include <vector>
 #include <cstring>
 
-#include "TypeDef.h"
+#include "CommonDef.h"
 #include "libmd5/MD5.h"
 
 //! \ingroup TLibCommon
@@ -68,9 +68,9 @@ public:
     FILM_GRAIN_CHARACTERISTICS           = 19,
     POST_FILTER_HINT                     = 22,
     TONE_MAPPING_INFO                    = 23,
-    KNEE_FUNCTION_INFO                   = 24,
     FRAME_PACKING                        = 45,
     DISPLAY_ORIENTATION                  = 47,
+    GREEN_METADATA                       = 56,
     SOP_DESCRIPTION                      = 128,
     ACTIVE_PARAMETER_SETS                = 129,
     DECODING_UNIT_INFO                   = 130,
@@ -83,18 +83,21 @@ public:
     MASTERING_DISPLAY_COLOUR_VOLUME      = 137,
     SEGM_RECT_FRAME_PACKING              = 138,
     TEMP_MOTION_CONSTRAINED_TILE_SETS    = 139,
-    CHROMA_SAMPLING_FILTER_HINT          = 140
+    CHROMA_RESAMPLING_FILTER_HINT        = 140,
+    KNEE_FUNCTION_INFO                   = 141,
+    COLOUR_REMAPPING_INFO                = 142,
+    ALTERNATIVE_TRANSFER_CHARACTERISTICS = 147,
   };
 
   SEI() {}
   virtual ~SEI() {}
 
-  static const Char *getSEIMessageString(SEI::PayloadType payloadType);
+  static const TChar *getSEIMessageString(SEI::PayloadType payloadType);
 
   virtual PayloadType payloadType() const = 0;
 };
 
-static const UInt ISO_IEC_11578_LEN=16; // NOTE: RExt - new definition
+static const UInt ISO_IEC_11578_LEN=16;
 
 class SEIuserDataUnregistered : public SEI
 {
@@ -123,15 +126,9 @@ public:
   SEIDecodedPictureHash() {}
   virtual ~SEIDecodedPictureHash() {}
 
-  enum Method
-  {
-    MD5,
-    CRC,
-    CHECKSUM,
-    RESERVED,
-  } method;
+  HashType method;
 
-  TComDigest m_digest;
+  TComPictureHash m_pictureHash;
 };
 
 class SEIActiveParameterSets : public SEI
@@ -158,6 +155,7 @@ class SEIBufferingPeriod : public SEI
 {
 public:
   PayloadType payloadType() const { return BUFFERING_PERIOD; }
+  void copyTo (SEIBufferingPeriod& target);
 
   SEIBufferingPeriod()
   : m_bpSeqParameterSetId (0)
@@ -187,25 +185,16 @@ class SEIPictureTiming : public SEI
 {
 public:
   PayloadType payloadType() const { return PICTURE_TIMING; }
+  void copyTo (SEIPictureTiming& target);
 
   SEIPictureTiming()
   : m_picStruct               (0)
   , m_sourceScanType          (0)
   , m_duplicateFlag           (false)
   , m_picDpbOutputDuDelay     (0)
-  , m_numNalusInDuMinus1      (NULL)
-  , m_duCpbRemovalDelayMinus1 (NULL)
   {}
   virtual ~SEIPictureTiming()
   {
-    if( m_numNalusInDuMinus1 != NULL )
-    {
-      delete m_numNalusInDuMinus1;
-    }
-    if( m_duCpbRemovalDelayMinus1  != NULL )
-    {
-      delete m_duCpbRemovalDelayMinus1;
-    }
   }
 
   UInt  m_picStruct;
@@ -218,8 +207,8 @@ public:
   UInt  m_numDecodingUnitsMinus1;
   Bool  m_duCommonCpbRemovalDelayFlag;
   UInt  m_duCommonCpbRemovalDelayMinus1;
-  UInt* m_numNalusInDuMinus1;
-  UInt* m_duCpbRemovalDelayMinus1;
+  std::vector<UInt> m_numNalusInDuMinus1;
+  std::vector<UInt> m_duCpbRemovalDelayMinus1;
 };
 
 class SEIDecodingUnitInfo : public SEI
@@ -398,7 +387,7 @@ public:
   Int    m_cameraIsoSpeedValue;
   Int    m_exposureIndexIdc;
   Int    m_exposureIndexValue;
-  Int    m_exposureCompensationValueSignFlag;
+  Bool   m_exposureCompensationValueSignFlag;
   Int    m_exposureCompensationValueNumerator;
   Int    m_exposureCompensationValueDenomIdc;
   Int    m_refScreenLuminanceWhite;
@@ -418,7 +407,6 @@ public:
   Int   m_kneeId;
   Bool  m_kneeCancelFlag;
   Bool  m_kneePersistenceFlag;
-  Bool  m_kneeMappingFlag;
   Int   m_kneeInputDrange;
   Int   m_kneeInputDispLuminance;
   Int   m_kneeOutputDrange;
@@ -428,43 +416,62 @@ public:
   std::vector<Int> m_kneeOutputKneePoint;
 };
 
-class SEIChromaSamplingFilterHint : public SEI
+class SEIColourRemappingInfo : public SEI
 {
 public:
-  PayloadType payloadType() const {return CHROMA_SAMPLING_FILTER_HINT;}
-  SEIChromaSamplingFilterHint() {}
-  virtual ~SEIChromaSamplingFilterHint() {
-    if(m_verChromaFilterIdc == 1)
+
+  struct CRIlut
+  {
+    Int codedValue;
+    Int targetValue;
+    bool operator < (const CRIlut& a) const
     {
-      for(Int i = 0; i < m_numVerticalFilters; i ++)
-      {
-        free(m_verFilterCoeff[i]);
-      }
-      free(m_verFilterCoeff);
-      free(m_verTapLengthMinus1);
+      return codedValue < a.codedValue;
     }
-    if(m_horChromaFilterIdc == 1)
-    {
-      for(Int i = 0; i < m_numHorizontalFilters; i ++)
-      {
-        free(m_horFilterCoeff[i]);
-      }
-      free(m_horFilterCoeff);
-      free(m_horTapLengthMinus1);
-    }
+  };
+
+  PayloadType payloadType() const { return COLOUR_REMAPPING_INFO; }
+  SEIColourRemappingInfo() {}
+  ~SEIColourRemappingInfo() {}
+
+  Void copyFrom( const SEIColourRemappingInfo &seiCriInput)
+  {
+    (*this) = seiCriInput;
   }
 
-  Int   m_verChromaFilterIdc;
-  Int   m_horChromaFilterIdc;
-  Bool  m_verFilteringProcessFlag;
-  Int   m_targetFormatIdc;
-  Bool  m_perfectReconstructionFlag;
-  Int   m_numVerticalFilters;
-  Int*  m_verTapLengthMinus1;
-  Int** m_verFilterCoeff;
-  Int   m_numHorizontalFilters;
-  Int*  m_horTapLengthMinus1;
-  Int** m_horFilterCoeff;
+  UInt                m_colourRemapId;
+  Bool                m_colourRemapCancelFlag;
+  Bool                m_colourRemapPersistenceFlag;
+  Bool                m_colourRemapVideoSignalInfoPresentFlag;
+  Bool                m_colourRemapFullRangeFlag;
+  Int                 m_colourRemapPrimaries;
+  Int                 m_colourRemapTransferFunction;
+  Int                 m_colourRemapMatrixCoefficients;
+  Int                 m_colourRemapInputBitDepth;
+  Int                 m_colourRemapBitDepth;
+  Int                 m_preLutNumValMinus1[3];
+  std::vector<CRIlut> m_preLut[3];
+  Bool                m_colourRemapMatrixPresentFlag;
+  Int                 m_log2MatrixDenom;
+  Int                 m_colourRemapCoeffs[3][3];
+  Int                 m_postLutNumValMinus1[3];
+  std::vector<CRIlut> m_postLut[3];
+};
+
+class SEIChromaResamplingFilterHint : public SEI
+{
+public:
+  PayloadType payloadType() const {return CHROMA_RESAMPLING_FILTER_HINT;}
+  SEIChromaResamplingFilterHint() {}
+  virtual ~SEIChromaResamplingFilterHint() {}
+
+  Int                            m_verChromaFilterIdc;
+  Int                            m_horChromaFilterIdc;
+  Bool                           m_verFilteringFieldProcessingFlag;
+  Int                            m_targetFormatIdc;
+  Bool                           m_perfectReconstructionFlag;
+  std::vector<std::vector<Int> > m_verFilterCoeff;
+  std::vector<std::vector<Int> > m_horFilterCoeff;
 };
 
 class SEIMasteringDisplayColourVolume : public SEI
@@ -494,12 +501,10 @@ public:
   PayloadType payloadType() const { return SCALABLE_NESTING; }
 
   SEIScalableNesting() {}
+
   virtual ~SEIScalableNesting()
   {
-    if (!m_callerOwnsSEIs)
-    {
-      deleteSEIs(m_nestedSEIs);
-    }
+    deleteSEIs(m_nestedSEIs);
   }
 
   Bool  m_bitStreamSubsetFlag;
@@ -514,7 +519,6 @@ public:
   UInt  m_nestingNumLayersMinus1;                    //value valid if m_nestingOpFlag == 0 and m_allLayersFlag == 0
   UChar m_nestingLayerId[MAX_NESTING_NUM_LAYER];     //value valid if m_nestingOpFlag == 0 and m_allLayersFlag == 0. This can e.g. be a static array of 64 UChar values
 
-  Bool  m_callerOwnsSEIs;
   SEIMessages m_nestedSEIs;
 };
 
@@ -585,6 +589,32 @@ public:
         TileSetData &tileSetData (const Int index)       { return m_tile_set_data[index]; }
   const TileSetData &tileSetData (const Int index) const { return m_tile_set_data[index]; }
 
+};
+
+class SEIAlternativeTransferCharacteristics : public SEI
+{
+public:
+  PayloadType payloadType() const { return ALTERNATIVE_TRANSFER_CHARACTERISTICS; }
+
+  SEIAlternativeTransferCharacteristics() : m_preferredTransferCharacteristics(18)
+  { }
+
+  virtual ~SEIAlternativeTransferCharacteristics() {}
+
+  UInt m_preferredTransferCharacteristics;
+};
+
+class SEIGreenMetadataInfo : public SEI
+{
+public:
+    PayloadType payloadType() const { return GREEN_METADATA; }
+    SEIGreenMetadataInfo() {}
+    
+    virtual ~SEIGreenMetadataInfo() {}
+    
+    UInt m_greenMetadataType;
+    UInt m_xsdMetricType;
+    UInt m_xsdMetricValue;
 };
 
 #endif

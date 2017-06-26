@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -82,11 +82,12 @@ protected:
   Void  xWriteSvlc            ( Int  iCode   );
   Void  xWriteFlag            ( UInt uiCode );
 #if ENC_DEC_TRACE
-  Void  xWriteCodeTr          ( UInt value, UInt  length, const Char *pSymbolName);
-  Void  xWriteUvlcTr          ( UInt value,               const Char *pSymbolName);
-  Void  xWriteSvlcTr          ( Int  value,               const Char *pSymbolName);
-  Void  xWriteFlagTr          ( UInt value,               const Char *pSymbolName);
+  Void  xWriteCodeTr          ( UInt value, UInt  length, const TChar *pSymbolName);
+  Void  xWriteUvlcTr          ( UInt value,               const TChar *pSymbolName);
+  Void  xWriteSvlcTr          ( Int  value,               const TChar *pSymbolName);
+  Void  xWriteFlagTr          ( UInt value,               const TChar *pSymbolName);
 #endif
+  Void xWriteRbspTrailingBits();
 
   UInt  xConvertToUInt        ( Int iValue ) {  return ( iValue <= 0) ? -iValue<<1 : (iValue<<1)-1; }
 };

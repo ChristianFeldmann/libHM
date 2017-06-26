@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2017, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -76,7 +76,9 @@ static Void md5_plane(MD5& md5, const Pel* plane, UInt width, UInt height, UInt 
     /* convert pels into unsigned chars in little endian byte order.
      * NB, for 8bit data, data is truncated to 8bits. */
     for (UInt x = 0; x < width_less_modN; x += N)
+    {
       md5_block<OUTPUT_BITDEPTH_DIV8>(md5, &plane[y*stride + x], N);
+    }
 
     /* mop up any of the remaining line */
     md5_block<OUTPUT_BITDEPTH_DIV8>(md5, &plane[y*stride + width_less_modN], width_modN);
@@ -84,7 +86,7 @@ static Void md5_plane(MD5& md5, const Pel* plane, UInt width, UInt height, UInt 
 }
 
 
-UInt compCRC(Int bitdepth, const Pel* plane, UInt width, UInt height, UInt stride, TComDigest &digest)
+UInt compCRC(Int bitdepth, const Pel* plane, UInt width, UInt height, UInt stride, TComPictureHash &digest)
 {
   UInt crcMsb;
   UInt bitVal;
@@ -124,19 +126,19 @@ UInt compCRC(Int bitdepth, const Pel* plane, UInt width, UInt height, UInt strid
   return 2;
 }
 
-UInt calcCRC(const TComPicYuv& pic, TComDigest &digest)
+UInt calcCRC(const TComPicYuv& pic, TComPictureHash &digest, const BitDepths &bitDepths)
 {
   UInt digestLen=0;
   digest.hash.clear();
   for(Int chan=0; chan<pic.getNumberValidComponents(); chan++)
   {
     const ComponentID compID=ComponentID(chan);
-    digestLen=compCRC(g_bitDepth[toChannelType(compID)], pic.getAddr(compID), pic.getWidth(compID), pic.getHeight(compID), pic.getStride(compID), digest);
+    digestLen=compCRC(bitDepths.recon[toChannelType(compID)], pic.getAddr(compID), pic.getWidth(compID), pic.getHeight(compID), pic.getStride(compID), digest);
   }
   return digestLen;
 }
 
-UInt compChecksum(Int bitdepth, const Pel* plane, UInt width, UInt height, UInt stride, TComDigest &digest)
+UInt compChecksum(Int bitdepth, const Pel* plane, UInt width, UInt height, UInt stride, TComPictureHash &digest, const BitDepths &/*bitDepths*/)
 {
   UInt checksum = 0;
   UChar xor_mask;
@@ -162,14 +164,14 @@ UInt compChecksum(Int bitdepth, const Pel* plane, UInt width, UInt height, UInt 
   return 4;
 }
 
-UInt calcChecksum(const TComPicYuv& pic, TComDigest &digest)
+UInt calcChecksum(const TComPicYuv& pic, TComPictureHash &digest, const BitDepths &bitDepths)
 {
   UInt digestLen=0;
   digest.hash.clear();
   for(Int chan=0; chan<pic.getNumberValidComponents(); chan++)
   {
     const ComponentID compID=ComponentID(chan);
-    digestLen=compChecksum(g_bitDepth[toChannelType(compID)], pic.getAddr(compID), pic.getWidth(compID), pic.getHeight(compID), pic.getStride(compID), digest);
+    digestLen=compChecksum(bitDepths.recon[toChannelType(compID)], pic.getAddr(compID), pic.getWidth(compID), pic.getHeight(compID), pic.getStride(compID), digest, bitDepths);
   }
   return digestLen;
 }
@@ -180,7 +182,7 @@ UInt calcChecksum(const TComPicYuv& pic, TComDigest &digest)
  * using sufficient bytes to represent the picture bitdepth.  Eg, 10bit data
  * uses little-endian two byte words; 8bit data uses single byte words.
  */
-UInt calcMD5(const TComPicYuv& pic, TComDigest &digest)
+UInt calcMD5(const TComPicYuv& pic, TComPictureHash &digest, const BitDepths &bitDepths)
 {
   /* choose an md5_plane packing function based on the system bitdepth */
   typedef Void (*MD5PlaneFunc)(MD5&, const Pel*, UInt, UInt, UInt);
@@ -192,7 +194,7 @@ UInt calcMD5(const TComPicYuv& pic, TComDigest &digest)
   for(Int chan=0; chan<pic.getNumberValidComponents(); chan++)
   {
     const ComponentID compID=ComponentID(chan);
-    md5_plane_func = g_bitDepth[toChannelType(compID)] <= 8 ? (MD5PlaneFunc)md5_plane<1> : (MD5PlaneFunc)md5_plane<2>;
+    md5_plane_func = bitDepths.recon[toChannelType(compID)] <= 8 ? (MD5PlaneFunc)md5_plane<1> : (MD5PlaneFunc)md5_plane<2>;
     UChar tmp_digest[MD5_DIGEST_STRING_LENGTH];
     md5_plane_func(md5[compID], pic.getAddr(compID), pic.getWidth(compID), pic.getHeight(compID), pic.getStride(compID));
     md5[compID].finalize(tmp_digest);
@@ -204,14 +206,17 @@ UInt calcMD5(const TComPicYuv& pic, TComDigest &digest)
   return 16;
 }
 
-std::string digestToString(const TComDigest &digest, Int numChar)
+std::string hashToString(const TComPictureHash &digest, Int numChar)
 {
-  static const Char* hex = "0123456789abcdef";
+  static const TChar* hex = "0123456789abcdef";
   std::string result;
 
   for(Int pos=0; pos<Int(digest.hash.size()); pos++)
   {
-    if ((pos % numChar) == 0 && pos!=0 ) result += ',';
+    if ((pos % numChar) == 0 && pos!=0 )
+    {
+      result += ',';
+    }
     result += hex[digest.hash[pos] >> 4];
     result += hex[digest.hash[pos] & 0xf];
   }
