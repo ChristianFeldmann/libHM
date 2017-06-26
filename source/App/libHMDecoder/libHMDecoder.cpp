@@ -6,11 +6,6 @@
 #include "TLibDecoder/TDecTop.h"
 #include "TLibDecoder/NALread.h"
 
-// The HEVC reference software uses global variables for some things.
-// This is not a good idea for a shared library so we have to work around this by saving/setting these variables
-// in case multiple decoders are used at the same time.
-bool g_md5_mismatch = false; ///< top level flag that indicates if there has been a decoding mismatch
-
 // TODO: (isNaluWithinTargetDecLayerIdSet) The target layer file is not supported (yet)
 bool isNaluWithinTargetDecLayerIdSet(InputNALUnit* nalu) { return true; }
 
@@ -30,8 +25,6 @@ public:
     lastNALTemporalID = 0;
     flushOutput = false;
     sheduleFlushing = false;
-
-    md5_mismatch = false;
 
     // Initialize the decoder
     decTop.create();
@@ -151,9 +144,6 @@ extern "C" {
     }
     else
     {
-      // Restore the global variable
-      g_md5_mismatch = d->md5_mismatch;
-
       bNewPicture = d->decTop.decode(nalu, d->iSkipFrame, d->iPOCLastDisplay);
       if (bNewPicture)
       {
@@ -161,9 +151,6 @@ extern "C" {
         // picture. There might also be pictures to be output/read. After reading these pictures, this function
         // must be called again with the same NAL unit.
       }
-
-      // Save the global variable
-      d->md5_mismatch = g_md5_mismatch;
     }
 
     // Filter the picture if decoding is complete
@@ -437,7 +424,6 @@ extern "C" {
     return LIBHMDEC_CHROMA_UNKNOWN;
   }
 
-
   HM_DEC_API int libHMDEC_get_internal_bit_depth(libHMDec_picture *pic, libHMDec_ColorComponent c)
   {
     TComPic* pcPic = (TComPic*)pic;
@@ -454,7 +440,106 @@ extern "C" {
 
   // --------- internals --------
 
-  void addValuesForPUs(hmDecoderWrapper *d, TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, libHMDec_info_type type)
+  typedef enum
+  {
+    LIBHMDEC_CTU_SLICE_INDEX = 0,     ///< The slice index of the CTU
+    LIBHMDEC_CU_PREDICTION_MODE,      ///< Does the CU use inter (0) or intra(1) prediction?
+    LIBHMDEC_CU_TRQ_BYPASS,           ///< If transquant bypass is enabled, is the transquant bypass flag set?
+    LIBHMDEC_CU_SKIP_FLAG,            ///< Is the CU skip flag set?
+    LIBHMDEC_CU_PART_MODE,            ///< What is the partition mode of the CU into PUs? 0: SIZE_2Nx2N, 1: SIZE_2NxN, 2: SIZE_Nx2N, 3: SIZE_NxN, 4: SIZE_2NxnU, 5: SIZE_2NxnD, 6: SIZE_nLx2N, 7: SIZE_nRx2N
+    LIBHMDEC_CU_INTRA_MODE_LUMA,      ///< If the CU uses intra prediction, get the intra mode for luma
+    LIBHMDEC_CU_INTRA_MODE_CHROMA,    ///< If the CU uses intra prediction, get the intra mode for chroma
+    LIBHMDEC_CU_ROOT_CBF,             ///< In the CU is inter, get the root coded block flag of the TU
+    LIBHMDEC_PU_MERGE_FLAG,           ///< If the PU is inter, is the merge flag set?
+    LIBHMDEC_PU_MERGE_INDEX,          ///< If the PU is merge, what is the merge index?
+    LIBHMDEC_PU_UNI_BI_PREDICTION,    ///< Does the PU use uni- (0) or biprediction (1)? Also called interDir.
+    LIBHMDEC_PU_REFERENCE_POC_0,      ///< If the PU uses inter prediction, what is the reference POC of list 0?
+    LIBHMDEC_PU_MV_0,                 ///< If the PU uses inter prediction, what is the motion vector of list 0?
+    LIBHMDEC_PU_REFERENCE_POC_1,      ///< If the PU uses bi-directions inter prediction, what is the reference POC of list 1?
+    LIBHMDEC_PU_MV_1,                 ///< If the PU uses bi-directions inter prediction, what is the motion vector of list 1?
+    LIBHMDEC_TU_CBF_Y,                ///< Get the coded block flag for luma
+    LIBHMDEC_TU_CBF_CB,               ///< Get the coded block flag for chroma U
+    LIBHMDEC_TU_CBF_CR,               ///< Get the coded block flag for chroma V
+    LIBHMDEC_TU_COEFF_TR_SKIP_Y,      ///< Get the transform skip flag for luma
+    LIBHMDEC_TU_COEFF_TR_SKIP_Cb,     ///< Get the transform skip flag for chroma U
+    LIBHMDEC_TU_COEFF_TR_SKIP_Cr,     ///< Get the transform skip flag for chroma V
+    LIBHMDEC_TU_COEFF_ENERGY_Y,       ///< If the root CBF of the TU is not 0, get the coefficient energy of the TU for luma
+    LIBHMDEC_TU_COEFF_ENERGY_CB,      ///< If the root CBF of the TU is not 0, get the coefficient energy of the TU for chroma U
+    LIBHMDEC_TU_COEFF_ENERGY_CR,      ///< If the root CBF of the TU is not 0, get the coefficient energy of the TU for chroma V
+    LIBHMDEC_NUM_TYPES
+  } libHMDec_info_types_idx;
+
+  // These types are supported here
+  HM_DEC_API unsigned int libHMDEC_get_internal_type_number(libHMDec_context *decCtx)
+  {
+    return LIBHMDEC_NUM_TYPES;
+  }
+  
+  HM_DEC_API char *libHMDEC_get_internal_type_name(libHMDec_context *decCtx, unsigned int idx)
+  {
+    switch (idx)
+    {
+    case LIBHMDEC_CTU_SLICE_INDEX:      return "CTU Slice Index"; break;
+    case LIBHMDEC_CU_PREDICTION_MODE:   return "CU Pred Mode"; break;
+    case LIBHMDEC_CU_TRQ_BYPASS:        return "CU TrQuant Bypass"; break;
+    case LIBHMDEC_CU_SKIP_FLAG:         return "CU Skip"; break;
+    case LIBHMDEC_CU_PART_MODE:         return "CU Part Mode"; break;
+    case LIBHMDEC_CU_INTRA_MODE_LUMA:   return "CU Intra Mode Y"; break;
+    case LIBHMDEC_CU_INTRA_MODE_CHROMA: return "CU Intra Mode C"; break;
+    case LIBHMDEC_CU_ROOT_CBF:          return "CU Root CBF"; break;
+    case LIBHMDEC_PU_MERGE_FLAG:        return "PU Merge"; break;
+    case LIBHMDEC_PU_MERGE_INDEX:       return "PU Merge Idx"; break;
+    case LIBHMDEC_PU_UNI_BI_PREDICTION: return "PU Uni/Bi Pred"; break;
+    case LIBHMDEC_PU_REFERENCE_POC_0:   return "PU Ref POC 0"; break;
+    case LIBHMDEC_PU_MV_0:              return "PU MV 0"; break;
+    case LIBHMDEC_PU_REFERENCE_POC_1:   return "PU Ref POC 1"; break;
+    case LIBHMDEC_PU_MV_1:              return "PU MV 1"; break;
+    case LIBHMDEC_TU_CBF_Y:             return "TU CBF Y"; break;
+    case LIBHMDEC_TU_CBF_CB:            return "TU CBF Cb"; break;
+    case LIBHMDEC_TU_CBF_CR:            return "TU CBF Cr"; break;
+    case LIBHMDEC_TU_COEFF_TR_SKIP_Y:   return "TU TrSkip Y"; break;
+    case LIBHMDEC_TU_COEFF_TR_SKIP_Cb:  return "TU TrSkip Cb"; break;
+    case LIBHMDEC_TU_COEFF_TR_SKIP_Cr:  return "TU TrSkip Cr"; break;
+    case LIBHMDEC_TU_COEFF_ENERGY_Y:    return "TU Coeff Energy Y"; break;
+    case LIBHMDEC_TU_COEFF_ENERGY_CB:   return "TU Coeff Energy Cb"; break;
+    case LIBHMDEC_TU_COEFF_ENERGY_CR:   return "TU Coeff Energy Cr"; break;
+    default: return ""; break;
+    }
+  }
+  
+  HM_DEC_API char *libHMDEC_get_internal_type_description(libHMDec_context *decCtx, unsigned int idx)
+  {
+    switch (idx)
+    {
+    case LIBHMDEC_CTU_SLICE_INDEX:      return "The slice index of the CTU"; break;
+    case LIBHMDEC_CU_PREDICTION_MODE:   return "Does the CU use inter (0) or intra(1) prediction?"; break;
+    case LIBHMDEC_CU_TRQ_BYPASS:        return "If transquant bypass is enabled, is the transquant bypass flag set?"; break;
+    case LIBHMDEC_CU_SKIP_FLAG:         return "Is the CU skip flag set?"; break;
+    case LIBHMDEC_CU_PART_MODE:         return "What is the partition mode of the CU into PUs? 0: SIZE_2Nx2N, 1: SIZE_2NxN, 2: SIZE_Nx2N, 3: SIZE_NxN, 4: SIZE_2NxnU, 5: SIZE_2NxnD, 6: SIZE_nLx2N, 7: SIZE_nRx2N"; break;
+    case LIBHMDEC_CU_INTRA_MODE_LUMA:   return "If the CU uses intra prediction, get the intra mode for luma"; break;
+    case LIBHMDEC_CU_INTRA_MODE_CHROMA: return "If the CU uses intra prediction, get the intra mode for chroma"; break;
+    case LIBHMDEC_CU_ROOT_CBF:          return "In the CU is inter, get the root coded block flag of the TU"; break;
+    case LIBHMDEC_PU_MERGE_FLAG:        return "If the PU is inter, is the merge flag set?"; break;
+    case LIBHMDEC_PU_MERGE_INDEX:       return "If the PU is merge, what is the merge index?"; break;
+    case LIBHMDEC_PU_UNI_BI_PREDICTION: return "Does the PU use uni- (0) or biprediction (1)? Also called interDir."; break;
+    case LIBHMDEC_PU_REFERENCE_POC_0:   return "If the PU uses inter prediction, what is the reference POC of list 0?"; break;
+    case LIBHMDEC_PU_MV_0:              return "If the PU uses inter prediction, what is the motion vector of list 0?"; break;
+    case LIBHMDEC_PU_REFERENCE_POC_1:   return "If the PU uses bi-directions inter prediction, what is the reference POC of list 1?"; break;
+    case LIBHMDEC_PU_MV_1:              return "If the PU uses bi-directions inter prediction, what is the motion vector of list 1?"; break;
+    case LIBHMDEC_TU_CBF_Y:             return "Get the coded block flag for luma"; break;
+    case LIBHMDEC_TU_CBF_CB:            return "Get the coded block flag for chroma U"; break;
+    case LIBHMDEC_TU_CBF_CR:            return "Get the coded block flag for chroma V"; break;
+    case LIBHMDEC_TU_COEFF_TR_SKIP_Y:   return "Get the transform skip flag for luma"; break;
+    case LIBHMDEC_TU_COEFF_TR_SKIP_Cb:  return "Get the transform skip flag for chroma U"; break;
+    case LIBHMDEC_TU_COEFF_TR_SKIP_Cr:  return "Get the transform skip flag for chroma V"; break;
+    case LIBHMDEC_TU_COEFF_ENERGY_Y:    return "If the root CBF of the TU is not 0, get the coefficient energy of the TU for luma"; break;
+    case LIBHMDEC_TU_COEFF_ENERGY_CB:   return "If the root CBF of the TU is not 0, get the coefficient energy of the TU for chroma U"; break;
+    case LIBHMDEC_TU_COEFF_ENERGY_CR:   return "If the root CBF of the TU is not 0, get the coefficient energy of the TU for chroma V"; break;
+    default: return ""; break;
+    }
+  }
+
+  void addValuesForPUs(hmDecoderWrapper *d, TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, unsigned int type)
   {
     PartSize ePartSize = pcCU->getPartitionSize( uiAbsPartIdx );
     UInt uiNumPU = ( ePartSize == SIZE_2Nx2N ? 1 : ( ePartSize == SIZE_NxN ? 4 : 2 ) );
@@ -550,7 +635,7 @@ extern "C" {
     }
   }
 
-  void addValuesForTURecursive(hmDecoderWrapper *d, TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, UInt trDepth, libHMDec_info_type type)
+  void addValuesForTURecursive(hmDecoderWrapper *d, TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, UInt trDepth, unsigned int type)
   {
     UInt trIdx = pcCU->getTransformIdx(uiAbsPartIdx);
     if (trDepth < trIdx)
@@ -605,7 +690,7 @@ extern "C" {
     d->internalsBlockData.push_back(b);
   }
 
-  void addValuesForCURecursively(hmDecoderWrapper *d, TComDataCU* pcLCU, UInt uiAbsPartIdx, UInt uiDepth, libHMDec_info_type type)
+  void addValuesForCURecursively(hmDecoderWrapper *d, TComDataCU* pcLCU, UInt uiAbsPartIdx, UInt uiDepth, unsigned int type)
   {
     TComPic* pcPic = pcLCU->getPic();
     TComSlice * pcSlice = pcLCU->getSlice();
@@ -679,7 +764,7 @@ extern "C" {
       addValuesForTURecursive(d, pcLCU, uiAbsPartIdx, uiDepth, 0, type);
   }
 
-  HM_DEC_API std::vector<libHMDec_BlockValue> *libHMDEC_get_internal_info(libHMDec_context *decCtx, libHMDec_picture *pic, libHMDec_info_type type)
+  HM_DEC_API std::vector<libHMDec_BlockValue> *libHMDEC_get_internal_info(libHMDec_context *decCtx, libHMDec_picture *pic, unsigned int type)
   {
     hmDecoderWrapper *d = (hmDecoderWrapper*)decCtx;
     if (!d)
