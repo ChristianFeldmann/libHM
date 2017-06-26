@@ -554,6 +554,13 @@ extern "C" {
     default: return LIBHMDEC_TYPE_UNKNOWN;
     }
   }
+
+  HM_DEC_API unsigned int libHMDEC_get_internal_type_vector_scaling(unsigned int idx)
+  {
+    if (idx == LIBHMDEC_PU_MV_0 || idx == LIBHMDEC_PU_MV_1)
+      return 4;
+    return 1;
+  }
   
   HM_DEC_API char *libHMDEC_get_internal_type_description(unsigned int idx)
   {

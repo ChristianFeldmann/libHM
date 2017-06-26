@@ -292,6 +292,14 @@ HM_DEC_API libHMDec_InternalsType libHMDEC_get_internal_type(unsigned int idx);
 */
 HM_DEC_API unsigned int libHMDEC_get_internal_type_max(unsigned int idx);
 
+/** If the type is LIBHMDEC_TYPE_VECTOR, this function will provide the internal scaling of the vector values.
+  * For example: For quarter precision motion vectors this value is 4. If there is no scaling, this values is 1.
+* \param decCtx The decoder context that was created with libHMDec_new_decoder
+* \param idx The index of the internals type (can range from 0 to the value provided by libHMDEC_get_internal_type_number)
+* \return The scaling of the value.
+*/
+HM_DEC_API unsigned int libHMDEC_get_internal_type_vector_scaling(unsigned int idx);
+
 /** Get a description of ther internals type with the given index.
 * \param decCtx The decoder context that was created with libHMDec_new_decoder
 * \param idx The index of the internals type (can range from 0 to the value provided by libHMDEC_get_internal_type_number)
