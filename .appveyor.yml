@@ -1,0 +1,6 @@
+platform: x64
+configuration: Release
+
+build:
+  parallel: true                  # enable MSBuild parallel builds
+  project: build\HM_vc10.sln      # path to Visual Studio solution or project
