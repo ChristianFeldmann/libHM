@@ -2,9 +2,9 @@ language: cpp
 matrix:
   include:
     -os: linux
-     env: DEPLOY_FILE=lib/liblibHMDecoderStatic.so
+     env: DEPLOY_FILE="lib/liblibHMDecoderStatic.so"
     -os: osx
-     env: DEPLOY_FILE=lib/liblibHMDecoderStatic.dylib
+     env: DEPLOY_FILE="lib/liblibHMDecoderStatic.dylib"
 dist:
 - trusty
 compiler:
