@@ -1,12 +1,11 @@
 language: cpp
 matrix:
   include:
-    -os: linux
-     env: DEPLOY_FILE="lib/liblibHMDecoderStatic.so"
-    -os: osx
-     env: DEPLOY_FILE="lib/liblibHMDecoderStatic.dylib"
-dist:
-- trusty
+    - os: linux
+      dist: trusty
+      env: DEPLOY_FILE=lib/liblibHMDecoderStatic.so
+    - os: osx
+      env: DEPLOY_FILE=lib/liblibHMDecoderStatic.dylib
 compiler:
 - gcc
 script:
@@ -14,8 +13,6 @@ script:
 - make
 - cd ..
 - cd ..
-
-before_deploy:
 
 deploy:
   skip_cleanup: true
