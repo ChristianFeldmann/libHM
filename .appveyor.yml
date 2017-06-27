@@ -1,5 +1,6 @@
 platform: x64
 configuration: Release
+image: Visual Studio 2017
 
 build:
   parallel: true                  # enable MSBuild parallel builds

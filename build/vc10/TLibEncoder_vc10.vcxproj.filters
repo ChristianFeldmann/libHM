@@ -20,9 +20,6 @@
     <ClCompile Include="..\..\source\Lib\TLibEncoder\SyntaxElementWriter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\source\Lib\TLibEncoder\TEncAnalyze.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\source\Lib\TLibEncoder\TEncBinCoderCABAC.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

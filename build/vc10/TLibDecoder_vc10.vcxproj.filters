@@ -47,6 +47,9 @@
     <ClCompile Include="..\..\source\Lib\TLibDecoder\TDecTop.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\source\Lib\TLibDecoder\TDecConformance.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\source\Lib\TLibDecoder\AnnexBread.h">
@@ -86,6 +89,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\source\Lib\TLibDecoder\TDecTop.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\source\Lib\TLibDecoder\TDecConformance.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
