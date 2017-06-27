@@ -59,7 +59,7 @@
  *     data = NULL;
  *     legth = -1;
  *   }
- *   
+ *
  *   // Next, check the output
  *   if (check_output)
  *   {
@@ -110,8 +110,8 @@ typedef enum
  */
 HM_DEC_API const char *libHMDec_get_version(void);
 
-/** This private structure is the decoder. 
- * You can save a pointer to it and use all the following functions to access it 
+/** This private structure is the decoder.
+ * You can save a pointer to it and use all the following functions to access it
  * but it is not further defined as part of the public API.
  */
 typedef void libHMDec_context;
@@ -145,7 +145,7 @@ HM_DEC_API void libHMDec_set_max_temporal_layer(libHMDec_context* decCtx, int ma
  * This will perform decoding of the NAL unit. It must be exactly one NAL unit and the data array must
  * not be empty.
  * \param decCtx The decoder context that was created with libHMDec_new_decoder
- * \param data8 The raw byte data from the NAL unit starting with the first byte of the NAL unit header. 
+ * \param data8 The raw byte data from the NAL unit starting with the first byte of the NAL unit header.
  * \param length The length in number of bytes in the data
  * \param eof Is this NAL the last one in the bitstream?
  * \param bNewPicture This bool is set by the function if the NAL unit must be pushed to the decoder again after reading frames.
@@ -155,7 +155,7 @@ HM_DEC_API void libHMDec_set_max_temporal_layer(libHMDec_context* decCtx, int ma
 HM_DEC_API libHMDec_error libHMDec_push_nal_unit(libHMDec_context *decCtx, const void* data8, int length, bool eof, bool &bNewPicture, bool &checkOutputPictures);
 
 /** This private structure represents a picture.
- * You can save a pointer to it and use all the following functions to access it 
+ * You can save a pointer to it and use all the following functions to access it
  * but it is not further defined as part of the public API.
  */
 typedef void libHMDec_picture;
@@ -206,7 +206,7 @@ HM_DEC_API int libHMDEC_get_picture_height(libHMDec_picture *pic, libHMDec_Color
 HM_DEC_API int libHMDEC_get_picture_stride(libHMDec_picture *pic, libHMDec_ColorComponent c);
 
 /** Get access to the raw image plane.
- * The pointer will point to the top left pixel position. You can read "width" pixels from it. 
+ * The pointer will point to the top left pixel position. You can read "width" pixels from it.
  * Add "stride" to the pointer to advance to the corresponding pixel in the next line.
  * \param pic The libHMDec_picture that was obtained using libHMDec_get_picture.
  * \param c The color component to access. Note that the width and stride may be different for the chroma components.
@@ -264,7 +264,7 @@ HM_DEC_API unsigned int libHMDEC_get_internal_type_number();
   * \param idx The index of the internals type (can range from 0 to the value provided by libHMDEC_get_internal_type_number)
   * \return The name of the type
   */
-HM_DEC_API char *libHMDEC_get_internal_type_name(unsigned int idx);
+HM_DEC_API const char *libHMDEC_get_internal_type_name(unsigned int idx);
 
 /** Each type can provide different types of data. These are the supported types.
 */
@@ -305,7 +305,7 @@ HM_DEC_API unsigned int libHMDEC_get_internal_type_vector_scaling(unsigned int i
 * \param idx The index of the internals type (can range from 0 to the value provided by libHMDEC_get_internal_type_number)
 * \return A desctiption of the interlas type
 */
-HM_DEC_API char *libHMDEC_get_internal_type_description(unsigned int idx);
+HM_DEC_API const char *libHMDEC_get_internal_type_description(unsigned int idx);
 
 /** Get the internal coding information from the picture.
  * The pointer to the returned vector is always valid. However, the vector is changed if libHMDEC_get_internal_info
@@ -332,4 +332,3 @@ HM_DEC_API libHMDec_error libHMDEC_clear_internal_info(libHMDec_context *decCtx)
 //! \}
 
 #endif // !LIBHMDECODER_H
-

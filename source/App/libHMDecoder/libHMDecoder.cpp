@@ -122,7 +122,7 @@ extern "C" {
       copyStart = 3;
     else if (data[0] == 0 && data[1] == 0 && data[2] == 0 && data[3] == 1)
       copyStart = 4;
-	
+
 	// Create a new NAL unit and put the payload into the nal units buffer
 	InputNALUnit nalu;
 	TComInputBitstream &bitstream = nalu.getBitstream();
@@ -191,7 +191,7 @@ extern "C" {
       checkOutputPictures = true;
 
       d->lastNALTemporalID = nalu.m_temporalId;
-	  
+
       // This is what xWriteOutput does before iterating over the pictures
       const TComSPS* activeSPS = &(d->pcListPic->front()->getPicSym()->getSPS());
       unsigned int maxNrSublayers = activeSPS->getMaxTLayers();
@@ -474,8 +474,8 @@ extern "C" {
   {
     return LIBHMDEC_NUM_TYPES;
   }
-  
-  HM_DEC_API char *libHMDEC_get_internal_type_name(unsigned int idx)
+
+  HM_DEC_API const char *libHMDEC_get_internal_type_name(unsigned int idx)
   {
     switch (idx)
     {
@@ -491,7 +491,7 @@ extern "C" {
     case LIBHMDEC_PU_MERGE_INDEX:       return "PU Merge Idx";
     case LIBHMDEC_PU_UNI_BI_PREDICTION: return "PU Uni/Bi Pred";
     case LIBHMDEC_PU_REFERENCE_POC_0:   return "PU Ref POC 0";
-    case LIBHMDEC_PU_MV_0:              return "PU MV 0"; 
+    case LIBHMDEC_PU_MV_0:              return "PU MV 0";
     case LIBHMDEC_PU_REFERENCE_POC_1:   return "PU Ref POC 1";
     case LIBHMDEC_PU_MV_1:              return "PU MV 1";
     case LIBHMDEC_TU_CBF_Y:             return "TU CBF Y";
@@ -561,8 +561,8 @@ extern "C" {
       return 4;
     return 1;
   }
-  
-  HM_DEC_API char *libHMDEC_get_internal_type_description(unsigned int idx)
+
+  HM_DEC_API const char *libHMDEC_get_internal_type_description(unsigned int idx)
   {
     switch (idx)
     {
@@ -727,9 +727,9 @@ extern "C" {
     else if (type == LIBHMDEC_TU_COEFF_ENERGY_Y || type == LIBHMDEC_TU_COEFF_ENERGY_CB || type == LIBHMDEC_TU_COEFF_ENERGY_CB)
     {
       ComponentID c = (type == LIBHMDEC_TU_COEFF_ENERGY_Y) ? COMPONENT_Y : (type == LIBHMDEC_TU_COEFF_ENERGY_CB) ? COMPONENT_Cb : COMPONENT_Cr;
-      
+
       const int nrCoeff = (type == LIBHMDEC_TU_COEFF_ENERGY_Y) ? b.w * b.h : b.w/2 * b.h/2;
-      
+
       TCoeff* pcCoef = pcCU->getCoeff(c);
       int64_t e = 0;
       for (int i = 0; i < nrCoeff; i++)
@@ -747,9 +747,9 @@ extern "C" {
 
   void addValuesForCURecursively(hmDecoderWrapper *d, TComDataCU* pcLCU, UInt uiAbsPartIdx, UInt uiDepth, unsigned int type)
   {
-    TComPic* pcPic = pcLCU->getPic();
     TComSlice * pcSlice = pcLCU->getSlice();
     const TComSPS &sps = *(pcSlice->getSPS());
+    const TComPPS &pps = *(pcSlice->getPPS());
 
     Bool bBoundary = false;
     UInt uiLPelX = pcLCU->getCUPelX() + g_auiRasterToPelX[g_auiZscanToRaster[uiAbsPartIdx]];
@@ -785,7 +785,7 @@ extern "C" {
     // We reached the CU
     if (type == LIBHMDEC_CU_PREDICTION_MODE || type == LIBHMDEC_CU_TRQ_BYPASS || type == LIBHMDEC_CU_SKIP_FLAG || type == LIBHMDEC_CU_PART_MODE || type == LIBHMDEC_CU_INTRA_MODE_LUMA || type == LIBHMDEC_CU_INTRA_MODE_CHROMA || type == LIBHMDEC_CU_ROOT_CBF)
     {
-      if ((type == LIBHMDEC_CU_TRQ_BYPASS && !pcLCU->getSlice()->getPPS()->getTransquantBypassEnabledFlag()) ||
+      if ((type == LIBHMDEC_CU_TRQ_BYPASS && !pps.getTransquantBypassEnabledFlag()) ||
           (type == LIBHMDEC_CU_INTRA_MODE_LUMA && !pcLCU->isIntra(uiAbsPartIdx)) ||
           (type == LIBHMDEC_CU_INTRA_MODE_CHROMA && !pcLCU->isIntra(uiAbsPartIdx)) ||
           (type == LIBHMDEC_CU_ROOT_CBF && pcLCU->isInter(uiAbsPartIdx)))
@@ -794,8 +794,8 @@ extern "C" {
       libHMDec_BlockValue b;
       b.x = uiLPelX;
       b.y = uiTPelY;
-      b.w = (pcLCU->getSlice()->getSPS()->getMaxCUWidth() >>uiDepth);
-      b.h = (pcLCU->getSlice()->getSPS()->getMaxCUHeight() >>uiDepth);
+      b.w = (sps.getMaxCUWidth() >>uiDepth);
+      b.h = (sps.getMaxCUHeight() >>uiDepth);
       if (type == LIBHMDEC_CU_PREDICTION_MODE)
         b.value = int(pcLCU->getPredictionMode(uiAbsPartIdx));
       else if (type == LIBHMDEC_CU_TRQ_BYPASS)
@@ -836,7 +836,7 @@ extern "C" {
     TComPicSym *s = pcPic->getPicSym();
     if (s == NULL)
       return NULL;
-    
+
     int nrCU = s->getNumberOfCtusInFrame();
     for (int i = 0; i < nrCU; i++)
     {
