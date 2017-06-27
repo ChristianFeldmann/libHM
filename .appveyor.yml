@@ -5,3 +5,6 @@ image: Visual Studio 2017
 build:
   parallel: true                  # enable MSBuild parallel builds
   project: build\HM_vc10.sln      # path to Visual Studio solution or project
+
+artifacts:
+  - path: bin\vc10\x64\Release\libHMDecoder.dll
