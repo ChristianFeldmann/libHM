@@ -1,7 +1,10 @@
 language: cpp
-os:
-- linux
-- osx
+matrix:
+  include:
+    -os: linux
+	 env: DEPLOY_FILE=lib/liblibHMDecoderStatic.so
+	-os: osx
+	 env: DEPLOY_FILE=lib/liblibHMDecoderStatic.dylib
 dist:
 - trusty
 compiler:
@@ -19,7 +22,7 @@ deploy:
   provider: releases
   api_key:
     secure: Vvkraps4w/N/DCTTCEdOypYMYb7hvfGpaYSBNxxC2Few8XL0lrUGPxr/hWkQEMug0ia8Gh97tI5Fa3y+Fu16pYpivmrQp9avkaQqV7JA4/3Js1LL/qvltlgbzys6pZ/6IncWxPwLV5evCrup8rHUX5yK9qnbF8jICzzsEBeAL+KCI1uDGLgCHwlaVqKkUses0iOsfBwm+UrNdBDj3ycN7nF0cQDCWwGCkjhZeoGSa+9vCwjQdzoC4TGj0VAQq0jJKtJxNx+FRsI1d/rL8HulM987l3Wabe3LStF4Lva4ZIOORMA5iZk2/SABURRNr3CD8j/jckhnAWv9tS7eOcqK5yKvJe6jPBoLcJBysY83XfinY8Mzi6JAWftdrobg1Z3DSbT4jfG5H8wDpJMqJOZQnQbK4did8xawMywRdWciUWnleAtUFeq7ZMVCdti202nct5zKONVgcC72WtnluyNuNUSp7SeCR8T5wIQ6KuX162YDMiPdwTyvXJ9QudNWPabS2/9Og1HtSCCHw5b/XzNkvTu9dsba4ju2vqexWdAjsR1SI6X+gsH5YbF0DbEpKkA+1TM2WEdai9/IMj0RSNdHSeS09vXi3LDAhZ79XKC08x7CwJ45PiyYC9ASrIp1uHQZs8Qd59YwxehdzlHHlw3qXfttWcif4kNHqvR44x/yL6I=
-  file: lib/liblibHMDecoderStatic.so
+  file: $DEPLOY_FILE
   on:
     repo: ChristianFeldmann/libHM
-    branch: HM16.15
+    tags: true
