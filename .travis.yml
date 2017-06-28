@@ -3,9 +3,9 @@ matrix:
   include:
     - os: linux
       dist: trusty
-      env: DEPLOY_FILE=lib/liblibHMDecoderStatic.so
+      env: DEPLOY_FILE=lib/lib/libHMDecoder.so
     - os: osx
-      env: DEPLOY_FILE=lib/liblibHMDecoderStatic.dylib
+      env: DEPLOY_FILE=lib/libHMDecoder.dylib
 compiler:
 - gcc
 script:
@@ -13,6 +13,10 @@ script:
 - make
 - cd ..
 - cd ..
+
+before_deploy:
+  - if [ "$TRAVIS_OS_NAME" = "linux" ]; then mv lib/liblibHMDecoderStatic.so lib/libHMDecoder.so; fi
+  - if [ "$TRAVIS_OS_NAME" = "osx" ]; then mv lib/liblibHMDecoderStatic.dylib lib/libHMDecoder.dylib; fi
 
 deploy:
   skip_cleanup: true
