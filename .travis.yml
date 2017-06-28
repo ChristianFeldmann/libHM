@@ -3,7 +3,7 @@ matrix:
   include:
     - os: linux
       dist: trusty
-      env: DEPLOY_FILE=lib/lib/libHMDecoder.so
+      env: DEPLOY_FILE=lib/libHMDecoder.so
     - os: osx
       env: DEPLOY_FILE=lib/libHMDecoder.dylib
 compiler:
