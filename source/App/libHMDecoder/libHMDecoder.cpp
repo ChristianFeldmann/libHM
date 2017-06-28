@@ -9,6 +9,8 @@
 // TODO: (isNaluWithinTargetDecLayerIdSet) The target layer file is not supported (yet)
 bool isNaluWithinTargetDecLayerIdSet(InputNALUnit* nalu) { return true; }
 
+#define HMDECODERWRAPPER_MAXBUFFERSIZE 1000
+
 class hmDecoderWrapper
 {
 public:
@@ -31,6 +33,16 @@ public:
     decTop.init();
     decTop.setDecodedPictureHashSEIEnabled(true);
     iPOCLastDisplay += iSkipFrame; // set the last displayed POC correctly for skip forward.
+
+    internalsBlockDataValues = 0;
+    pauseInternalsPUPartIdx = -1;
+    pauseInternalsPUSubPartIdx = -1;
+    pauseInternalsCUIdx = -1;
+    for (int i = 0; i < 5; i++)
+    {
+      pauseInternalsCUPartIdxRecursive[i] = -1;
+      pauseInternalsTUIdxRecursive[i] = -1;
+    }
   }
   ~hmDecoderWrapper() { decTop.destroy(); };
 
@@ -51,13 +63,34 @@ public:
   // The local memory for the global variable
   bool md5_mismatch;
 
-  // The vector that is filled when internals are returned.
-  // The vector is defined, filled and cleared only in this library so that no chaos is created
-  // between the heap of the shared library and the caller programm.
-  std::vector<libHMDec_BlockValue> internalsBlockData;
+  // Add the internals block value to the array. Check if the data array is full first.
+  void addInternalsBlockData(libHMDec_BlockValue val);
+  bool internalsBlockDataFull() { return internalsBlockDataValues >= HMDECODERWRAPPER_MAXBUFFERSIZE;  }
+  void clearInternalsBlockData() { internalsBlockDataValues = 0; }
 
   TDecTop decTop;
+
+  // The array that is filled when internals are returned.
+  // The array is defined, filled and cleared only in this library so that no chaos is created
+  // between the heap of the shared library and the caller programm.
+  libHMDec_BlockValue internalsBlockData[HMDECODERWRAPPER_MAXBUFFERSIZE];
+  unsigned int internalsBlockDataValues;
+
+  // If the array is full, we will save which CU, PU or TU we were processing when the array did overflow
+  // so that we can continue the next time libHMDEC_get_internal_info() is called.
+  int pauseInternalsPUPartIdx;
+  int pauseInternalsPUSubPartIdx;
+  int pauseInternalsCUIdx;
+  int pauseInternalsCUPartIdxRecursive[5];  // The part index (per depth)
+  int pauseInternalsTUIdxRecursive[5];      // The index (per trDepth)
 };
+
+void hmDecoderWrapper::addInternalsBlockData(libHMDec_BlockValue val)
+{
+  // Append the value
+  internalsBlockData[internalsBlockDataValues] = val;
+  internalsBlockDataValues++;
+}
 
 extern "C" {
 
@@ -594,7 +627,7 @@ extern "C" {
     }
   }
 
-  void addValuesForPUs(hmDecoderWrapper *d, TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, unsigned int type)
+  bool addValuesForPUs(hmDecoderWrapper *d, TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, unsigned int type)
   {
     PartSize ePartSize = pcCU->getPartitionSize( uiAbsPartIdx );
     UInt uiNumPU = ( ePartSize == SIZE_2Nx2N ? 1 : ( ePartSize == SIZE_NxN ? 4 : 2 ) );
@@ -605,8 +638,28 @@ extern "C" {
     const int cuX = pcCU->getCUPelX() + g_auiRasterToPelX[ g_auiZscanToRaster[uiAbsPartIdx] ];
     const int cuY = pcCU->getCUPelY() + g_auiRasterToPelY[ g_auiZscanToRaster[uiAbsPartIdx] ];
 
-    for (UInt uiPartIdx = 0, uiSubPartIdx = uiAbsPartIdx; uiPartIdx < uiNumPU; uiPartIdx++, uiSubPartIdx += uiPUOffset)
+    UInt uiPartIdx = 0;
+    UInt uiSubPartIdx = uiAbsPartIdx;
+    if (d->pauseInternalsPUPartIdx != -1 && d->pauseInternalsPUSubPartIdx != -1)
     {
+      // We are continuing parsing
+      uiPartIdx = d->pauseInternalsPUPartIdx;
+      uiSubPartIdx = d->pauseInternalsPUSubPartIdx;
+      d->pauseInternalsPUPartIdx = -1;
+      d->pauseInternalsPUSubPartIdx = -1;
+    }
+
+    for (; uiPartIdx < uiNumPU; uiPartIdx++, uiSubPartIdx += uiPUOffset)
+    {
+      // Before we get the block data, check if the value cache is full
+      if (d->internalsBlockDataFull())
+      {
+        // Cache is full, save the position of the PU so that we can continue in the next call
+        d->pauseInternalsPUPartIdx = uiPartIdx;
+        d->pauseInternalsPUSubPartIdx = uiSubPartIdx;
+        return false;
+      }
+
       // Set the size and position of the PU
       libHMDec_BlockValue b;
       switch (ePartSize)
@@ -670,27 +723,40 @@ extern "C" {
         b.value = (int)pcCU->getMergeIndex(uiSubPartIdx);
       if (type == LIBHMDEC_PU_UNI_BI_PREDICTION)
         b.value = (int)pcCU->getInterDir(uiSubPartIdx);
-      if (type == LIBHMDEC_PU_REFERENCE_POC_0)
-        b.value = pcCU->getCUMvField(REF_PIC_LIST_0)->getRefIdx(uiSubPartIdx);
-      if (type == LIBHMDEC_PU_MV_0)
+      if (type == LIBHMDEC_PU_REFERENCE_POC_0 || type == LIBHMDEC_PU_REFERENCE_POC_1)
       {
-        b.value  = pcCU->getCUMvField(REF_PIC_LIST_0)->getMv(uiSubPartIdx).getHor();
-        b.value2 = pcCU->getCUMvField(REF_PIC_LIST_0)->getMv(uiSubPartIdx).getVer();
+        RefPicList list = (type == LIBHMDEC_PU_REFERENCE_POC_0) ? REF_PIC_LIST_0 : REF_PIC_LIST_1;
+        if (!(pcCU->getInterDir(uiSubPartIdx) & (1 << list)))
+          // We are looking for the reference POC for list 0/1 but this PU does not use list 0/1
+          return true;
+
+        Int refIdx = pcCU->getCUMvField(list)->getRefIdx(uiSubPartIdx);
+        Int refPOC = pcCU->getSlice()->getRefPic(list, refIdx)->getPOC();
+        Int curPOC = pcCU->getPic()->getPOC();
+        b.value = refPOC - curPOC;
+        if (b.value < -16)
+          b.value = -16;
+        else if (b.value > 16)
+          b.value = 16;
       }
-      if (type == LIBHMDEC_PU_REFERENCE_POC_1 && pcCU->getInterDir(uiSubPartIdx) == 2)
-        b.value = pcCU->getCUMvField(REF_PIC_LIST_1)->getRefIdx(uiSubPartIdx);
-      if (type == LIBHMDEC_PU_MV_1 && pcCU->getInterDir(uiSubPartIdx) == 2)
+      if (type == LIBHMDEC_PU_MV_0 || type == LIBHMDEC_PU_MV_1)
       {
-        b.value  = pcCU->getCUMvField(REF_PIC_LIST_1)->getMv(uiSubPartIdx).getHor();
-        b.value2 = pcCU->getCUMvField(REF_PIC_LIST_1)->getMv(uiSubPartIdx).getVer();
+        RefPicList list = (type == LIBHMDEC_PU_MV_0) ? REF_PIC_LIST_0 : REF_PIC_LIST_1;
+        if (!(pcCU->getInterDir(uiSubPartIdx) & (1 << list)))
+          // We are looking for motion vectors for list 0/1 but this PU does not use list 0/1
+          return true;
+
+        b.value  = pcCU->getCUMvField(list)->getMv(uiSubPartIdx).getHor();
+        b.value2 = pcCU->getCUMvField(list)->getMv(uiSubPartIdx).getVer();
       }
 
       // Add the value
-      d->internalsBlockData.push_back(b);
+      d->addInternalsBlockData(b);
     }
+    return true;
   }
 
-  void addValuesForTURecursive(hmDecoderWrapper *d, TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, UInt trDepth, unsigned int type)
+  bool addValuesForTURecursive(hmDecoderWrapper *d, TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, UInt trDepth, unsigned int typeIdx)
   {
     UInt trIdx = pcCU->getTransformIdx(uiAbsPartIdx);
     if (trDepth < trIdx)
@@ -699,9 +765,27 @@ extern "C" {
       UInt uiNextDepth = uiDepth + trDepth + 1;
       UInt uiQNumParts = pcCU->getTotalNumPart() >> (uiNextDepth<<1);
 
+      int i = 0;
+      if (d->pauseInternalsTUIdxRecursive[trDepth] != -1)
+      {
+        // Continue parsing from here
+        i = d->pauseInternalsTUIdxRecursive[trDepth];
+        d->pauseInternalsTUIdxRecursive[trDepth] = -1;
+      }
       for (int i = 0; i < 4; i++)
-        addValuesForTURecursive(d, pcCU, uiAbsPartIdx + i * uiQNumParts, uiDepth, trDepth + 1, type);
+      {
+        if (!addValuesForTURecursive(d, pcCU, uiAbsPartIdx + i * uiQNumParts, uiDepth, trDepth + 1, typeIdx))
+        {
+          // The cache is full
+          d->pauseInternalsTUIdxRecursive[trDepth] = i;
+          return false;
+        }
+      }
     }
+
+    // Is there still space in the cache?
+    if (d->internalsBlockDataFull())
+      return false;
 
     // We are not at the TU level
     UInt uiLPelX = pcCU->getCUPelX() + g_auiRasterToPelX[ g_auiZscanToRaster[uiAbsPartIdx] ];
@@ -712,23 +796,23 @@ extern "C" {
     b.y = uiTPelY;
     b.w = (pcCU->getSlice()->getSPS()->getMaxCUWidth() >> (uiDepth + trDepth));
     b.h = (pcCU->getSlice()->getSPS()->getMaxCUHeight() >> (uiDepth + trDepth));
-    if (type == LIBHMDEC_TU_CBF_Y)
+    if (typeIdx == LIBHMDEC_TU_CBF_Y)
       b.value = (pcCU->getCbf(uiAbsPartIdx, COMPONENT_Y, trDepth) != 0) ? 1 : 0;
-    else if (type == LIBHMDEC_TU_CBF_CB)
+    else if (typeIdx == LIBHMDEC_TU_CBF_CB)
       b.value = (pcCU->getCbf(uiAbsPartIdx, COMPONENT_Cb, trDepth) != 0) ? 1 : 0;
-    else if (type == LIBHMDEC_TU_CBF_CR)
+    else if (typeIdx == LIBHMDEC_TU_CBF_CR)
       b.value = (pcCU->getCbf(uiAbsPartIdx, COMPONENT_Cr, trDepth) != 0) ? 1 : 0;
-    else if (type == LIBHMDEC_TU_COEFF_TR_SKIP_Y)
+    else if (typeIdx == LIBHMDEC_TU_COEFF_TR_SKIP_Y)
       b.value = (pcCU->getTransformSkip(uiAbsPartIdx, COMPONENT_Y) != 0) ? 1 : 0;
-    else if (type == LIBHMDEC_TU_COEFF_TR_SKIP_Cb)
+    else if (typeIdx == LIBHMDEC_TU_COEFF_TR_SKIP_Cb)
       b.value = (pcCU->getTransformSkip(uiAbsPartIdx, COMPONENT_Cb) != 0) ? 1 : 0;
-    else if (type == LIBHMDEC_TU_COEFF_TR_SKIP_Cr)
+    else if (typeIdx == LIBHMDEC_TU_COEFF_TR_SKIP_Cr)
       b.value = (pcCU->getTransformSkip(uiAbsPartIdx, COMPONENT_Cr) != 0) ? 1 : 0;
-    else if (type == LIBHMDEC_TU_COEFF_ENERGY_Y || type == LIBHMDEC_TU_COEFF_ENERGY_CB || type == LIBHMDEC_TU_COEFF_ENERGY_CB)
+    else if (typeIdx == LIBHMDEC_TU_COEFF_ENERGY_Y || typeIdx == LIBHMDEC_TU_COEFF_ENERGY_CB || typeIdx == LIBHMDEC_TU_COEFF_ENERGY_CB)
     {
-      ComponentID c = (type == LIBHMDEC_TU_COEFF_ENERGY_Y) ? COMPONENT_Y : (type == LIBHMDEC_TU_COEFF_ENERGY_CB) ? COMPONENT_Cb : COMPONENT_Cr;
+      ComponentID c = (typeIdx == LIBHMDEC_TU_COEFF_ENERGY_Y) ? COMPONENT_Y : (typeIdx == LIBHMDEC_TU_COEFF_ENERGY_CB) ? COMPONENT_Cb : COMPONENT_Cr;
 
-      const int nrCoeff = (type == LIBHMDEC_TU_COEFF_ENERGY_Y) ? b.w * b.h : b.w/2 * b.h/2;
+      const int nrCoeff = (typeIdx == LIBHMDEC_TU_COEFF_ENERGY_Y) ? b.w * b.h : b.w/2 * b.h/2;
 
       TCoeff* pcCoef = pcCU->getCoeff(c);
       int64_t e = 0;
@@ -742,10 +826,11 @@ extern "C" {
       else
         b.value = (int)e;
     }
-    d->internalsBlockData.push_back(b);
+    d->addInternalsBlockData(b);
+    return true;
   }
 
-  void addValuesForCURecursively(hmDecoderWrapper *d, TComDataCU* pcLCU, UInt uiAbsPartIdx, UInt uiDepth, unsigned int type)
+  bool addValuesForCURecursively(hmDecoderWrapper *d, TComDataCU* pcLCU, UInt uiAbsPartIdx, UInt uiDepth, unsigned int typeIdx)
   {
     TComSlice * pcSlice = pcLCU->getSlice();
     const TComSPS &sps = *(pcSlice->getSPS());
@@ -766,67 +851,88 @@ extern "C" {
     {
       UInt uiNextDepth = uiDepth + 1;
       UInt uiQNumParts = pcLCU->getTotalNumPart() >> (uiNextDepth<<1);
-      UInt uiIdx = uiAbsPartIdx;
-      for (UInt uiPartIdx = 0; uiPartIdx < 4; uiPartIdx++)
+      UInt uiPartIdx = 0;
+      if (d->pauseInternalsCUPartIdxRecursive[uiDepth] != -1)
       {
+        // Continue retriveal from this point
+        uiPartIdx = d->pauseInternalsCUPartIdxRecursive[uiDepth];
+        d->pauseInternalsCUPartIdxRecursive[uiDepth] = -1;
+      }
+      for (; uiPartIdx < 4; uiPartIdx++)
+      {
+        UInt uiIdx = uiAbsPartIdx + uiPartIdx * uiQNumParts;
         uiLPelX = pcLCU->getCUPelX() + g_auiRasterToPelX[g_auiZscanToRaster[uiIdx]];
         uiTPelY = pcLCU->getCUPelY() + g_auiRasterToPelY[g_auiZscanToRaster[uiIdx]];
 
         if ((uiLPelX < sps.getPicWidthInLumaSamples()) && (uiTPelY < sps.getPicHeightInLumaSamples()))
         {
-          addValuesForCURecursively(d, pcLCU, uiIdx, uiNextDepth, type);
+          if (!addValuesForCURecursively(d, pcLCU, uiIdx, uiNextDepth, typeIdx))
+          {
+            // The cache is full. Save the current part index in the current depth so we can continue from here.
+            d->pauseInternalsCUPartIdxRecursive[uiDepth] = uiPartIdx;
+            return false;
+          }
         }
-
-        uiIdx += uiQNumParts;
       }
-      return;
+      return true;
     }
 
     // We reached the CU
-    if (type == LIBHMDEC_CU_PREDICTION_MODE || type == LIBHMDEC_CU_TRQ_BYPASS || type == LIBHMDEC_CU_SKIP_FLAG || type == LIBHMDEC_CU_PART_MODE || type == LIBHMDEC_CU_INTRA_MODE_LUMA || type == LIBHMDEC_CU_INTRA_MODE_CHROMA || type == LIBHMDEC_CU_ROOT_CBF)
+    if (typeIdx == LIBHMDEC_CU_PREDICTION_MODE || typeIdx == LIBHMDEC_CU_TRQ_BYPASS || typeIdx == LIBHMDEC_CU_SKIP_FLAG || typeIdx == LIBHMDEC_CU_PART_MODE || typeIdx == LIBHMDEC_CU_INTRA_MODE_LUMA || typeIdx == LIBHMDEC_CU_INTRA_MODE_CHROMA || typeIdx == LIBHMDEC_CU_ROOT_CBF)
     {
-      if ((type == LIBHMDEC_CU_TRQ_BYPASS && !pps.getTransquantBypassEnabledFlag()) ||
-          (type == LIBHMDEC_CU_INTRA_MODE_LUMA && !pcLCU->isIntra(uiAbsPartIdx)) ||
-          (type == LIBHMDEC_CU_INTRA_MODE_CHROMA && !pcLCU->isIntra(uiAbsPartIdx)) ||
-          (type == LIBHMDEC_CU_ROOT_CBF && pcLCU->isInter(uiAbsPartIdx)))
-        return;
+      if ((typeIdx == LIBHMDEC_CU_TRQ_BYPASS && !pps.getTransquantBypassEnabledFlag()) ||
+          (typeIdx == LIBHMDEC_CU_INTRA_MODE_LUMA && !pcLCU->isIntra(uiAbsPartIdx)) ||
+          (typeIdx == LIBHMDEC_CU_INTRA_MODE_CHROMA && !pcLCU->isIntra(uiAbsPartIdx)) ||
+          (typeIdx == LIBHMDEC_CU_ROOT_CBF && pcLCU->isInter(uiAbsPartIdx)))
+        // There is no data for this CU of this type
+        return true;
+
+      // Is there more space in the cache?
+      if (d->internalsBlockDataFull())
+        return false;
 
       libHMDec_BlockValue b;
       b.x = uiLPelX;
       b.y = uiTPelY;
       b.w = (sps.getMaxCUWidth() >>uiDepth);
       b.h = (sps.getMaxCUHeight() >>uiDepth);
-      if (type == LIBHMDEC_CU_PREDICTION_MODE)
+      if (typeIdx == LIBHMDEC_CU_PREDICTION_MODE)
         b.value = int(pcLCU->getPredictionMode(uiAbsPartIdx));
-      else if (type == LIBHMDEC_CU_TRQ_BYPASS)
+      else if (typeIdx == LIBHMDEC_CU_TRQ_BYPASS)
         b.value = pcLCU->getCUTransquantBypass(uiAbsPartIdx) ? 1 : 0;
-      else if (type == LIBHMDEC_CU_SKIP_FLAG)
+      else if (typeIdx == LIBHMDEC_CU_SKIP_FLAG)
         b.value =  pcLCU->isSkipped(uiAbsPartIdx) ? 1 : 0;
-      else if (type == LIBHMDEC_CU_PART_MODE)
+      else if (typeIdx == LIBHMDEC_CU_PART_MODE)
         b.value = (int)pcLCU->getPartitionSize(uiAbsPartIdx);
-      else if (type == LIBHMDEC_CU_INTRA_MODE_LUMA)
+      else if (typeIdx == LIBHMDEC_CU_INTRA_MODE_LUMA)
         b.value = (int)pcLCU->getIntraDir(CHANNEL_TYPE_LUMA, uiAbsPartIdx);
-      else if (type == LIBHMDEC_CU_INTRA_MODE_CHROMA)
+      else if (typeIdx == LIBHMDEC_CU_INTRA_MODE_CHROMA)
         b.value = (int)pcLCU->getIntraDir(CHANNEL_TYPE_CHROMA, uiAbsPartIdx);
-      else if (type == LIBHMDEC_CU_ROOT_CBF)
+      else if (typeIdx == LIBHMDEC_CU_ROOT_CBF)
         b.value = (int)pcLCU->getQtRootCbf(uiAbsPartIdx);
-      d->internalsBlockData.push_back(b);
+      d->addInternalsBlockData(b);
     }
-    else if (pcLCU->isInter(uiAbsPartIdx) && (type == LIBHMDEC_PU_MERGE_FLAG || type == LIBHMDEC_PU_UNI_BI_PREDICTION || type == LIBHMDEC_PU_REFERENCE_POC_0 || type == LIBHMDEC_PU_MV_0 || type == LIBHMDEC_PU_REFERENCE_POC_1 || type == LIBHMDEC_PU_MV_1))
+    else if (pcLCU->isInter(uiAbsPartIdx) && (typeIdx == LIBHMDEC_PU_MERGE_FLAG || typeIdx == LIBHMDEC_PU_UNI_BI_PREDICTION || typeIdx == LIBHMDEC_PU_REFERENCE_POC_0 || typeIdx == LIBHMDEC_PU_MV_0 || typeIdx == LIBHMDEC_PU_REFERENCE_POC_1 || typeIdx == LIBHMDEC_PU_MV_1))
       // Set values for every PU
-      addValuesForPUs(d, pcLCU, uiAbsPartIdx, uiDepth, type);
-    else if (type == LIBHMDEC_TU_CBF_Y || type == LIBHMDEC_TU_CBF_CB || type == LIBHMDEC_TU_CBF_CR || type == LIBHMDEC_TU_COEFF_ENERGY_Y || type == LIBHMDEC_TU_COEFF_ENERGY_CB || type == LIBHMDEC_TU_COEFF_ENERGY_CR || type == LIBHMDEC_TU_COEFF_TR_SKIP_Y || type == LIBHMDEC_TU_COEFF_TR_SKIP_Cb || type == LIBHMDEC_TU_COEFF_TR_SKIP_Cr)
-      addValuesForTURecursive(d, pcLCU, uiAbsPartIdx, uiDepth, 0, type);
+      return addValuesForPUs(d, pcLCU, uiAbsPartIdx, uiDepth, typeIdx);
+    else if (typeIdx == LIBHMDEC_TU_CBF_Y || typeIdx == LIBHMDEC_TU_CBF_CB || typeIdx == LIBHMDEC_TU_CBF_CR || typeIdx == LIBHMDEC_TU_COEFF_ENERGY_Y || typeIdx == LIBHMDEC_TU_COEFF_ENERGY_CB || typeIdx == LIBHMDEC_TU_COEFF_ENERGY_CR || typeIdx == LIBHMDEC_TU_COEFF_TR_SKIP_Y || typeIdx == LIBHMDEC_TU_COEFF_TR_SKIP_Cb || typeIdx == LIBHMDEC_TU_COEFF_TR_SKIP_Cr)
+      return addValuesForTURecursive(d, pcLCU, uiAbsPartIdx, uiDepth, 0, typeIdx);
+
+    // This code line should never be reached.
+    return true;
   }
 
-  HM_DEC_API std::vector<libHMDec_BlockValue> *libHMDEC_get_internal_info(libHMDec_context *decCtx, libHMDec_picture *pic, unsigned int type)
+  HM_DEC_API libHMDec_BlockValue *libHMDEC_get_internal_info(libHMDec_context *decCtx, libHMDec_picture *pic, unsigned int typeIdx, unsigned int &nrValues, bool &callAgain)
   {
+    nrValues = 0;
+    callAgain = false;
+
     hmDecoderWrapper *d = (hmDecoderWrapper*)decCtx;
     if (!d)
       return NULL;
 
     // Clear the internals before adding new ones
-    d->internalsBlockData.clear();
+    d->clearInternalsBlockData();
 
     if (pic == NULL)
       return NULL;
@@ -838,29 +944,57 @@ extern "C" {
       return NULL;
 
     int nrCU = s->getNumberOfCtusInFrame();
-    for (int i = 0; i < nrCU; i++)
+    int i = 0;
+    if (d->pauseInternalsCUIdx != -1)
+    {
+      // Continue from the given index.
+      i = d->pauseInternalsCUIdx;
+      d->pauseInternalsCUIdx = -1;
+    }
+    for (; i < nrCU; i++)
     {
       TComDataCU *pcLCU = s->getCtu(i);
 
-      if ((type == LIBHMDEC_TU_COEFF_TR_SKIP_Y || type == LIBHMDEC_TU_COEFF_TR_SKIP_Cb || type == LIBHMDEC_TU_COEFF_TR_SKIP_Cr) && pcLCU->getSlice()->getPPS()->getUseTransformSkip())
+      if ((typeIdx == LIBHMDEC_TU_COEFF_TR_SKIP_Y || typeIdx == LIBHMDEC_TU_COEFF_TR_SKIP_Cb || typeIdx == LIBHMDEC_TU_COEFF_TR_SKIP_Cr) && pcLCU->getSlice()->getPPS()->getUseTransformSkip())
         // Transform skip not enabled for this slice
         continue;
 
-      if (type == LIBHMDEC_CTU_SLICE_INDEX)
+      if (typeIdx == LIBHMDEC_CTU_SLICE_INDEX)
       {
+        if (d->internalsBlockDataFull())
+        {
+          // Cache is full. Remember the CU index so we can continue from here.
+          d->pauseInternalsCUIdx = i;
+          nrValues = d->internalsBlockDataValues;
+          callAgain = true;
+          return d->internalsBlockData;
+        }
+
         libHMDec_BlockValue b;
         b.x = pcLCU->getCUPelX();
         b.y = pcLCU->getCUPelY();
         b.w = pcLCU->getSlice()->getSPS()->getMaxCUWidth();
         b.h = pcLCU->getSlice()->getSPS()->getMaxCUHeight();
         b.value = (int)pcLCU->getPic()->getCurrSliceIdx();
-        d->internalsBlockData.push_back(b);
+        d->addInternalsBlockData(b);
       }
       else
-        addValuesForCURecursively(d, pcLCU, 0, 0, type);
+      {
+        if (!addValuesForCURecursively(d, pcLCU, 0, 0, typeIdx))
+        {
+          // Cache is full. Remember the CU index so we can continue from here.
+          d->pauseInternalsCUIdx = i;
+          nrValues = d->internalsBlockDataValues;
+          callAgain = true;
+          return d->internalsBlockData;
+        }
+      }
     }
 
-    return &d->internalsBlockData;
+    // Processing of all values is finished. The cache is not full.
+    nrValues = d->internalsBlockDataValues;
+    callAgain = false;
+    return d->internalsBlockData;
   }
 
   HM_DEC_API libHMDec_error libHMDEC_clear_internal_info(libHMDec_context *decCtx)
@@ -870,7 +1004,7 @@ extern "C" {
       return LIBHMDEC_ERROR;
 
     // Clear the internals
-    d->internalsBlockData.clear();
+    d->clearInternalsBlockData();
 
     return LIBHMDEC_OK;
   }

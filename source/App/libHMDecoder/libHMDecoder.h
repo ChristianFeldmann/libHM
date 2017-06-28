@@ -80,13 +80,11 @@
 #ifndef LIBHMDECODER_H
 #define LIBHMDECODER_H
 
-#include <vector>
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <stdint.h>
+//#include <stdint.h>
 
 #if defined(_MSC_VER)
 #define HM_DEC_API __declspec(dllexport)
@@ -308,15 +306,17 @@ HM_DEC_API unsigned int libHMDEC_get_internal_type_vector_scaling(unsigned int i
 HM_DEC_API const char *libHMDEC_get_internal_type_description(unsigned int idx);
 
 /** Get the internal coding information from the picture.
- * The pointer to the returned vector is always valid. However, the vector is changed if libHMDEC_get_internal_info
- * or libHMDEC_clear_internal_info is called.
- * \warning You must not alter the returned vector. Reading is ok but do not modify it!
+ * The pointer to the returned array is always valid. However, the array data is changed if libHMDEC_get_internal_info
+ * or libHMDEC_clear_internal_info is called. The internal cache has a fixed size and may overflow. In this case, callAgain
+ * will be set and you will have to call this function again (after reading all the data from the buffer of course).
  * \param decCtx The decoder context that was created with libHMDec_new_decoder
  * \param pic The libHMDec_picture that was obtained using libHMDec_get_picture.
  * \param typeIdx The index of the internals type (can range from 0 to the value provided by libHMDEC_get_internal_type_number)
+ * \param nrValues This will return the number of valid values in the returned array
+ * \param callAgain This bool is set if the function returned because the cache was full. Call the function again (after processing all data from the array).
  * \return A pointer to the vector of block data
  */
-HM_DEC_API std::vector<libHMDec_BlockValue> *libHMDEC_get_internal_info(libHMDec_context *decCtx, libHMDec_picture *pic, unsigned int typeIdx);
+HM_DEC_API libHMDec_BlockValue *libHMDEC_get_internal_info(libHMDec_context *decCtx, libHMDec_picture *pic, unsigned int typeIdx, unsigned int &nrValues, bool &callAgain);
 
 /** Clear the internal storage for the internal info (the pointer returned by libHMDEC_get_internal_info).
  * If you no longer need the info in the internals vector, you can call this to free some space.
