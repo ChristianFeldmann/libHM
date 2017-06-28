@@ -772,7 +772,7 @@ extern "C" {
         i = d->pauseInternalsTUIdxRecursive[trDepth];
         d->pauseInternalsTUIdxRecursive[trDepth] = -1;
       }
-      for (int i = 0; i < 4; i++)
+      for (; i < 4; i++)
       {
         if (!addValuesForTURecursive(d, pcCU, uiAbsPartIdx + i * uiQNumParts, uiDepth, trDepth + 1, typeIdx))
         {
