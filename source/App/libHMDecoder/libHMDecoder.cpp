@@ -183,6 +183,10 @@ extern "C" {
         // We encountered a new picture in this NAL unit. This means: we will filter the now complete former
         // picture. There might also be pictures to be output/read. After reading these pictures, this function
         // must be called again with the same NAL unit.
+        // 
+        // The original TAppDecoder will rewind the bitstream for this. We don't have a bitstream like this.
+        // This also means that eof is false for this call. Only in the next call it is set.
+        eof = false;
       }
     }
 
@@ -349,11 +353,10 @@ extern "C" {
     }
     if (d->sheduleFlushing)
     {
-      // The normal output function is over, now let's flush
+      // The normal output function is over. In the next call to this function, we will start flushing.
       d->flushOutput = true;
       d->sheduleFlushing = false;
       d->pcListPic_readIdx = 0;   // Iterate over all items again
-      return libHMDec_get_picture(decCtx);
     }
 
     return NULL;
