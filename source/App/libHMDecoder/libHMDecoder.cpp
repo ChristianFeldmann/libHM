@@ -156,17 +156,17 @@ extern "C" {
     else if (data[0] == 0 && data[1] == 0 && data[2] == 0 && data[3] == 1)
       copyStart = 4;
 
-	// Create a new NAL unit and put the payload into the nal units buffer
-	InputNALUnit nalu;
-	TComInputBitstream &bitstream = nalu.getBitstream();
-	vector<uint8_t>& nalUnitBuf = bitstream.getFifo();
-	for (int i = 0; i < copyStart; i++)
-		data++;
-	for (int i = 0; i < length - copyStart; i++)
-	{
-		nalUnitBuf.push_back(*data);
-		data++;
-	}
+    // Create a new NAL unit and put the payload into the nal units buffer
+    InputNALUnit nalu;
+    TComInputBitstream &bitstream = nalu.getBitstream();
+    vector<uint8_t>& nalUnitBuf = bitstream.getFifo();
+    for (int i = 0; i < copyStart; i++)
+      data++;
+    for (int i = 0; i < length - copyStart; i++)
+    {
+      nalUnitBuf.push_back(*data);
+      data++;
+    }
 
     // Read the NAL unit
     read(nalu);
@@ -381,14 +381,27 @@ extern "C" {
     if (pcPic == NULL)
       return -1;
 
+    // Conformance window
+    const Window &conf = pcPic->getConformanceWindow();
+    
     if (c == LIBHMDEC_LUMA)
-      return pcPic->getPicYuvRec()->getWidth(COMPONENT_Y);
+    {
+      int subtract = (conf.getWindowLeftOffset() >> pcPic->getComponentScaleX(COMPONENT_Y)) + (conf.getWindowRightOffset() >> pcPic->getComponentScaleX(COMPONENT_Y));
+      return pcPic->getPicYuvRec()->getWidth(COMPONENT_Y) - subtract;
+    }
     if (c == LIBHMDEC_CHROMA_U)
-      return pcPic->getPicYuvRec()->getWidth(COMPONENT_Cb);
+    {
+      int subtract = (conf.getWindowLeftOffset() >> pcPic->getComponentScaleX(COMPONENT_Cb)) + (conf.getWindowRightOffset() >> pcPic->getComponentScaleX(COMPONENT_Cb));
+      return pcPic->getPicYuvRec()->getWidth(COMPONENT_Cb) - subtract;
+    }
     if (c == LIBHMDEC_CHROMA_V)
-      return pcPic->getPicYuvRec()->getWidth(COMPONENT_Cr);
+    {
+      int subtract = (conf.getWindowLeftOffset() >> pcPic->getComponentScaleX(COMPONENT_Cr)) + (conf.getWindowRightOffset() >> pcPic->getComponentScaleX(COMPONENT_Cr));
+      return pcPic->getPicYuvRec()->getWidth(COMPONENT_Cr) - subtract;
+    }
     return -1;
   }
+
   HM_DEC_API int libHMDEC_get_picture_height(libHMDec_picture *pic, libHMDec_ColorComponent c)
   {
     if (pic == NULL)
@@ -397,12 +410,24 @@ extern "C" {
     if (pcPic == NULL)
       return -1;
 
+    // Conformance window
+    const Window &conf = pcPic->getConformanceWindow();
+    
     if (c == LIBHMDEC_LUMA)
-      return pcPic->getPicYuvRec()->getHeight(COMPONENT_Y);
+    {
+      int subtract = (conf.getWindowTopOffset() >> pcPic->getComponentScaleY(COMPONENT_Y)) + (conf.getWindowBottomOffset() >> pcPic->getComponentScaleY(COMPONENT_Y));
+      return pcPic->getPicYuvRec()->getHeight(COMPONENT_Y) - subtract;
+    }
     if (c == LIBHMDEC_CHROMA_U)
-      return pcPic->getPicYuvRec()->getHeight(COMPONENT_Cb);
+    {
+      int subtract = (conf.getWindowTopOffset() >> pcPic->getComponentScaleY(COMPONENT_Cb)) + (conf.getWindowBottomOffset() >> pcPic->getComponentScaleY(COMPONENT_Cb));
+      return pcPic->getPicYuvRec()->getHeight(COMPONENT_Cb) - subtract;
+    }
     if (c == LIBHMDEC_CHROMA_V)
-      return pcPic->getPicYuvRec()->getHeight(COMPONENT_Cr);
+    {
+      int subtract = (conf.getWindowTopOffset() >> pcPic->getComponentScaleY(COMPONENT_Cr)) + (conf.getWindowBottomOffset() >> pcPic->getComponentScaleY(COMPONENT_Cr));
+      return pcPic->getPicYuvRec()->getHeight(COMPONENT_Cr) - subtract;
+    }
     return -1;
   }
 
@@ -431,12 +456,19 @@ extern "C" {
     if (pcPic == NULL)
       return NULL;
 
+    // Conformance window
+    const Window &conf = pcPic->getConformanceWindow();
+    ComponentID compID = (c == LIBHMDEC_LUMA) ? COMPONENT_Y : (c == LIBHMDEC_CHROMA_U) ? COMPONENT_Cb : COMPONENT_Cr;
+    const UInt csx = pcPic->getComponentScaleX(compID);
+    const UInt csy = pcPic->getComponentScaleY(compID);
+    const Int planeOffset = (conf.getWindowLeftOffset() >> csx) + (conf.getWindowTopOffset() >> csy) * pcPic->getStride(compID);
+    
     if (c == LIBHMDEC_LUMA)
-      return pcPic->getPicYuvRec()->getAddr(COMPONENT_Y);
+      return pcPic->getPicYuvRec()->getAddr(COMPONENT_Y) + planeOffset;
     if (c == LIBHMDEC_CHROMA_U)
-      return pcPic->getPicYuvRec()->getAddr(COMPONENT_Cb);
+      return pcPic->getPicYuvRec()->getAddr(COMPONENT_Cb) + planeOffset;
     if (c == LIBHMDEC_CHROMA_V)
-      return pcPic->getPicYuvRec()->getAddr(COMPONENT_Cr);
+      return pcPic->getPicYuvRec()->getAddr(COMPONENT_Cr) + planeOffset;
     return NULL;
   }
 
