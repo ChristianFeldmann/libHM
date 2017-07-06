@@ -59,6 +59,14 @@ TComRomScan::TComRomScan()
   auiRasterToZscan[MAX_NUM_PART_IDXS_IN_CTU_WIDTH*MAX_NUM_PART_IDXS_IN_CTU_WIDTH] = { 0, };
   auiRasterToPelX[MAX_NUM_PART_IDXS_IN_CTU_WIDTH*MAX_NUM_PART_IDXS_IN_CTU_WIDTH] = { 0, };
   auiRasterToPelY[MAX_NUM_PART_IDXS_IN_CTU_WIDTH*MAX_NUM_PART_IDXS_IN_CTU_WIDTH] = { 0, };
+  
+  for (int i=0; i<MAX_NUM_PART_IDXS_IN_CTU_WIDTH*MAX_NUM_PART_IDXS_IN_CTU_WIDTH; i++)
+  {
+    auiZscanToRaster[i] = 0;
+    auiRasterToZscan[i] = 0;
+    auiRasterToPelX[i] = 0;
+    auiRasterToPelY[i] = 0;
+  }
 }
 
 const TChar* TComRom::nalUnitTypeToString(NalUnitType type)
