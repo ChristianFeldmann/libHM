@@ -80,6 +80,8 @@ private:
 
   Bool  m_bIsBorderExtended;
 
+  TComRom::TComRomScan *romScan;
+
 public:
                TComPicYuv         ();
   virtual     ~TComPicYuv         ();
@@ -94,7 +96,8 @@ public:
                                    const UInt maxCUWidth,  ///< used for generating offsets to CUs.
                                    const UInt maxCUHeight, ///< used for generating offsets to CUs.
                                    const UInt maxCUDepth,  ///< used for generating offsets to CUs.
-                                   const Bool bUseMargin);   ///< if true, then a margin of uiMaxCUWidth+16 and uiMaxCUHeight+16 is created around the image.
+                                   const Bool bUseMargin,   ///< if true, then a margin of uiMaxCUWidth+16 and uiMaxCUHeight+16 is created around the image.
+                                   TComRom::TComRomScan *scan);
 
   Void          createWithoutCUInfo(const Int picWidth,
                                     const Int picHeight,
@@ -143,9 +146,9 @@ public:
   Pel*          getAddr           (const ComponentID ch, const Int ctuRSAddr )       { return m_piPicOrg[ch] + m_ctuOffsetInBuffer[ch==0?0:1][ ctuRSAddr ]; }
   const Pel*    getAddr           (const ComponentID ch, const Int ctuRSAddr ) const { return m_piPicOrg[ch] + m_ctuOffsetInBuffer[ch==0?0:1][ ctuRSAddr ]; }
   Pel*          getAddr           (const ComponentID ch, const Int ctuRSAddr, const Int uiAbsZorderIdx )
-                                     { return m_piPicOrg[ch] + m_ctuOffsetInBuffer[ch==0?0:1][ctuRSAddr] + m_subCuOffsetInBuffer[ch==0?0:1][g_auiZscanToRaster[uiAbsZorderIdx]]; }
+                                     { return m_piPicOrg[ch] + m_ctuOffsetInBuffer[ch==0?0:1][ctuRSAddr] + m_subCuOffsetInBuffer[ch==0?0:1][romScan->auiZscanToRaster[uiAbsZorderIdx]]; }
   const Pel*    getAddr           (const ComponentID ch, const Int ctuRSAddr, const Int uiAbsZorderIdx ) const
-                                     { return m_piPicOrg[ch] + m_ctuOffsetInBuffer[ch==0?0:1][ctuRSAddr] + m_subCuOffsetInBuffer[ch==0?0:1][g_auiZscanToRaster[uiAbsZorderIdx]]; }
+                                     { return m_piPicOrg[ch] + m_ctuOffsetInBuffer[ch==0?0:1][ctuRSAddr] + m_subCuOffsetInBuffer[ch==0?0:1][romScan->auiZscanToRaster[uiAbsZorderIdx]]; }
 
   UInt          getComponentScaleX(const ComponentID id) const { return ::getComponentScaleX(id, m_chromaFormatIDC); }
   UInt          getComponentScaleY(const ComponentID id) const { return ::getComponentScaleY(id, m_chromaFormatIDC); }

@@ -5,6 +5,9 @@
 #include "TLibCommon/TComTU.h"
 #include "TLibDecoder/TDecTop.h"
 #include "TLibDecoder/NALread.h"
+#include "TLibCommon/TComRom.h"
+
+using namespace TComRom;
 
 // TODO: (isNaluWithinTargetDecLayerIdSet) The target layer file is not supported (yet)
 bool isNaluWithinTargetDecLayerIdSet(InputNALUnit* nalu) { return true; }
@@ -668,10 +671,11 @@ extern "C" {
     UInt uiNumPU = ( ePartSize == SIZE_2Nx2N ? 1 : ( ePartSize == SIZE_NxN ? 4 : 2 ) );
     UInt uiPUOffset = ( g_auiPUOffset[UInt( ePartSize )] << ( ( pcCU->getSlice()->getSPS()->getMaxTotalCUDepth() - uiDepth ) << 1 ) ) >> 4;
 
+    TComRom::TComRomScan *scan = pcCU->getRomScan();
     const int cuWidth = pcCU->getSlice()->getSPS()->getMaxCUWidth() >> uiDepth;
     const int cuHeight = pcCU->getSlice()->getSPS()->getMaxCUHeight() >> uiDepth;
-    const int cuX = pcCU->getCUPelX() + g_auiRasterToPelX[ g_auiZscanToRaster[uiAbsPartIdx] ];
-    const int cuY = pcCU->getCUPelY() + g_auiRasterToPelY[ g_auiZscanToRaster[uiAbsPartIdx] ];
+    const int cuX = pcCU->getCUPelX() + scan->auiRasterToPelX[ scan->auiZscanToRaster[uiAbsPartIdx] ];
+    const int cuY = pcCU->getCUPelY() + scan->auiRasterToPelY[ scan->auiZscanToRaster[uiAbsPartIdx] ];
 
     UInt uiPartIdx = 0;
     UInt uiSubPartIdx = uiAbsPartIdx;
@@ -823,8 +827,9 @@ extern "C" {
       return false;
 
     // We are not at the TU level
-    UInt uiLPelX = pcCU->getCUPelX() + g_auiRasterToPelX[ g_auiZscanToRaster[uiAbsPartIdx] ];
-    UInt uiTPelY = pcCU->getCUPelY() + g_auiRasterToPelY[ g_auiZscanToRaster[uiAbsPartIdx] ];
+    TComRom::TComRomScan *scan = pcCU->getRomScan();
+    UInt uiLPelX = pcCU->getCUPelX() + scan->auiRasterToPelX[ scan->auiZscanToRaster[uiAbsPartIdx] ];
+    UInt uiTPelY = pcCU->getCUPelY() + scan->auiRasterToPelY[ scan->auiZscanToRaster[uiAbsPartIdx] ];
 
     libHMDec_BlockValue b;
     b.x = uiLPelX;
@@ -872,9 +877,10 @@ extern "C" {
     const TComPPS &pps = *(pcSlice->getPPS());
 
     Bool bBoundary = false;
-    UInt uiLPelX = pcLCU->getCUPelX() + g_auiRasterToPelX[g_auiZscanToRaster[uiAbsPartIdx]];
+    TComRom::TComRomScan *scan = pcLCU->getRomScan();
+    UInt uiLPelX = pcLCU->getCUPelX() + scan->auiRasterToPelX[scan->auiZscanToRaster[uiAbsPartIdx]];
     UInt uiRPelX = uiLPelX + (sps.getMaxCUWidth() >> uiDepth) - 1;
-    UInt uiTPelY = pcLCU->getCUPelY() + g_auiRasterToPelY[g_auiZscanToRaster[uiAbsPartIdx]];
+    UInt uiTPelY = pcLCU->getCUPelY() + scan->auiRasterToPelY[scan->auiZscanToRaster[uiAbsPartIdx]];
     UInt uiBPelY = uiTPelY + (sps.getMaxCUHeight() >> uiDepth) - 1;
 
     if ((uiRPelX >= sps.getPicWidthInLumaSamples()) || (uiBPelY >= sps.getPicHeightInLumaSamples()))
@@ -896,8 +902,8 @@ extern "C" {
       for (; uiPartIdx < 4; uiPartIdx++)
       {
         UInt uiIdx = uiAbsPartIdx + uiPartIdx * uiQNumParts;
-        uiLPelX = pcLCU->getCUPelX() + g_auiRasterToPelX[g_auiZscanToRaster[uiIdx]];
-        uiTPelY = pcLCU->getCUPelY() + g_auiRasterToPelY[g_auiZscanToRaster[uiIdx]];
+        uiLPelX = pcLCU->getCUPelX() + scan->auiRasterToPelX[scan->auiZscanToRaster[uiIdx]];
+        uiTPelY = pcLCU->getCUPelY() + scan->auiRasterToPelY[scan->auiZscanToRaster[uiIdx]];
 
         if ((uiLPelX < sps.getPicWidthInLumaSamples()) && (uiTPelY < sps.getPicHeightInLumaSamples()))
         {

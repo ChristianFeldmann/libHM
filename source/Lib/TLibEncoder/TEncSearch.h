@@ -118,6 +118,8 @@ protected:
   TComMv          m_integerMv2Nx2N[NUM_REF_PIC_LIST_01][MAX_NUM_REF];
 
   Bool            m_isInitialized;
+
+  TComRom::TComRomScan *romScan;
 public:
   TEncSearch();
   virtual ~TEncSearch();
@@ -136,6 +138,8 @@ public:
             TEncSbac*      pcRDGoOnSbacCoder );
 
   Void destroy();
+
+  void setTComRomScan(TComRom::TComRomScan *scan) { romScan = scan; }
 
 protected:
 

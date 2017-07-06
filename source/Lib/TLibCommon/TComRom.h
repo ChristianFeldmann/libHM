@@ -46,94 +46,102 @@
 //! \ingroup TLibCommon
 //! \{
 
-// ====================================================================================================================
-// Initialize / destroy functions
-// ====================================================================================================================
+#define CHROMA_QP_MAPPING_TABLE_SIZE 58
 
-Void         initROM();
-Void         destroyROM();
+namespace TComRom
+{
 
-// ====================================================================================================================
-// Data structure related table & variable
-// ====================================================================================================================
+  class TComRomScan
+  {
+  public:
+    TComRomScan();
+    ~TComRomScan() {};
 
-// flexible conversion from relative to absolute index
-extern       UInt   g_auiZscanToRaster[ MAX_NUM_PART_IDXS_IN_CTU_WIDTH*MAX_NUM_PART_IDXS_IN_CTU_WIDTH ];
-extern       UInt   g_auiRasterToZscan[ MAX_NUM_PART_IDXS_IN_CTU_WIDTH*MAX_NUM_PART_IDXS_IN_CTU_WIDTH ];
-extern       UInt*  g_scanOrder[SCAN_NUMBER_OF_GROUP_TYPES][SCAN_NUMBER_OF_TYPES][ MAX_CU_DEPTH ][ MAX_CU_DEPTH ];
+    // ====================================================================================================================
+    // Initialize / destroy functions
+    // ====================================================================================================================
 
-Void         initZscanToRaster ( Int iMaxDepth, Int iDepth, UInt uiStartVal, UInt*& rpuiCurrIdx );
-Void         initRasterToZscan ( UInt uiMaxCUWidth, UInt uiMaxCUHeight, UInt uiMaxDepth         );
+    Void initROM();
+    Void destroyROM();
 
-// conversion of partition index to picture pel position
-extern       UInt   g_auiRasterToPelX[ MAX_NUM_PART_IDXS_IN_CTU_WIDTH*MAX_NUM_PART_IDXS_IN_CTU_WIDTH ];
-extern       UInt   g_auiRasterToPelY[ MAX_NUM_PART_IDXS_IN_CTU_WIDTH*MAX_NUM_PART_IDXS_IN_CTU_WIDTH ];
+    // ====================================================================================================================
+    // Data structure related table & variable
+    // ====================================================================================================================
 
-Void         initRasterToPelXY ( UInt uiMaxCUWidth, UInt uiMaxCUHeight, UInt uiMaxDepth );
+    // flexible conversion from relative to absolute index
+    UInt   auiZscanToRaster[MAX_NUM_PART_IDXS_IN_CTU_WIDTH*MAX_NUM_PART_IDXS_IN_CTU_WIDTH];
+    UInt   auiRasterToZscan[MAX_NUM_PART_IDXS_IN_CTU_WIDTH*MAX_NUM_PART_IDXS_IN_CTU_WIDTH];
+    UInt*  scanOrder[SCAN_NUMBER_OF_GROUP_TYPES][SCAN_NUMBER_OF_TYPES][MAX_CU_DEPTH][MAX_CU_DEPTH];
 
-extern const UInt g_auiPUOffset[NUMBER_OF_PART_SIZES];
+    Void   initZscanToRaster(Int iMaxDepth, Int iDepth, UInt uiStartVal, UInt*& rpuiCurrIdx);
+    Void   initRasterToZscan(UInt uiMaxCUWidth, UInt uiMaxCUHeight, UInt uiMaxDepth);
 
-extern const Int g_quantScales[SCALING_LIST_REM_NUM];             // Q(QP%6)
-extern const Int g_invQuantScales[SCALING_LIST_REM_NUM];          // IQ(QP%6)
+    // conversion of partition index to picture pel position
+    UInt   auiRasterToPelX[MAX_NUM_PART_IDXS_IN_CTU_WIDTH*MAX_NUM_PART_IDXS_IN_CTU_WIDTH];
+    UInt   auiRasterToPelY[MAX_NUM_PART_IDXS_IN_CTU_WIDTH*MAX_NUM_PART_IDXS_IN_CTU_WIDTH];
+
+    Void   initRasterToPelXY(UInt uiMaxCUWidth, UInt uiMaxCUHeight, UInt uiMaxDepth);
+  };
+
+  extern const UInt g_auiPUOffset[NUMBER_OF_PART_SIZES];
+
+  extern const Int g_quantScales[SCALING_LIST_REM_NUM];             // Q(QP%6)
+  extern const Int g_invQuantScales[SCALING_LIST_REM_NUM];          // IQ(QP%6)
 
 #if RExt__HIGH_PRECISION_FORWARD_TRANSFORM
-static const Int g_transformMatrixShift[TRANSFORM_NUMBER_OF_DIRECTIONS] = { 14, 6 };
+  extern const Int g_transformMatrixShift[TRANSFORM_NUMBER_OF_DIRECTIONS];
 #else
-static const Int g_transformMatrixShift[TRANSFORM_NUMBER_OF_DIRECTIONS] = {  6, 6 };
+  extern const Int g_transformMatrixShift[TRANSFORM_NUMBER_OF_DIRECTIONS];
 #endif
 
-extern const TMatrixCoeff g_aiT4 [TRANSFORM_NUMBER_OF_DIRECTIONS][4][4];
-extern const TMatrixCoeff g_aiT8 [TRANSFORM_NUMBER_OF_DIRECTIONS][8][8];
-extern const TMatrixCoeff g_aiT16[TRANSFORM_NUMBER_OF_DIRECTIONS][16][16];
-extern const TMatrixCoeff g_aiT32[TRANSFORM_NUMBER_OF_DIRECTIONS][32][32];
+  extern const TMatrixCoeff g_aiT4[TRANSFORM_NUMBER_OF_DIRECTIONS][4][4];
+  extern const TMatrixCoeff g_aiT8[TRANSFORM_NUMBER_OF_DIRECTIONS][8][8];
+  extern const TMatrixCoeff g_aiT16[TRANSFORM_NUMBER_OF_DIRECTIONS][16][16];
+  extern const TMatrixCoeff g_aiT32[TRANSFORM_NUMBER_OF_DIRECTIONS][32][32];
 
-// ====================================================================================================================
-// Luma QP to Chroma QP mapping
-// ====================================================================================================================
+  // ====================================================================================================================
+  // Luma QP to Chroma QP mapping
+  // ====================================================================================================================
 
-static const Int chromaQPMappingTableSize = 58;
+  extern const UChar  g_aucChromaScale[NUM_CHROMA_FORMAT][CHROMA_QP_MAPPING_TABLE_SIZE];
 
-extern const UChar  g_aucChromaScale[NUM_CHROMA_FORMAT][chromaQPMappingTableSize];
+  // ====================================================================================================================
+  // Scanning order & context mapping table
+  // ====================================================================================================================
 
+  extern const UInt   ctxIndMap4x4[4 * 4];
 
-// ====================================================================================================================
-// Scanning order & context mapping table
-// ====================================================================================================================
+  extern const UInt   g_uiGroupIdx[MAX_TU_SIZE];
+  extern const UInt   g_uiMinInGroup[LAST_SIGNIFICANT_GROUPS];
 
-extern const UInt   ctxIndMap4x4[4*4];
+  // ====================================================================================================================
+  // Intra prediction table
+  // ====================================================================================================================
 
-extern const UInt   g_uiGroupIdx[ MAX_TU_SIZE ];
-extern const UInt   g_uiMinInGroup[ LAST_SIGNIFICANT_GROUPS ];
+  extern const UChar  g_aucIntraModeNumFast_UseMPM[MAX_CU_DEPTH];
+  extern const UChar  g_aucIntraModeNumFast_NotUseMPM[MAX_CU_DEPTH];
 
-// ====================================================================================================================
-// Intra prediction table
-// ====================================================================================================================
+  extern const UChar  g_chroma422IntraAngleMappingTable[NUM_INTRA_MODE];
 
-extern const UChar  g_aucIntraModeNumFast_UseMPM[MAX_CU_DEPTH];
-extern const UChar  g_aucIntraModeNumFast_NotUseMPM[MAX_CU_DEPTH];
+  // ====================================================================================================================
+  // Mode-Dependent DST Matrices
+  // ====================================================================================================================
 
-extern const UChar  g_chroma422IntraAngleMappingTable[NUM_INTRA_MODE];
+  extern const TMatrixCoeff g_as_DST_MAT_4[TRANSFORM_NUMBER_OF_DIRECTIONS][4][4];
 
-// ====================================================================================================================
-// Mode-Dependent DST Matrices
-// ====================================================================================================================
+  // ====================================================================================================================
+  // Misc.
+  // ====================================================================================================================
 
-extern const TMatrixCoeff g_as_DST_MAT_4 [TRANSFORM_NUMBER_OF_DIRECTIONS][4][4];
-
-// ====================================================================================================================
-// Misc.
-// ====================================================================================================================
-
-extern       SChar   g_aucConvertToBit  [ MAX_CU_SIZE+1 ];   // from width to log2(width)-2
-
+  extern const SChar g_aucConvertToBit[MAX_CU_SIZE + 1];   // from width to log2(width)-2
 
 #if ENC_DEC_TRACE
-extern FILE*  g_hTrace;
-extern Bool   g_bJustDoIt;
-extern const Bool g_bEncDecTraceEnable;
-extern const Bool g_bEncDecTraceDisable;
-extern Bool   g_HLSTraceEnable;
-extern UInt64 g_nSymbolCounter;
+  extern FILE*  g_hTrace;
+  extern Bool   g_bJustDoIt;
+  extern const Bool g_bEncDecTraceEnable;
+  extern const Bool g_bEncDecTraceDisable;
+  extern Bool   g_HLSTraceEnable;
+  extern UInt64 g_nSymbolCounter;
 
 #define COUNTER_START    1
 #define COUNTER_END      0 //( UInt64(1) << 63 )
@@ -158,17 +166,20 @@ extern UInt64 g_nSymbolCounter;
 
 #endif
 
-const TChar* nalUnitTypeToString(NalUnitType type);
+  extern const TChar* nalUnitTypeToString(NalUnitType type);
 
-extern const TChar *MatrixType[SCALING_LIST_SIZE_NUM][SCALING_LIST_NUM];
-extern const TChar *MatrixType_DC[SCALING_LIST_SIZE_NUM][SCALING_LIST_NUM];
+  extern const TChar *MatrixType[SCALING_LIST_SIZE_NUM][SCALING_LIST_NUM];
+  extern const TChar *MatrixType_DC[SCALING_LIST_SIZE_NUM][SCALING_LIST_NUM];
 
-extern const Int g_quantTSDefault4x4[4*4];
-extern const Int g_quantIntraDefault8x8[8*8];
-extern const Int g_quantInterDefault8x8[8*8];
+  extern const Int g_quantTSDefault4x4[4 * 4];
+  extern const Int g_quantIntraDefault8x8[8 * 8];
+  extern const Int g_quantInterDefault8x8[8 * 8];
 
-extern const UInt g_scalingListSize [SCALING_LIST_SIZE_NUM];
-extern const UInt g_scalingListSizeX[SCALING_LIST_SIZE_NUM];
+  extern const UInt g_scalingListSize[SCALING_LIST_SIZE_NUM];
+  extern const UInt g_scalingListSizeX[SCALING_LIST_SIZE_NUM];
+
+} // namespace TComRom
+
 //! \}
 
 #endif  //__TCOMROM__

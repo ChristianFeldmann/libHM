@@ -117,8 +117,12 @@ public:
 
   Void  parseExplicitRdpcmMode( TComTU &rTu, ComponentID compID );
 
+  void setTComRomScan(TComRom::TComRomScan *scan) { romScan = scan; }
+
 protected:
   Bool  xMoreRbspData();
+
+  TComRom::TComRomScan *romScan;
 };
 
 //! \}

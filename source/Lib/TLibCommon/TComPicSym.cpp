@@ -80,15 +80,16 @@ TComPicSym::~TComPicSym()
 
 
 #if REDUCED_ENCODER_MEMORY
-Void TComPicSym::create  ( const TComSPS &sps, const TComPPS &pps, UInt uiMaxDepth, const Bool bAllocateCtuArray )
+Void TComPicSym::create  ( const TComSPS &sps, const TComPPS &pps, UInt uiMaxDepth, const Bool bAllocateCtuArray, TComRom::TComRomScan *scan )
 #else
-Void TComPicSym::create  ( const TComSPS &sps, const TComPPS &pps, UInt uiMaxDepth )
+Void TComPicSym::create  ( const TComSPS &sps, const TComPPS &pps, UInt uiMaxDepth, TComRom::TComRomScan *scan )
 #endif
 {
   destroy();
 
   m_sps = sps;
   m_pps = pps;
+  romScan = scan;
 
 #if !REDUCED_ENCODER_MEMORY
   const ChromaFormat chromaFormatIDC = sps.getChromaFormatIdc();
@@ -175,7 +176,7 @@ Void TComPicSym::prepareForReconstruction()
     for (UInt i=0; i<m_numCtusInFrame ; i++ )
     {
       m_pictureCtuArray[i] = new TComDataCU;
-      m_pictureCtuArray[i]->create( chromaFormatIDC, m_numPartitionsInCtu, uiMaxCuWidth, uiMaxCuHeight, false, uiMaxCuWidth >> m_uhTotalDepth
+      m_pictureCtuArray[i]->create( chromaFormatIDC, m_numPartitionsInCtu, uiMaxCuWidth, uiMaxCuHeight, false, uiMaxCuWidth >> m_uhTotalDepth, romScan
 #if ADAPTIVE_QP_SELECTION
         , m_pParentARLBuffer
 #endif

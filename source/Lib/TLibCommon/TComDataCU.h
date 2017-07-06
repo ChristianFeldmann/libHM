@@ -150,6 +150,8 @@ private:
   SChar         m_codedQP;
   UChar*        m_explicitRdpcmMode[MAX_NUM_COMPONENT]; ///< Stores the explicit RDPCM mode for all TUs belonging to this CU
 
+  TComRom::TComRomScan *romScan;
+
 protected:
 
   /// adds a single possible motion vector predictor candidate
@@ -172,7 +174,7 @@ public:
   // create / destroy / initialize / copy
   // -------------------------------------------------------------------------------------------------------------------
 
-  Void          create                        ( ChromaFormat chromaFormatIDC, UInt uiNumPartition, UInt uiWidth, UInt uiHeight, Bool bDecSubCu, Int unitSize
+  Void          create                        ( ChromaFormat chromaFormatIDC, UInt uiNumPartition, UInt uiWidth, UInt uiHeight, Bool bDecSubCu, Int unitSize, TComRom::TComRomScan *scan
 #if ADAPTIVE_QP_SELECTION
                                                 , TCoeff *pParentARLBuffer = 0
 #endif
@@ -469,6 +471,8 @@ public:
   UInt&         getTotalNumPart               ( )                                                          { return m_uiNumPartition;    }
 
   UInt          getCoefScanIdx                ( const UInt uiAbsPartIdx, const UInt uiWidth, const UInt uiHeight, const ComponentID compID ) const ;
+
+  TComRom::TComRomScan *getRomScan() { return romScan; }
 
 };
 

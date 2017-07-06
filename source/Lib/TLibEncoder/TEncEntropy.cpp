@@ -40,6 +40,8 @@
 #include "TLibCommon/TComSampleAdaptiveOffset.h"
 #include "TLibCommon/TComTU.h"
 
+using namespace TComRom;
+
 #if ENVIRONMENT_VARIABLE_DEBUG_AND_TEST
 #include "../TLibCommon/Debug.h"
 static const Bool bDebugPredEnabled = DebugOptionList::DebugPred.getInt()!=0;

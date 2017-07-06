@@ -40,6 +40,8 @@
 #include "TComPic.h"
 #include "TComTU.h"
 
+using namespace TComRom;
+
 //! \ingroup TLibCommon
 //! \{
 
@@ -138,10 +140,10 @@ Void TComPrediction::initTempBuff(ChromaFormat chromaFormatIDC)
 
     for (UInt i = 0; i < LUMA_INTERPOLATION_FILTER_SUB_SAMPLE_POSITIONS; i++)
     {
-      m_filteredBlockTmp[i].create(extWidth, extHeight + 7, chromaFormatIDC);
+      m_filteredBlockTmp[i].create(extWidth, extHeight + 7, chromaFormatIDC, romScan);
       for (UInt j = 0; j < LUMA_INTERPOLATION_FILTER_SUB_SAMPLE_POSITIONS; j++)
       {
-        m_filteredBlock[i][j].create(extWidth, extHeight, chromaFormatIDC);
+        m_filteredBlock[i][j].create(extWidth, extHeight, chromaFormatIDC, romScan);
       }
     }
 
@@ -157,10 +159,10 @@ Void TComPrediction::initTempBuff(ChromaFormat chromaFormatIDC)
     // new structure
     for(UInt i=0; i<NUM_REF_PIC_LIST_01; i++)
     {
-      m_acYuvPred[i] .create( MAX_CU_SIZE, MAX_CU_SIZE, chromaFormatIDC );
+      m_acYuvPred[i] .create( MAX_CU_SIZE, MAX_CU_SIZE, chromaFormatIDC, romScan );
     }
 
-    m_cYuvPredTemp.create( MAX_CU_SIZE, MAX_CU_SIZE, chromaFormatIDC );
+    m_cYuvPredTemp.create( MAX_CU_SIZE, MAX_CU_SIZE, chromaFormatIDC, romScan );
   }
 
 

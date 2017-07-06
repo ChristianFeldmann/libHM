@@ -104,6 +104,8 @@ private:
   Void     setUpLambda(TComSlice* slice, const Double dLambda, Int iQP);
   Void     calculateBoundingCtuTsAddrForSlice(UInt &startCtuTSAddrSlice, UInt &boundingCtuTSAddrSlice, Bool &haveReachedTileBoundary, TComPic* pcPic, const Int sliceMode, const Int sliceArgument);
 
+  TComRom::TComRomScan *romScan;
+
 public:
   TEncSlice();
   virtual ~TEncSlice();
@@ -135,6 +137,8 @@ public:
   Void    setSliceIdx(UInt i)   { m_uiSliceIdx = i;                       }
 
   SliceType getEncCABACTableIdx() const           { return m_encCABACTableIdx;        }
+
+  void setTComRomScan(TComRom::TComRomScan *scan) { romScan = scan; }
 
 private:
   Double  xGetQPValueAccordingToLambda ( Double lambda );

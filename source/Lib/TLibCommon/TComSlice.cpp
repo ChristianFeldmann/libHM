@@ -41,6 +41,7 @@
 #include "TLibEncoder/TEncSbac.h"
 #include "TLibDecoder/TDecSbac.h"
 
+using namespace TComRom;
 
 //! \ingroup TLibCommon
 //! \{

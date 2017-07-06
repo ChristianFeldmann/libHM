@@ -146,6 +146,8 @@ private:
   TComPicYuv*             m_pcDeblockingTempPicYuv;
   Int                     m_DBParam[MAX_ENCODER_DEBLOCKING_QUALITY_LAYERS][4];   //[layer_id][0: available; 1: bDBDisabled; 2: Beta Offset Div2; 3: Tc Offset Div2;]
 
+  TComRom::TComRomScan *romScan;
+
 public:
   TEncGOP();
   virtual ~TEncGOP();
@@ -174,6 +176,8 @@ public:
   TEncAnalyze& getAnalyzeIData()   { return m_gcAnalyzeI; }
   TEncAnalyze& getAnalyzePData()   { return m_gcAnalyzeP; }
   TEncAnalyze& getAnalyzeBData()   { return m_gcAnalyzeB; }
+
+  void setTComRomScan(TComRom::TComRomScan *scan) { romScan = scan; }
 
 protected:
   TEncRateCtrl* getRateCtrl()       { return m_pcRateCtrl;  }

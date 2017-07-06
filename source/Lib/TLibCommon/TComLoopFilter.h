@@ -85,11 +85,11 @@ protected:
     }
     if( edgeDir == EDGE_VER )
     {
-      return g_auiRasterToZscan[g_auiZscanToRaster[absZIdxInCtu] + iBaseUnitIdx * ctuWidthInBaseUnits + iEdgeIdx + rasterOffsetTU ];
+      return romScan->auiRasterToZscan[romScan->auiZscanToRaster[absZIdxInCtu] + iBaseUnitIdx * ctuWidthInBaseUnits + iEdgeIdx + rasterOffsetTU ];
     }
     else
     {
-      return g_auiRasterToZscan[g_auiZscanToRaster[absZIdxInCtu] + iEdgeIdx * ctuWidthInBaseUnits + iBaseUnitIdx + rasterOffsetTU ];
+      return romScan->auiRasterToZscan[romScan->auiZscanToRaster[absZIdxInCtu] + iEdgeIdx * ctuWidthInBaseUnits + iBaseUnitIdx + rasterOffsetTU ];
     }
   }
 
@@ -118,6 +118,8 @@ protected:
   static const UChar sm_tcTable[54];
   static const UChar sm_betaTable[52];
 
+   TComRom::TComRomScan *romScan;
+
 public:
   TComLoopFilter();
   virtual ~TComLoopFilter();
@@ -136,6 +138,8 @@ public:
     Int indexB = Clip3( 0, MAX_QP, qp );
     return sm_betaTable[ indexB ];
   }
+
+  void setTComRomScan(TComRom::TComRomScan *scan) { romScan = scan; }
 };
 
 //! \}

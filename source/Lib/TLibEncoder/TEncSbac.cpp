@@ -46,6 +46,7 @@
 #include "../TLibCommon/Debug.h"
 #endif
 
+using namespace TComRom;
 
 //! \ingroup TLibEncoder
 //! \{

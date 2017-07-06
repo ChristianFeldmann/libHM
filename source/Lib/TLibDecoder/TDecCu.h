@@ -88,6 +88,9 @@ public:
   /// reconstruct Ctu information
   Void  decompressCtu           ( TComDataCU* pCtu );
 
+  /// Set a pointer to the "global" scanning conversion
+  void setTComRomScan(TComRom::TComRomScan *scan) { romScan = scan; }
+
 protected:
 
   Void xDecodeCU                ( TComDataCU* const pcCU, const UInt uiAbsPartIdx, const UInt uiDepth, Bool &isLastCtuOfSliceSegment);
@@ -114,6 +117,8 @@ protected:
   Void setIsChromaQpAdjCoded    ( Bool b )                { m_IsChromaQpAdjCoded = b;           }
 
   Void xFillPCMBuffer           (TComDataCU* pCU, UInt depth);
+
+  TComRom::TComRomScan          *romScan;
 };
 
 //! \}

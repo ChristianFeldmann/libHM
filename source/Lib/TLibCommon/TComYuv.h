@@ -84,6 +84,7 @@ private:
   //                           14*4 / 16 =3=Y block offset
   //                                      3*4*16 = Y offset within buffer
 
+  TComRom::TComRomScan *romScan;
 
 public:
 
@@ -94,7 +95,7 @@ public:
   //  Memory management
   // ------------------------------------------------------------------------------------------------------------------
 
-  Void         create                     ( const UInt iWidth, const UInt iHeight, const ChromaFormat chromaFormatIDC );  ///< Create  YUV buffer
+  Void         create                     ( const UInt iWidth, const UInt iHeight, const ChromaFormat chromaFormatIDC, TComRom::TComRomScan *scan );  ///< Create  YUV buffer
   Void         destroy                    ();                             ///< Destroy YUV buffer
   Void         clear                      ();                             ///< clear   YUV buffer
 
@@ -153,15 +154,15 @@ public:
   //  Access starting position of YUV partition unit buffer
   Pel*         getAddr                    (const ComponentID id, const UInt uiPartUnitIdx)
                                               {
-                                                  Int blkX = g_auiRasterToPelX[ g_auiZscanToRaster[ uiPartUnitIdx ] ] >> getComponentScaleX(id);
-                                                  Int blkY = g_auiRasterToPelY[ g_auiZscanToRaster[ uiPartUnitIdx ] ] >> getComponentScaleY(id);
+                                                  Int blkX = romScan->auiRasterToPelX[ romScan->auiZscanToRaster[ uiPartUnitIdx ] ] >> getComponentScaleX(id);
+                                                  Int blkY = romScan->auiRasterToPelY[ romScan->auiZscanToRaster[ uiPartUnitIdx ] ] >> getComponentScaleY(id);
                                                   assert((blkX<getWidth(id) && blkY<getHeight(id)));
                                                   return m_apiBuf[id] + blkX + blkY * getStride(id);
                                               }
   const Pel*   getAddr                    (const ComponentID id, const UInt uiPartUnitIdx) const
                                               {
-                                                  Int blkX = g_auiRasterToPelX[ g_auiZscanToRaster[ uiPartUnitIdx ] ] >> getComponentScaleX(id);
-                                                  Int blkY = g_auiRasterToPelY[ g_auiZscanToRaster[ uiPartUnitIdx ] ] >> getComponentScaleY(id);
+                                                  Int blkX = romScan->auiRasterToPelX[ romScan->auiZscanToRaster[ uiPartUnitIdx ] ] >> getComponentScaleX(id);
+                                                  Int blkY = romScan->auiRasterToPelY[ romScan->auiZscanToRaster[ uiPartUnitIdx ] ] >> getComponentScaleY(id);
                                                   assert((blkX<getWidth(id) && blkY<getHeight(id)));
                                                   return m_apiBuf[id] + blkX + blkY * getStride(id);
                                               }

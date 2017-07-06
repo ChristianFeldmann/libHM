@@ -39,6 +39,8 @@
 #include "TEncCavlc.h"
 #include "SEIwrite.h"
 
+using namespace TComRom;
+
 //! \ingroup TLibEncoder
 //! \{
 
@@ -1474,7 +1476,7 @@ Void TEncCavlc::codeScalingList( const TComScalingList &scalingList )
 Void TEncCavlc::xCodeScalingList(const TComScalingList* scalingList, UInt sizeId, UInt listId)
 {
   Int coefNum = min(MAX_MATRIX_COEF_NUM,(Int)g_scalingListSize[sizeId]);
-  UInt* scan  = g_scanOrder[SCAN_UNGROUPED][SCAN_DIAG][sizeId==0 ? 2 : 3][sizeId==0 ? 2 : 3];
+  UInt* scan  = romScan->scanOrder[SCAN_UNGROUPED][SCAN_DIAG][sizeId==0 ? 2 : 3][sizeId==0 ? 2 : 3];
   Int nextCoef = SCALING_LIST_START_VALUE;
   Int data;
   const Int *src = scalingList->getScalingListAddress(sizeId, listId);

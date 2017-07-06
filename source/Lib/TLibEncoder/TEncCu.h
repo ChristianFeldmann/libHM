@@ -101,6 +101,8 @@ private:
   TEncSbac*               m_pcRDGoOnSbacCoder;
   TEncRateCtrl*           m_pcRateCtrl;
 
+  TComRom::TComRomScan *romScan;
+
 public:
   /// copy parameters from encoder class
   Void  init                ( TEncTop* pcEncTop );
@@ -125,6 +127,8 @@ public:
   Int   updateCtuDataISlice ( TComDataCU* pCtu, Int width, Int height );
 
   Void setFastDeltaQp       ( Bool b)                 { m_bFastDeltaQP = b;         }
+
+  void setTComRomScan(TComRom::TComRomScan *scan) { romScan = scan; }
 
 protected:
   Void  finishCU            ( TComDataCU*  pcCU, UInt uiAbsPartIdx );

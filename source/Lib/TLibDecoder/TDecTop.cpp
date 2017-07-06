@@ -89,6 +89,12 @@ TDecTop::TDecTop()
   g_bJustDoIt = g_bEncDecTraceDisable;
   g_nSymbolCounter = 0;
 #endif
+  romScan.initROM();
+  m_cPrediction.setTComRomScan(&romScan);
+  m_cLoopFilter.setTComRomScan(&romScan);
+  m_cSAO.setTComRomScan(&romScan);
+  m_cCuDecoder.setTComRomScan(&romScan);
+  m_cCavlcDecoder.setTComRomScan(&romScan);
 }
 
 TDecTop::~TDecTop()
@@ -104,6 +110,7 @@ TDecTop::~TDecTop()
     delete m_prefixSEINALUs.front();
     m_prefixSEINALUs.pop_front();
   }
+  romScan.destroyROM();
 }
 
 Void TDecTop::create()
@@ -126,7 +133,6 @@ Void TDecTop::destroy()
 Void TDecTop::init()
 {
   // initialize ROM
-  initROM();
   m_cGopDecoder.init( &m_cEntropyDecoder, &m_cSbacDecoder, &m_cBinCABAC, &m_cCavlcDecoder, &m_cSliceDecoder, &m_cLoopFilter, &m_cSAO);
   m_cSliceDecoder.init( &m_cEntropyDecoder, &m_cCuDecoder, &m_conformanceCheck );
   m_cEntropyDecoder.init(&m_cPrediction);
@@ -151,7 +157,6 @@ Void TDecTop::deletePicBuffer ( )
   m_cLoopFilter.        destroy();
 
   // destroy ROM
-  destroyROM();
 }
 
 Void TDecTop::xGetNewPicBuffer ( const TComSPS &sps, const TComPPS &pps, TComPic*& rpcPic, const UInt temporalLayer )
@@ -162,9 +167,9 @@ Void TDecTop::xGetNewPicBuffer ( const TComSPS &sps, const TComPPS &pps, TComPic
     rpcPic = new TComPic();
 
 #if REDUCED_ENCODER_MEMORY
-    rpcPic->create ( sps, pps, false, true);
+    rpcPic->create ( sps, pps, false, true, &romScan );
 #else
-    rpcPic->create ( sps, pps, true);
+    rpcPic->create ( sps, pps, true, &romScan );
 #endif
 
     m_cListPic.pushBack( rpcPic );
@@ -203,9 +208,9 @@ Void TDecTop::xGetNewPicBuffer ( const TComSPS &sps, const TComPPS &pps, TComPic
   }
   rpcPic->destroy();
 #if REDUCED_ENCODER_MEMORY
-  rpcPic->create ( sps, pps, false, true);
+  rpcPic->create ( sps, pps, false, true, &romScan );
 #else
-  rpcPic->create ( sps, pps, true);
+  rpcPic->create ( sps, pps, true, &romScan );
 #endif
 }
 
@@ -347,7 +352,7 @@ Void TDecTop::xActivateParameterSets()
 
     // Initialise the various objects for the new set of settings
     m_cSAO.create( sps->getPicWidthInLumaSamples(), sps->getPicHeightInLumaSamples(), sps->getChromaFormatIdc(), sps->getMaxCUWidth(), sps->getMaxCUHeight(), sps->getMaxTotalCUDepth(), pps->getPpsRangeExtension().getLog2SaoOffsetScale(CHANNEL_TYPE_LUMA), pps->getPpsRangeExtension().getLog2SaoOffsetScale(CHANNEL_TYPE_CHROMA) );
-    m_cLoopFilter.create( sps->getMaxTotalCUDepth() );
+    m_cLoopFilter.create( sps->getMaxTotalCUDepth());
     m_cPrediction.initTempBuff(sps->getChromaFormatIdc());
 
 

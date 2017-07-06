@@ -51,6 +51,7 @@
 
 #include <deque>
 using namespace std;
+using namespace TComRom;
 
 //! \ingroup TLibEncoder
 //! \{
@@ -2750,7 +2751,7 @@ Void TEncGOP::applyDeblockingFilterParameterSelection( TComPic* pcPic, const UIn
   if(!m_pcDeblockingTempPicYuv)
   {
     m_pcDeblockingTempPicYuv         = new TComPicYuv;
-    m_pcDeblockingTempPicYuv->create( m_pcEncTop->getSourceWidth(), m_pcEncTop->getSourceHeight(), m_pcEncTop->getChromaFormatIdc(),  pcPic->getSlice(0)->getSPS()->getMaxCUWidth(), pcPic->getSlice(0)->getSPS()->getMaxCUHeight(), pcPic->getSlice(0)->getSPS()->getMaxTotalCUDepth(),true );
+    m_pcDeblockingTempPicYuv->create( m_pcEncTop->getSourceWidth(), m_pcEncTop->getSourceHeight(), m_pcEncTop->getChromaFormatIdc(),  pcPic->getSlice(0)->getSPS()->getMaxCUWidth(), pcPic->getSlice(0)->getSPS()->getMaxCUHeight(), pcPic->getSlice(0)->getSPS()->getMaxTotalCUDepth(),true, romScan );
     memset(m_DBParam, 0, sizeof(m_DBParam));
   }
 

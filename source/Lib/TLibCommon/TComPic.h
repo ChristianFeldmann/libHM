@@ -80,13 +80,14 @@ private:
   std::vector<std::vector<TComDataCU*> > m_vSliceCUDataLink;
 
   SEIMessages  m_SEIs; ///< Any SEI messages that have been received.  If !NULL we own the object.
+  TComRom::TComRomScan *romScan;
 
 public:
   TComPic();
   virtual ~TComPic();
 
 #if REDUCED_ENCODER_MEMORY
-  Void          create( const TComSPS &sps, const TComPPS &pps, const Bool bCreateEncoderSourcePicYuv, const Bool bCreateForImmediateReconstruction );
+  Void          create( const TComSPS &sps, const TComPPS &pps, const Bool bCreateEncoderSourcePicYuv, const Bool bCreateForImmediateReconstruction, TComRom::TComRomScan *scan );
   Void          prepareForEncoderSourcePicYuv();
   Void          prepareForReconstruction();
   Void          releaseReconstructionIntermediateData();

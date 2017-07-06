@@ -124,11 +124,12 @@ Void TComPicYuv::create ( const Int picWidth,                 ///< picture width
                           const UInt maxCUWidth,              ///< used for generating offsets to CUs.
                           const UInt maxCUHeight,             ///< used for generating offsets to CUs.
                           const UInt maxCUDepth,              ///< used for generating offsets to CUs.
-                          const Bool bUseMargin)              ///< if true, then a margin of uiMaxCUWidth+16 and uiMaxCUHeight+16 is created around the image.
+                          const Bool bUseMargin,              ///< if true, then a margin of uiMaxCUWidth+16 and uiMaxCUHeight+16 is created around the image.
+                          TComRom::TComRomScan *scan)
 
 {
   createWithoutCUInfo(picWidth, picHeight, chromaFormatIDC, bUseMargin, maxCUWidth, maxCUHeight);
-
+  romScan = scan;
 
   const Int numCuInWidth  = m_picWidth  / maxCUWidth  + (m_picWidth  % maxCUWidth  != 0);
   const Int numCuInHeight = m_picHeight / maxCUHeight + (m_picHeight % maxCUHeight != 0);

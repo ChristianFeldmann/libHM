@@ -61,13 +61,14 @@ TComYuv::~TComYuv()
   destroy();
 }
 
-Void TComYuv::create( UInt iWidth, UInt iHeight, ChromaFormat chromaFormatIDC )
+Void TComYuv::create( UInt iWidth, UInt iHeight, ChromaFormat chromaFormatIDC, TComRom::TComRomScan *scan )
 {
   destroy();
   // set width and height
   m_iWidth   = iWidth;
   m_iHeight  = iHeight;
   m_chromaFormatIDC = chromaFormatIDC;
+  romScan = scan;
 
   for(Int comp=0; comp<MAX_NUM_COMPONENT; comp++)
   {

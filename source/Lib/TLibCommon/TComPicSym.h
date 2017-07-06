@@ -105,6 +105,8 @@ private:
   UInt*         m_puiTileIdxMap;       ///< the map of the tile index relative to CTU raster scan address
   UInt*         m_ctuRsToTsAddrMap;    ///< for a given RS (Raster-Scan) address, returns the TS (Tile-Scan; coding order) address. cf CtbAddrRsToTs in specification.
 
+  TComRom::TComRomScan *romScan;
+
 #if REDUCED_ENCODER_MEMORY
 public:
   struct DPBPerCtuData
@@ -139,12 +141,12 @@ private:
 
 public:
 #if REDUCED_ENCODER_MEMORY
-  Void               create  ( const TComSPS &sps, const TComPPS &pps, UInt uiMaxDepth, const Bool bAllocateCtuArray );
+  Void               create  ( const TComSPS &sps, const TComPPS &pps, UInt uiMaxDepth, const Bool bAllocateCtuArray, TComRom::TComRomScan *scan );
   Void               prepareForReconstruction();
   Void               releaseReconstructionIntermediateData();
   Void               releaseAllReconstructionData();
 #else
-  Void               create  ( const TComSPS &sps, const TComPPS &pps, UInt uiMaxDepth );
+  Void               create  ( const TComSPS &sps, const TComPPS &pps, UInt uiMaxDepth, TComRom::TComRomScan *scan );
 #endif
   Void               destroy ();
 

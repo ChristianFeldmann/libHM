@@ -176,7 +176,7 @@ static inline Int getTransformShift(const Int channelBitDepth, const UInt uiLog2
 
 static inline Int getScaledChromaQP(Int unscaledChromaQP, const ChromaFormat chFmt)
 {
-  return g_aucChromaScale[chFmt][Clip3(0, (chromaQPMappingTableSize - 1), unscaledChromaQP)];
+  return TComRom::g_aucChromaScale[chFmt][Clip3(0, (CHROMA_QP_MAPPING_TABLE_SIZE - 1), unscaledChromaQP)];
 }
 
 
@@ -216,8 +216,8 @@ static inline Void getLastSignificantContextParameters (const ComponentID  compo
                                                               Int         &result_shiftX,
                                                               Int         &result_shiftY)
 {
-  const UInt convertedWidth  = g_aucConvertToBit[width];
-  const UInt convertedHeight = g_aucConvertToBit[height];
+  const UInt convertedWidth  = TComRom::g_aucConvertToBit[width];
+  const UInt convertedHeight = TComRom::g_aucConvertToBit[height];
 
   result_offsetX = (isChroma(component)) ? 0               : ((convertedWidth  * 3) + ((convertedWidth  + 1) >> 2));
   result_offsetY = (isChroma(component)) ? 0               : ((convertedHeight * 3) + ((convertedHeight + 1) >> 2));

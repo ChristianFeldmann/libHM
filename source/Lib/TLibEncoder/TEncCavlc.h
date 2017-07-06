@@ -77,6 +77,8 @@ protected:
   Void codeShortTermRefPicSet              ( const TComReferencePictureSet* pcRPS, Bool calledFromSliceHeader, Int idx );
   Bool findMatchingLTRP ( TComSlice* pcSlice, UInt *ltrpsIndex, Int ltrpPOC, Bool usedFlag );
 
+  TComRom::TComRomScan *romScan;
+
 public:
 
   Void  resetEntropy          (const TComSlice *pSlice);
@@ -140,6 +142,8 @@ public:
   Void xCodeScalingList ( const TComScalingList* scalingList, UInt sizeId, UInt listId);
 
   Void codeExplicitRdpcmMode( TComTU &rTu, const ComponentID compID );
+
+  void setTComRomScan(TComRom::TComRomScan *scan) { romScan = scan; }
 };
 
 //! \}

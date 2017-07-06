@@ -45,6 +45,8 @@
 #include "TComTU.h"
 #include "Debug.h"
 
+using namespace TComRom;
+
 typedef struct
 {
   Int    iNNZbeforePos0;
@@ -82,7 +84,7 @@ QpParam::QpParam(const Int           qpy,
   }
   else
   {
-    baseQp = Clip3( -qpBdOffset, (chromaQPMappingTableSize - 1), qpy + chromaQPOffset );
+    baseQp = Clip3( -qpBdOffset, (CHROMA_QP_MAPPING_TABLE_SIZE - 1), qpy + chromaQPOffset );
 
     if(baseQp < 0)
     {

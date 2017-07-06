@@ -46,6 +46,8 @@
 #include <xmmintrin.h>
 #endif
 
+using namespace TComRom;
+
 //! \ingroup TLibCommon
 //! \{
 

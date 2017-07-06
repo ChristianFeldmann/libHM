@@ -36,6 +36,7 @@
 */
 
 #include "TComRom.h"
+#include "CommonDef.h"
 #include <memory.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -47,10 +48,20 @@
 // Initialize / destroy functions
 // ====================================================================================================================
 
+using namespace TComRom;
+
 //! \ingroup TLibCommon
 //! \{
 
-const TChar* nalUnitTypeToString(NalUnitType type)
+TComRomScan::TComRomScan()
+{
+  auiZscanToRaster[MAX_NUM_PART_IDXS_IN_CTU_WIDTH*MAX_NUM_PART_IDXS_IN_CTU_WIDTH] = { 0, };
+  auiRasterToZscan[MAX_NUM_PART_IDXS_IN_CTU_WIDTH*MAX_NUM_PART_IDXS_IN_CTU_WIDTH] = { 0, };
+  auiRasterToPelX[MAX_NUM_PART_IDXS_IN_CTU_WIDTH*MAX_NUM_PART_IDXS_IN_CTU_WIDTH] = { 0, };
+  auiRasterToPelY[MAX_NUM_PART_IDXS_IN_CTU_WIDTH*MAX_NUM_PART_IDXS_IN_CTU_WIDTH] = { 0, };
+}
+
+const TChar* TComRom::nalUnitTypeToString(NalUnitType type)
 {
   switch (type)
   {
@@ -175,20 +186,9 @@ public:
   }
 };
 
-// initialize ROM variables
-Void initROM()
+// initialize the scanOrder array
+Void TComRomScan::initROM()
 {
-  Int i, c;
-
-  // g_aucConvertToBit[ x ]: log2(x/4), if x=4 -> 0, x=8 -> 1, x=16 -> 2, ...
-  ::memset( g_aucConvertToBit,   -1, sizeof( g_aucConvertToBit ) );
-  c=0;
-  for ( i=4; i<=MAX_CU_SIZE; i*=2 )
-  {
-    g_aucConvertToBit[ i ] = c;
-    c++;
-  }
-
   // initialise scan orders
   for(UInt log2BlockHeight = 0; log2BlockHeight < MAX_CU_DEPTH; log2BlockHeight++)
   {
@@ -206,13 +206,13 @@ Void initROM()
       {
         const COEFF_SCAN_TYPE scanType = COEFF_SCAN_TYPE(scanTypeIndex);
 
-        g_scanOrder[SCAN_UNGROUPED][scanType][log2BlockWidth][log2BlockHeight] = new UInt[totalValues];
+        scanOrder[SCAN_UNGROUPED][scanType][log2BlockWidth][log2BlockHeight] = new UInt[totalValues];
 
         ScanGenerator fullBlockScan(blockWidth, blockHeight, blockWidth, scanType);
 
         for (UInt scanPosition = 0; scanPosition < totalValues; scanPosition++)
         {
-          g_scanOrder[SCAN_UNGROUPED][scanType][log2BlockWidth][log2BlockHeight][scanPosition] = fullBlockScan.GetNextIndex(0, 0);
+          scanOrder[SCAN_UNGROUPED][scanType][log2BlockWidth][log2BlockHeight][scanPosition] = fullBlockScan.GetNextIndex(0, 0);
         }
       }
 
@@ -232,7 +232,7 @@ Void initROM()
       {
         const COEFF_SCAN_TYPE scanType = COEFF_SCAN_TYPE(scanTypeIndex);
 
-        g_scanOrder[SCAN_GROUPED_4x4][scanType][log2BlockWidth][log2BlockHeight] = new UInt[totalValues];
+        scanOrder[SCAN_GROUPED_4x4][scanType][log2BlockWidth][log2BlockHeight] = new UInt[totalValues];
 
         ScanGenerator fullBlockScan(widthInGroups, heightInGroups, groupWidth, scanType);
 
@@ -248,7 +248,7 @@ Void initROM()
 
           for (UInt scanPosition = 0; scanPosition < groupSize; scanPosition++)
           {
-            g_scanOrder[SCAN_GROUPED_4x4][scanType][log2BlockWidth][log2BlockHeight][groupOffsetScan + scanPosition] = groupScan.GetNextIndex(groupOffsetX, groupOffsetY);
+            scanOrder[SCAN_GROUPED_4x4][scanType][log2BlockWidth][log2BlockHeight][groupOffsetScan + scanPosition] = groupScan.GetNextIndex(groupOffsetX, groupOffsetY);
           }
 
           fullBlockScan.GetNextIndex(0,0);
@@ -260,7 +260,8 @@ Void initROM()
   }
 }
 
-Void destroyROM()
+// free the scanOrder array
+Void TComRomScan::destroyROM()
 {
   for(UInt groupTypeIndex = 0; groupTypeIndex < SCAN_NUMBER_OF_GROUP_TYPES; groupTypeIndex++)
   {
@@ -270,7 +271,7 @@ Void destroyROM()
       {
         for (UInt log2BlockHeight = 0; log2BlockHeight < MAX_CU_DEPTH; log2BlockHeight++)
         {
-          delete [] g_scanOrder[groupTypeIndex][scanOrderIndex][log2BlockWidth][log2BlockHeight];
+          delete [] scanOrder[groupTypeIndex][scanOrderIndex][log2BlockWidth][log2BlockHeight];
         }
       }
     }
@@ -281,14 +282,9 @@ Void destroyROM()
 // Data structure related table & variable
 // ====================================================================================================================
 
-UInt g_auiZscanToRaster [ MAX_NUM_PART_IDXS_IN_CTU_WIDTH*MAX_NUM_PART_IDXS_IN_CTU_WIDTH ] = { 0, };
-UInt g_auiRasterToZscan [ MAX_NUM_PART_IDXS_IN_CTU_WIDTH*MAX_NUM_PART_IDXS_IN_CTU_WIDTH ] = { 0, };
-UInt g_auiRasterToPelX  [ MAX_NUM_PART_IDXS_IN_CTU_WIDTH*MAX_NUM_PART_IDXS_IN_CTU_WIDTH ] = { 0, };
-UInt g_auiRasterToPelY  [ MAX_NUM_PART_IDXS_IN_CTU_WIDTH*MAX_NUM_PART_IDXS_IN_CTU_WIDTH ] = { 0, };
+const UInt TComRom::g_auiPUOffset[NUMBER_OF_PART_SIZES] = { 0, 8, 4, 4, 2, 10, 1, 5};
 
-const UInt g_auiPUOffset[NUMBER_OF_PART_SIZES] = { 0, 8, 4, 4, 2, 10, 1, 5};
-
-Void initZscanToRaster ( Int iMaxDepth, Int iDepth, UInt uiStartVal, UInt*& rpuiCurrIdx )
+Void TComRomScan::initZscanToRaster ( Int iMaxDepth, Int iDepth, UInt uiStartVal, UInt*& rpuiCurrIdx )
 {
   Int iStride = 1 << ( iMaxDepth - 1 );
 
@@ -307,7 +303,7 @@ Void initZscanToRaster ( Int iMaxDepth, Int iDepth, UInt uiStartVal, UInt*& rpui
   }
 }
 
-Void initRasterToZscan ( UInt uiMaxCUWidth, UInt uiMaxCUHeight, UInt uiMaxDepth )
+Void TComRomScan::initRasterToZscan ( UInt uiMaxCUWidth, UInt uiMaxCUHeight, UInt uiMaxDepth )
 {
   UInt  uiMinCUWidth  = uiMaxCUWidth  >> ( uiMaxDepth - 1 );
   UInt  uiMinCUHeight = uiMaxCUHeight >> ( uiMaxDepth - 1 );
@@ -317,16 +313,16 @@ Void initRasterToZscan ( UInt uiMaxCUWidth, UInt uiMaxCUHeight, UInt uiMaxDepth 
 
   for ( UInt i = 0; i < uiNumPartInWidth*uiNumPartInHeight; i++ )
   {
-    g_auiRasterToZscan[ g_auiZscanToRaster[i] ] = i;
+    auiRasterToZscan[ auiZscanToRaster[i] ] = i;
   }
 }
 
-Void initRasterToPelXY ( UInt uiMaxCUWidth, UInt uiMaxCUHeight, UInt uiMaxDepth )
+Void TComRomScan::initRasterToPelXY ( UInt uiMaxCUWidth, UInt uiMaxCUHeight, UInt uiMaxDepth )
 {
   UInt    i;
 
-  UInt* uiTempX = &g_auiRasterToPelX[0];
-  UInt* uiTempY = &g_auiRasterToPelY[0];
+  UInt* uiTempX = &auiRasterToPelX[0];
+  UInt* uiTempY = &auiRasterToPelY[0];
 
   UInt  uiMinCUWidth  = uiMaxCUWidth  >> ( uiMaxDepth - 1 );
   UInt  uiMinCUHeight = uiMaxCUHeight >> ( uiMaxDepth - 1 );
@@ -351,15 +347,21 @@ Void initRasterToPelXY ( UInt uiMaxCUWidth, UInt uiMaxCUHeight, UInt uiMaxDepth 
   }
 }
 
-const Int g_quantScales[SCALING_LIST_REM_NUM] =
+const Int TComRom::g_quantScales[SCALING_LIST_REM_NUM] =
 {
   26214,23302,20560,18396,16384,14564
 };
 
-const Int g_invQuantScales[SCALING_LIST_REM_NUM] =
+const Int TComRom::g_invQuantScales[SCALING_LIST_REM_NUM] =
 {
   40,45,51,57,64,72
 };
+
+#if RExt__HIGH_PRECISION_FORWARD_TRANSFORM
+const Int TComRom::g_transformMatrixShift[TRANSFORM_NUMBER_OF_DIRECTIONS] = { 14, 6 };
+#else
+const Int TComRom::g_transformMatrixShift[TRANSFORM_NUMBER_OF_DIRECTIONS] = { 6, 6 };
+#endif
 
 //--------------------------------------------------------------------------------------------------
 
@@ -486,37 +488,51 @@ const TMatrixCoeff g_as_DST_MAT_4[TRANSFORM_NUMBER_OF_DIRECTIONS][4][4] =
 
 #else
 
-const TMatrixCoeff g_aiT4 [TRANSFORM_NUMBER_OF_DIRECTIONS][4][4]   =
+const TMatrixCoeff TComRom::g_aiT4[TRANSFORM_NUMBER_OF_DIRECTIONS][4][4] =
 {
   DEFINE_DCT4x4_MATRIX  (   64,    83,    36),
   DEFINE_DCT4x4_MATRIX  (   64,    83,    36)
 };
 
-const TMatrixCoeff g_aiT8 [TRANSFORM_NUMBER_OF_DIRECTIONS][8][8]   =
+const TMatrixCoeff TComRom::g_aiT8 [TRANSFORM_NUMBER_OF_DIRECTIONS][8][8]   =
 {
   DEFINE_DCT8x8_MATRIX  (   64,    83,    36,    89,    75,    50,    18),
   DEFINE_DCT8x8_MATRIX  (   64,    83,    36,    89,    75,    50,    18)
 };
 
-const TMatrixCoeff g_aiT16[TRANSFORM_NUMBER_OF_DIRECTIONS][16][16] =
+const TMatrixCoeff TComRom::g_aiT16[TRANSFORM_NUMBER_OF_DIRECTIONS][16][16] =
 {
   DEFINE_DCT16x16_MATRIX(   64,    83,    36,    89,    75,    50,    18,    90,    87,    80,    70,    57,    43,    25,     9),
   DEFINE_DCT16x16_MATRIX(   64,    83,    36,    89,    75,    50,    18,    90,    87,    80,    70,    57,    43,    25,     9)
 };
 
-const TMatrixCoeff g_aiT32[TRANSFORM_NUMBER_OF_DIRECTIONS][32][32] =
+const TMatrixCoeff TComRom::g_aiT32[TRANSFORM_NUMBER_OF_DIRECTIONS][32][32] =
 {
   DEFINE_DCT32x32_MATRIX(   64,    83,    36,    89,    75,    50,    18,    90,    87,    80,    70,    57,    43,    25,     9,    90,    90,    88,    85,    82,    78,    73,    67,    61,    54,    46,    38,    31,    22,    13,     4),
   DEFINE_DCT32x32_MATRIX(   64,    83,    36,    89,    75,    50,    18,    90,    87,    80,    70,    57,    43,    25,     9,    90,    90,    88,    85,    82,    78,    73,    67,    61,    54,    46,    38,    31,    22,    13,     4)
 };
 
-const TMatrixCoeff g_as_DST_MAT_4[TRANSFORM_NUMBER_OF_DIRECTIONS][4][4] =
+const TMatrixCoeff TComRom::g_as_DST_MAT_4[TRANSFORM_NUMBER_OF_DIRECTIONS][4][4] =
 {
   DEFINE_DST4x4_MATRIX(   29,    55,    74,    84),
   DEFINE_DST4x4_MATRIX(   29,    55,    74,    84)
 };
 #endif
 
+#define MAX_CU_SIZE_SET 64
+#if MAX_CU_SIZE_SET==16
+const SChar TComRom::g_aucConvertToBit[MAX_CU_SIZE + 1] = { -1, -1, -1, -1, 0, -1, -1, -1, 1, -1, -1, -1, -1, -1, -1, -1, 2};
+#elif MAX_CU_SIZE_SET==32
+const SChar TComRom::g_aucConvertToBit[MAX_CU_SIZE + 1] = { -1, -1, -1, -1, 0, -1, -1, -1, 1, -1, -1, -1, -1, -1, -1, -1, 2, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 3};
+#elif MAX_CU_SIZE_SET==64
+const SChar TComRom::g_aucConvertToBit[MAX_CU_SIZE + 1] = { -1, -1, -1, -1, 0, -1, -1, -1, 1, -1, -1, -1, -1, -1, -1, -1, 2, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 4 };
+#elif MAX_CU_SIZE_SET==128
+const SChar TComRom::g_aucConvertToBit[MAX_CU_SIZE + 1] = {-1, -1, -1, -1, 0, -1, -1, -1, 1, -1, -1, -1, -1, -1, -1, -1, 2, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 4, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 5};
+#elif MAX_CU_SIZE_SET==256
+const SChar TComRom::g_aucConvertToBit[MAX_CU_SIZE + 1] = { -1, -1, -1, -1, 0, -1, -1, -1, 1, -1, -1, -1, -1, -1, -1, -1, 2, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 4, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 5, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 6};
+#else
+#error
+#endif
 
 //--------------------------------------------------------------------------------------------------
 
@@ -528,8 +544,7 @@ const TMatrixCoeff g_as_DST_MAT_4[TRANSFORM_NUMBER_OF_DIRECTIONS][4][4] =
 
 //--------------------------------------------------------------------------------------------------
 
-
-const UChar g_aucChromaScale[NUM_CHROMA_FORMAT][chromaQPMappingTableSize]=
+const UChar TComRom::g_aucChromaScale[NUM_CHROMA_FORMAT][CHROMA_QP_MAPPING_TABLE_SIZE]=
 {
   //0, 1, 2, 3, 4, 5, 6, 7, 8, 9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57
   { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
@@ -542,7 +557,7 @@ const UChar g_aucChromaScale[NUM_CHROMA_FORMAT][chromaQPMappingTableSize]=
 // Intra prediction
 // ====================================================================================================================
 
-const UChar g_aucIntraModeNumFast_UseMPM[MAX_CU_DEPTH] =
+const UChar TComRom::g_aucIntraModeNumFast_UseMPM[MAX_CU_DEPTH] =
 {
   3,  //   2x2
   8,  //   4x4
@@ -551,7 +566,7 @@ const UChar g_aucIntraModeNumFast_UseMPM[MAX_CU_DEPTH] =
   3,  //  32x32
   3   //  64x64
 };
-const UChar g_aucIntraModeNumFast_NotUseMPM[MAX_CU_DEPTH] =
+const UChar TComRom::g_aucIntraModeNumFast_NotUseMPM[MAX_CU_DEPTH] =
 {
   3,  //   2x2
   9,  //   4x4
@@ -561,15 +576,13 @@ const UChar g_aucIntraModeNumFast_NotUseMPM[MAX_CU_DEPTH] =
   5   //  64x64   33
 };
 
-const UChar g_chroma422IntraAngleMappingTable[NUM_INTRA_MODE] =
+const UChar TComRom::g_chroma422IntraAngleMappingTable[NUM_INTRA_MODE] =
   //0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, DM
   { 0, 1, 2, 2, 2, 2, 3, 5, 7, 8, 10, 12, 13, 15, 17, 18, 19, 20, 21, 22, 23, 23, 24, 24, 25, 25, 26, 27, 27, 28, 28, 29, 29, 30, 31, DM_CHROMA_IDX};
 
 // ====================================================================================================================
 // Misc.
 // ====================================================================================================================
-
-SChar  g_aucConvertToBit  [ MAX_CU_SIZE+1 ];
 
 #if ENC_DEC_TRACE
 FILE*  g_hTrace = NULL; // Set to NULL to open up a file. Set to stdout to use the current output
@@ -583,10 +596,7 @@ UInt64 g_nSymbolCounter = 0;
 // Scanning order & context model mapping
 // ====================================================================================================================
 
-// scanning order table
-UInt* g_scanOrder[SCAN_NUMBER_OF_GROUP_TYPES][SCAN_NUMBER_OF_TYPES][ MAX_CU_DEPTH ][ MAX_CU_DEPTH ];
-
-const UInt ctxIndMap4x4[4*4] =
+const UInt TComRom::ctxIndMap4x4[4*4] =
 {
   0, 1, 4, 5,
   2, 3, 4, 5,
@@ -594,10 +604,10 @@ const UInt ctxIndMap4x4[4*4] =
   7, 7, 8, 8
 };
 
-const UInt g_uiMinInGroup[ LAST_SIGNIFICANT_GROUPS ] = {0,1,2,3,4,6,8,12,16,24};
-const UInt g_uiGroupIdx[ MAX_TU_SIZE ]   = {0,1,2,3,4,4,5,5,6,6,6,6,7,7,7,7,8,8,8,8,8,8,8,8,9,9,9,9,9,9,9,9};
+const UInt TComRom::g_uiMinInGroup[ LAST_SIGNIFICANT_GROUPS ] = {0,1,2,3,4,6,8,12,16,24};
+const UInt TComRom::g_uiGroupIdx[ MAX_TU_SIZE ]   = {0,1,2,3,4,4,5,5,6,6,6,6,7,7,7,7,8,8,8,8,8,8,8,8,9,9,9,9,9,9,9,9};
 
-const TChar *MatrixType[SCALING_LIST_SIZE_NUM][SCALING_LIST_NUM] =
+const TChar *TComRom::MatrixType[SCALING_LIST_SIZE_NUM][SCALING_LIST_NUM] =
 {
   {
     "INTRA4X4_LUMA",
@@ -633,7 +643,7 @@ const TChar *MatrixType[SCALING_LIST_SIZE_NUM][SCALING_LIST_NUM] =
   },
 };
 
-const TChar *MatrixType_DC[SCALING_LIST_SIZE_NUM][SCALING_LIST_NUM] =
+const TChar *TComRom::MatrixType_DC[SCALING_LIST_SIZE_NUM][SCALING_LIST_NUM] =
 {
   {
   },
@@ -657,7 +667,7 @@ const TChar *MatrixType_DC[SCALING_LIST_SIZE_NUM][SCALING_LIST_NUM] =
   },
 };
 
-const Int g_quantTSDefault4x4[4*4] =
+const Int TComRom::g_quantTSDefault4x4[4*4] =
 {
   16,16,16,16,
   16,16,16,16,
@@ -665,7 +675,7 @@ const Int g_quantTSDefault4x4[4*4] =
   16,16,16,16
 };
 
-const Int g_quantIntraDefault8x8[8*8] =
+const Int TComRom::g_quantIntraDefault8x8[8*8] =
 {
   16,16,16,16,17,18,21,24,
   16,16,16,16,17,19,22,25,
@@ -677,7 +687,7 @@ const Int g_quantIntraDefault8x8[8*8] =
   24,25,29,36,47,65,88,115
 };
 
-const Int g_quantInterDefault8x8[8*8] =
+const Int TComRom::g_quantInterDefault8x8[8*8] =
 {
   16,16,16,16,17,18,20,24,
   16,16,16,17,18,20,24,25,
@@ -689,7 +699,7 @@ const Int g_quantInterDefault8x8[8*8] =
   24,25,28,33,41,54,71,91
 };
 
-const UInt g_scalingListSize   [SCALING_LIST_SIZE_NUM] = {16,64,256,1024};
-const UInt g_scalingListSizeX  [SCALING_LIST_SIZE_NUM] = { 4, 8, 16,  32};
+const UInt TComRom::g_scalingListSize   [SCALING_LIST_SIZE_NUM] = {16,64,256,1024};
+const UInt TComRom::g_scalingListSizeX  [SCALING_LIST_SIZE_NUM] = { 4, 8, 16,  32};
 
 //! \}

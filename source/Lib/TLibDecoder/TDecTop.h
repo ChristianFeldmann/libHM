@@ -156,6 +156,8 @@ protected:
   Void      xParsePrefixSEImessages();
   Void      xParsePrefixSEIsForUnknownVCLNal();
 
+  // The instance of TComRomScan that can convertr from raster to Z-scan and vise-versa. It is initialized in TDecCU::Create
+  TComRom::TComRomScan          romScan;
 };// END CLASS DEFINITION TDecTop
 
 

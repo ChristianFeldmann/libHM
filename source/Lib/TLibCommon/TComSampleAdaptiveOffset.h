@@ -71,6 +71,7 @@ public:
   Void reconstructBlkSAOParams(TComPic* pic, SAOBlkParam* saoBlkParams);
   Void PCMLFDisableProcess (TComPic* pcPic);
   static Int getMaxOffsetQVal(const Int channelBitDepth) { return (1<<(std::min<Int>(channelBitDepth,MAX_SAO_TRUNCATED_BITDEPTH)-5))-1; } //Table 9-32, inclusive
+  void setTComRomScan(TComRom::TComRomScan *scan) { romScan = scan; }
 
 protected:
   Void offsetBlock(const Int channelBitDepth, Int typeIdx, Int* offset, Pel* srcBlk, Pel* resBlk, Int srcStride, Int resStride,  Int width, Int height
@@ -100,6 +101,7 @@ protected:
   ChromaFormat m_chromaFormatIDC;
 private:
   Bool m_picSAOEnabled[MAX_NUM_COMPONENT];
+  TComRom::TComRomScan *romScan;
 };
 
 //! \}

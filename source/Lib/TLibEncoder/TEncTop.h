@@ -181,6 +181,9 @@ public:
 
   Void printSummary(Bool isField) { m_cGOPEncoder.printOutSummary (m_uiNumAllPicCoded, isField, m_printMSEBasedSequencePSNR, m_printSequenceMSE, m_spsMap.getFirstPS()->getBitDepths()); }
 
+  // The instance of TComRomScan that can convertr from raster to Z-scan and vise-versa. It is initialized in TDecCU::Create
+  TComRom::TComRomScan          romScan;
+
 };
 
 //! \}

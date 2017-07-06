@@ -39,6 +39,8 @@
 #include "TLibCommon/TComTU.h"
 #include "TLibCommon/TComPrediction.h"
 
+using namespace TComRom;
+
 #if ENVIRONMENT_VARIABLE_DEBUG_AND_TEST
 #include "../TLibCommon/Debug.h"
 static const Bool bDebugRQT = DebugOptionList::DebugRQT.getInt()!=0;

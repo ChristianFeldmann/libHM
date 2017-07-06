@@ -99,6 +99,8 @@ protected:
   Bool xCheckIdenticalMotion    ( TComDataCU* pcCU, UInt PartAddr);
   Void destroy();
 
+  TComRom::TComRomScan *romScan;
+
 public:
   TComPrediction();
   virtual ~TComPrediction();
@@ -133,6 +135,8 @@ public:
   static Bool filteringIntraReferenceSamples(const ComponentID compID, UInt uiDirMode, UInt uiTuChWidth, UInt uiTuChHeight, const ChromaFormat chFmt, const Bool intraReferenceSmoothingDisabled);
 
   static Bool UseDPCMForFirstPassIntraEstimation(TComTU &rTu, const UInt uiDirMode);
+
+  void setTComRomScan(TComRom::TComRomScan *scan) { romScan = scan; }
 };
 
 //! \}

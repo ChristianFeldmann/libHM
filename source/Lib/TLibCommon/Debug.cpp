@@ -244,7 +244,8 @@ Void printCbfArray( TComDataCU* pcCU  )
     {
       for (Int x=0; x<CUSizeInParts; x++)
       {
-        printf(x+1==CUSizeInParts?"%3d\n":"%3d, ", pcCU->getCbf(compID)[g_auiRasterToZscan[y*CUSizeInParts + x]]);
+        TComRom::TComRomScan *romScan = pcCU->getRomScan();
+        printf(x+1==CUSizeInParts?"%3d\n":"%3d, ", pcCU->getCbf(compID)[romScan->auiRasterToZscan[y*CUSizeInParts + x]]);
       }
     }
   }

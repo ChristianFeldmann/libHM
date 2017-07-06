@@ -74,6 +74,15 @@ TEncTop::TEncTop() :
 #if FAST_BIT_EST
   ContextModel::buildNextStateTable();
 #endif
+
+  romScan.initROM();
+  m_cLoopFilter.setTComRomScan(&romScan);
+  m_cSliceEncoder.setTComRomScan(&romScan);
+  m_cSearch.setTComRomScan(&romScan);
+  m_cGOPEncoder.setTComRomScan(&romScan);
+  m_cCuEncoder.setTComRomScan(&romScan);
+  m_cCavlcCoder.setTComRomScan(&romScan);
+
 }
 
 TEncTop::~TEncTop()
@@ -84,13 +93,11 @@ TEncTop::~TEncTop()
     fclose( g_hTrace );
   }
 #endif
+  romScan.destroyROM();
 }
 
 Void TEncTop::create ()
 {
-  // initialize global variables
-  initROM();
-
   // create processing unit classes
   m_cGOPEncoder.        create( );
   m_cSliceEncoder.      create( getSourceWidth(), getSourceHeight(), m_chromaFormatIDC, m_maxCUWidth, m_maxCUHeight, m_maxTotalCUDepth );
@@ -173,10 +180,7 @@ Void TEncTop::destroy ()
 
   delete [] m_pppcRDSbacCoder;
   delete [] m_pppcBinCoderCABAC;
-
-  // destroy ROM
-  destroyROM();
-
+  
   return;
 }
 
@@ -423,7 +427,7 @@ Void TEncTop::encode(Bool flush, TComPicYuv* pcPicYuvOrg, TComPicYuv* pcPicYuvTr
         else
         {
           rpcPicYuvRec = new TComPicYuv;
-          rpcPicYuvRec->create( m_iSourceWidth, m_iSourceHeight, m_chromaFormatIDC, m_maxCUWidth, m_maxCUHeight, m_maxTotalCUDepth, true);
+          rpcPicYuvRec->create( m_iSourceWidth, m_iSourceHeight, m_chromaFormatIDC, m_maxCUWidth, m_maxCUHeight, m_maxTotalCUDepth, true, &romScan);
         }
         rcListPicYuvRecOut.pushBack( rpcPicYuvRec );
       }
@@ -539,7 +543,7 @@ Void TEncTop::xGetNewPicBuffer ( TComPic*& rpcPic, Int ppsId )
     {
       TEncPic* pcEPic = new TEncPic;
 #if REDUCED_ENCODER_MEMORY
-      pcEPic->create( sps, pps, pps.getMaxCuDQPDepth()+1);
+      pcEPic->create( sps, pps, pps.getMaxCuDQPDepth()+1, &romScan);
 #else
       pcEPic->create( sps, pps, pps.getMaxCuDQPDepth()+1, false);
 #endif
@@ -549,7 +553,7 @@ Void TEncTop::xGetNewPicBuffer ( TComPic*& rpcPic, Int ppsId )
     {
       rpcPic = new TComPic;
 #if REDUCED_ENCODER_MEMORY
-      rpcPic->create( sps, pps, true, false );
+      rpcPic->create( sps, pps, true, false, &romScan );
 #else
       rpcPic->create( sps, pps, false );
 #endif
