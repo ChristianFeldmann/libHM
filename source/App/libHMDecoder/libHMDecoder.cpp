@@ -518,8 +518,6 @@ extern "C" {
     LIBHMDEC_CU_TRQ_BYPASS,           ///< If transquant bypass is enabled, is the transquant bypass flag set?
     LIBHMDEC_CU_SKIP_FLAG,            ///< Is the CU skip flag set?
     LIBHMDEC_CU_PART_MODE,            ///< What is the partition mode of the CU into PUs? 0: SIZE_2Nx2N, 1: SIZE_2NxN, 2: SIZE_Nx2N, 3: SIZE_NxN, 4: SIZE_2NxnU, 5: SIZE_2NxnD, 6: SIZE_nLx2N, 7: SIZE_nRx2N
-    LIBHMDEC_CU_INTRA_MODE_LUMA,      ///< If the CU uses intra prediction, get the intra mode for luma
-    LIBHMDEC_CU_INTRA_MODE_CHROMA,    ///< If the CU uses intra prediction, get the intra mode for chroma
     LIBHMDEC_CU_ROOT_CBF,             ///< In the CU is inter, get the root coded block flag of the TU
     LIBHMDEC_PU_MERGE_FLAG,           ///< If the PU is inter, is the merge flag set?
     LIBHMDEC_PU_MERGE_INDEX,          ///< If the PU is merge, what is the merge index?
@@ -528,6 +526,8 @@ extern "C" {
     LIBHMDEC_PU_MV_0,                 ///< If the PU uses inter prediction, what is the motion vector of list 0?
     LIBHMDEC_PU_REFERENCE_POC_1,      ///< If the PU uses bi-directions inter prediction, what is the reference POC of list 1?
     LIBHMDEC_PU_MV_1,                 ///< If the PU uses bi-directions inter prediction, what is the motion vector of list 1?
+    LIBHMDEC_TU_INTRA_MODE_LUMA,      ///< If the CU uses intra prediction, get the intra mode for luma per TU (which it is processed in)
+    LIBHMDEC_TU_INTRA_MODE_CHROMA,    ///< If the CU uses intra prediction, get the intra mode for chroma per TU
     LIBHMDEC_TU_CBF_Y,                ///< Get the coded block flag for luma
     LIBHMDEC_TU_CBF_CB,               ///< Get the coded block flag for chroma U
     LIBHMDEC_TU_CBF_CR,               ///< Get the coded block flag for chroma V
@@ -555,8 +555,6 @@ extern "C" {
     case LIBHMDEC_CU_TRQ_BYPASS:        return "CU TrQuant Bypass";
     case LIBHMDEC_CU_SKIP_FLAG:         return "CU Skip";
     case LIBHMDEC_CU_PART_MODE:         return "CU Part Mode";
-    case LIBHMDEC_CU_INTRA_MODE_LUMA:   return "CU Intra Mode Y";
-    case LIBHMDEC_CU_INTRA_MODE_CHROMA: return "CU Intra Mode C";
     case LIBHMDEC_CU_ROOT_CBF:          return "CU Root CBF";
     case LIBHMDEC_PU_MERGE_FLAG:        return "PU Merge";
     case LIBHMDEC_PU_MERGE_INDEX:       return "PU Merge Idx";
@@ -565,6 +563,8 @@ extern "C" {
     case LIBHMDEC_PU_MV_0:              return "PU MV 0";
     case LIBHMDEC_PU_REFERENCE_POC_1:   return "PU Ref POC 1";
     case LIBHMDEC_PU_MV_1:              return "PU MV 1";
+    case LIBHMDEC_TU_INTRA_MODE_LUMA:   return "TU Intra Mode Y";
+    case LIBHMDEC_TU_INTRA_MODE_CHROMA: return "TU Intra Mode C";
     case LIBHMDEC_TU_CBF_Y:             return "TU CBF Y";
     case LIBHMDEC_TU_CBF_CB:            return "TU CBF Cb";
     case LIBHMDEC_TU_CBF_CR:            return "TU CBF Cr";
@@ -587,8 +587,6 @@ extern "C" {
     case LIBHMDEC_CU_TRQ_BYPASS:        return LIBHMDEC_TYPE_FLAG;
     case LIBHMDEC_CU_SKIP_FLAG:         return LIBHMDEC_TYPE_FLAG;
     case LIBHMDEC_CU_PART_MODE:         return LIBHMDEC_TYPE_RANGE;
-    case LIBHMDEC_CU_INTRA_MODE_LUMA:   return LIBHMDEC_TYPE_INTRA_DIR;
-    case LIBHMDEC_CU_INTRA_MODE_CHROMA: return LIBHMDEC_TYPE_INTRA_DIR;
     case LIBHMDEC_CU_ROOT_CBF:          return LIBHMDEC_TYPE_FLAG;
     case LIBHMDEC_PU_MERGE_FLAG:        return LIBHMDEC_TYPE_FLAG;
     case LIBHMDEC_PU_MERGE_INDEX:       return LIBHMDEC_TYPE_RANGE;
@@ -597,6 +595,8 @@ extern "C" {
     case LIBHMDEC_PU_MV_0:              return LIBHMDEC_TYPE_VECTOR;
     case LIBHMDEC_PU_REFERENCE_POC_1:   return LIBHMDEC_TYPE_RANGE_ZEROCENTER;
     case LIBHMDEC_PU_MV_1:              return LIBHMDEC_TYPE_VECTOR;
+    case LIBHMDEC_TU_INTRA_MODE_LUMA:   return LIBHMDEC_TYPE_INTRA_DIR;
+    case LIBHMDEC_TU_INTRA_MODE_CHROMA: return LIBHMDEC_TYPE_INTRA_DIR;
     case LIBHMDEC_TU_CBF_Y:             return LIBHMDEC_TYPE_FLAG;
     case LIBHMDEC_TU_CBF_CB:            return LIBHMDEC_TYPE_FLAG;
     case LIBHMDEC_TU_CBF_CR:            return LIBHMDEC_TYPE_FLAG;
@@ -642,8 +642,6 @@ extern "C" {
     case LIBHMDEC_CU_TRQ_BYPASS:        return "If transquant bypass is enabled, is the transquant bypass flag set?"; break;
     case LIBHMDEC_CU_SKIP_FLAG:         return "Is the CU skip flag set?"; break;
     case LIBHMDEC_CU_PART_MODE:         return "What is the partition mode of the CU into PUs? 0: SIZE_2Nx2N, 1: SIZE_2NxN, 2: SIZE_Nx2N, 3: SIZE_NxN, 4: SIZE_2NxnU, 5: SIZE_2NxnD, 6: SIZE_nLx2N, 7: SIZE_nRx2N"; break;
-    case LIBHMDEC_CU_INTRA_MODE_LUMA:   return "If the CU uses intra prediction, get the intra mode for luma"; break;
-    case LIBHMDEC_CU_INTRA_MODE_CHROMA: return "If the CU uses intra prediction, get the intra mode for chroma"; break;
     case LIBHMDEC_CU_ROOT_CBF:          return "In the CU is inter, get the root coded block flag of the TU"; break;
     case LIBHMDEC_PU_MERGE_FLAG:        return "If the PU is inter, is the merge flag set?"; break;
     case LIBHMDEC_PU_MERGE_INDEX:       return "If the PU is merge, what is the merge index?"; break;
@@ -652,6 +650,8 @@ extern "C" {
     case LIBHMDEC_PU_MV_0:              return "If the PU uses inter prediction, what is the motion vector of list 0?"; break;
     case LIBHMDEC_PU_REFERENCE_POC_1:   return "If the PU uses bi-directions inter prediction, what is the reference POC of list 1?"; break;
     case LIBHMDEC_PU_MV_1:              return "If the PU uses bi-directions inter prediction, what is the motion vector of list 1?"; break;
+    case LIBHMDEC_TU_INTRA_MODE_LUMA:   return "If the CU uses intra prediction, get the intra mode for luma per TU (intra is reconstructed on the TU level)"; break;
+    case LIBHMDEC_TU_INTRA_MODE_CHROMA: return "If the CU uses intra prediction, get the intra mode for chroma per TU (intra is reconstructed on the TU level)"; break;
     case LIBHMDEC_TU_CBF_Y:             return "Get the coded block flag for luma"; break;
     case LIBHMDEC_TU_CBF_CB:            return "Get the coded block flag for chroma U"; break;
     case LIBHMDEC_TU_CBF_CR:            return "Get the coded block flag for chroma V"; break;
@@ -797,6 +797,10 @@ extern "C" {
 
   bool addValuesForTURecursive(hmDecoderWrapper *d, TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, UInt trDepth, unsigned int typeIdx)
   {
+    if (!pcCU->isIntra(uiAbsPartIdx) && (typeIdx == LIBHMDEC_TU_INTRA_MODE_LUMA || typeIdx == LIBHMDEC_TU_INTRA_MODE_CHROMA))
+      // No intra mode for non-intra CUs
+      return true;
+
     UInt trIdx = pcCU->getTransformIdx(uiAbsPartIdx);
     if (trDepth < trIdx)
     {
@@ -820,6 +824,8 @@ extern "C" {
           return false;
         }
       }
+      // Processed all sub TU's
+      return true;
     }
 
     // Is there still space in the cache?
@@ -836,7 +842,11 @@ extern "C" {
     b.y = uiTPelY;
     b.w = (pcCU->getSlice()->getSPS()->getMaxCUWidth() >> (uiDepth + trDepth));
     b.h = (pcCU->getSlice()->getSPS()->getMaxCUHeight() >> (uiDepth + trDepth));
-    if (typeIdx == LIBHMDEC_TU_CBF_Y)
+    if (typeIdx == LIBHMDEC_TU_INTRA_MODE_LUMA)
+      b.value = (int)pcCU->getIntraDir(CHANNEL_TYPE_LUMA, uiAbsPartIdx);
+    else if (typeIdx == LIBHMDEC_TU_INTRA_MODE_CHROMA)
+      b.value = (int)pcCU->getIntraDir(CHANNEL_TYPE_CHROMA, uiAbsPartIdx);
+    else if (typeIdx == LIBHMDEC_TU_CBF_Y)
       b.value = (pcCU->getCbf(uiAbsPartIdx, COMPONENT_Y, trDepth) != 0) ? 1 : 0;
     else if (typeIdx == LIBHMDEC_TU_CBF_CB)
       b.value = (pcCU->getCbf(uiAbsPartIdx, COMPONENT_Cb, trDepth) != 0) ? 1 : 0;
@@ -919,11 +929,9 @@ extern "C" {
     }
 
     // We reached the CU
-    if (typeIdx == LIBHMDEC_CU_PREDICTION_MODE || typeIdx == LIBHMDEC_CU_TRQ_BYPASS || typeIdx == LIBHMDEC_CU_SKIP_FLAG || typeIdx == LIBHMDEC_CU_PART_MODE || typeIdx == LIBHMDEC_CU_INTRA_MODE_LUMA || typeIdx == LIBHMDEC_CU_INTRA_MODE_CHROMA || typeIdx == LIBHMDEC_CU_ROOT_CBF)
+    if (typeIdx == LIBHMDEC_CU_PREDICTION_MODE || typeIdx == LIBHMDEC_CU_TRQ_BYPASS || typeIdx == LIBHMDEC_CU_SKIP_FLAG || typeIdx == LIBHMDEC_CU_PART_MODE || typeIdx == LIBHMDEC_CU_ROOT_CBF)
     {
       if ((typeIdx == LIBHMDEC_CU_TRQ_BYPASS && !pps.getTransquantBypassEnabledFlag()) ||
-          (typeIdx == LIBHMDEC_CU_INTRA_MODE_LUMA && !pcLCU->isIntra(uiAbsPartIdx)) ||
-          (typeIdx == LIBHMDEC_CU_INTRA_MODE_CHROMA && !pcLCU->isIntra(uiAbsPartIdx)) ||
           (typeIdx == LIBHMDEC_CU_ROOT_CBF && pcLCU->isInter(uiAbsPartIdx)))
         // There is no data for this CU of this type
         return true;
@@ -935,8 +943,8 @@ extern "C" {
       libHMDec_BlockValue b;
       b.x = uiLPelX;
       b.y = uiTPelY;
-      b.w = (sps.getMaxCUWidth() >>uiDepth);
-      b.h = (sps.getMaxCUHeight() >>uiDepth);
+      b.w = (sps.getMaxCUWidth() >> uiDepth);
+      b.h = (sps.getMaxCUHeight() >> uiDepth);
       if (typeIdx == LIBHMDEC_CU_PREDICTION_MODE)
         b.value = int(pcLCU->getPredictionMode(uiAbsPartIdx));
       else if (typeIdx == LIBHMDEC_CU_TRQ_BYPASS)
@@ -945,10 +953,6 @@ extern "C" {
         b.value =  pcLCU->isSkipped(uiAbsPartIdx) ? 1 : 0;
       else if (typeIdx == LIBHMDEC_CU_PART_MODE)
         b.value = (int)pcLCU->getPartitionSize(uiAbsPartIdx);
-      else if (typeIdx == LIBHMDEC_CU_INTRA_MODE_LUMA)
-        b.value = (int)pcLCU->getIntraDir(CHANNEL_TYPE_LUMA, uiAbsPartIdx);
-      else if (typeIdx == LIBHMDEC_CU_INTRA_MODE_CHROMA)
-        b.value = (int)pcLCU->getIntraDir(CHANNEL_TYPE_CHROMA, uiAbsPartIdx);
       else if (typeIdx == LIBHMDEC_CU_ROOT_CBF)
         b.value = (int)pcLCU->getQtRootCbf(uiAbsPartIdx);
       d->addInternalsBlockData(b);
@@ -956,7 +960,7 @@ extern "C" {
     else if (pcLCU->isInter(uiAbsPartIdx) && (typeIdx == LIBHMDEC_PU_MERGE_FLAG || typeIdx == LIBHMDEC_PU_UNI_BI_PREDICTION || typeIdx == LIBHMDEC_PU_REFERENCE_POC_0 || typeIdx == LIBHMDEC_PU_MV_0 || typeIdx == LIBHMDEC_PU_REFERENCE_POC_1 || typeIdx == LIBHMDEC_PU_MV_1))
       // Set values for every PU
       return addValuesForPUs(d, pcLCU, uiAbsPartIdx, uiDepth, typeIdx);
-    else if (typeIdx == LIBHMDEC_TU_CBF_Y || typeIdx == LIBHMDEC_TU_CBF_CB || typeIdx == LIBHMDEC_TU_CBF_CR || typeIdx == LIBHMDEC_TU_COEFF_ENERGY_Y || typeIdx == LIBHMDEC_TU_COEFF_ENERGY_CB || typeIdx == LIBHMDEC_TU_COEFF_ENERGY_CR || typeIdx == LIBHMDEC_TU_COEFF_TR_SKIP_Y || typeIdx == LIBHMDEC_TU_COEFF_TR_SKIP_Cb || typeIdx == LIBHMDEC_TU_COEFF_TR_SKIP_Cr)
+    else if (typeIdx == LIBHMDEC_TU_INTRA_MODE_LUMA || typeIdx == LIBHMDEC_TU_INTRA_MODE_CHROMA || typeIdx == LIBHMDEC_TU_CBF_Y || typeIdx == LIBHMDEC_TU_CBF_CB || typeIdx == LIBHMDEC_TU_CBF_CR || typeIdx == LIBHMDEC_TU_COEFF_ENERGY_Y || typeIdx == LIBHMDEC_TU_COEFF_ENERGY_CB || typeIdx == LIBHMDEC_TU_COEFF_ENERGY_CR || typeIdx == LIBHMDEC_TU_COEFF_TR_SKIP_Y || typeIdx == LIBHMDEC_TU_COEFF_TR_SKIP_Cb || typeIdx == LIBHMDEC_TU_COEFF_TR_SKIP_Cr)
       return addValuesForTURecursive(d, pcLCU, uiAbsPartIdx, uiDepth, 0, typeIdx);
 
     // This code line should never be reached.
