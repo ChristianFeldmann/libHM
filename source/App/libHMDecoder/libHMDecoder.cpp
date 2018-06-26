@@ -154,7 +154,7 @@ extern "C" {
 
     // Do not copy the start code (if present)
     int copyStart = 0;
-    if (data[0] == 0 && data[1] == 1 && data[2] == 1)
+    if (data[0] == 0 && data[1] == 0 && data[2] == 1)
       copyStart = 3;
     else if (data[0] == 0 && data[1] == 0 && data[2] == 0 && data[3] == 1)
       copyStart = 4;
