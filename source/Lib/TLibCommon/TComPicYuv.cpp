@@ -148,8 +148,16 @@ Void TComPicYuv::destroy()
 
   for(UInt chan=0; chan<MAX_NUM_CHANNEL_TYPE; chan++)
   {
-    if (m_cuOffset[chan]) delete[] m_cuOffset[chan]; m_cuOffset[chan] = NULL;
-    if (m_buOffset[chan]) delete[] m_buOffset[chan]; m_buOffset[chan] = NULL;
+    if (m_cuOffset[chan])
+    {
+      delete[] m_cuOffset[chan];
+      m_cuOffset[chan] = NULL;
+    }
+    if (m_buOffset[chan])
+    {
+      delete[] m_buOffset[chan];
+      m_buOffset[chan] = NULL;
+    }
   }
 }
 
