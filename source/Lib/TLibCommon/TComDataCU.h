@@ -519,7 +519,7 @@ namespace RasterAddress
    */
   static inline Bool isEqualRowOrCol( Int addrA, Int addrB, Int numUnitsPerRow )
   {
-    return isEqualCol( addrA, addrB, numUnitsPerRow ) | isEqualRow( addrA, addrB, numUnitsPerRow );
+    return isEqualCol( addrA, addrB, numUnitsPerRow ) || isEqualRow( addrA, addrB, numUnitsPerRow );
   }
 
   /** Check whether one address points to the first column
