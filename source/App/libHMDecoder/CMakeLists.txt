@@ -46,10 +46,10 @@ target_link_libraries( ${SHARDE_LIB_NAME} TLibCommon TLibDecoder Utilities Threa
 
 if( CMAKE_SYSTEM_NAME STREQUAL "Linux" )
   add_custom_command( TARGET ${SHARDE_LIB_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy
-                                                          $<$<CONFIG:Debug>:${CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG}/libHMDecoderd.so>
-                                                          $<$<CONFIG:Release>:${CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE}/libHMDecoder.so>
-                                                          $<$<CONFIG:RelWithDebInfo>:${CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO}/libHMDecoderp.so>
-                                                          $<$<CONFIG:MinSizeRel>:${CMAKE_RUNTIME_OUTPUT_DIRECTORY_MINSIZEREL}/libHMDecoderm.so>
+                                                          $<$<CONFIG:Debug>:${CMAKE_ARCHIVE_OUTPUT_DIRECTORY_DEBUG}/libHMDecoderd.so>
+                                                          $<$<CONFIG:Release>:${CMAKE_ARCHIVE_OUTPUT_DIRECTORY_RELEASE}/libHMDecoder.so>
+                                                          $<$<CONFIG:RelWithDebInfo>:${CMAKE_ARCHIVE_OUTPUT_DIRECTORY_RELWITHDEBINFO}/libHMDecoderp.so>
+                                                          $<$<CONFIG:MinSizeRel>:${CMAKE_ARCHIVE_OUTPUT_DIRECTORY_MINSIZEREL}/libHMDecoderm.so>
                                                           $<$<CONFIG:Debug>:${CMAKE_SOURCE_DIR}/bin/libHMDecoderd.so>
                                                           $<$<CONFIG:Release>:${CMAKE_SOURCE_DIR}/bin/libHMDecoder.so>
                                                           $<$<CONFIG:RelWithDebInfo>:${CMAKE_SOURCE_DIR}/bin/libHMDecoderp.so>
