@@ -1,5 +1,5 @@
 # executable
-set( SHARDE_LIB_NAME libHMDecoder )
+set( SHARDE_LIB_NAME HMDecoder )
 
 # get source files
 file( GLOB SRC_FILES "*.cpp" )
@@ -60,4 +60,4 @@ endif()
 source_group( "Natvis Files" FILES ${NATVIS_FILES} )
 
 # set the folder where to place the projects
-set_target_properties( ${SHARDE_LIB_NAME}  PROPERTIES FOLDER app LINKER_LANGUAGE CXX )
+set_target_properties( ${SHARDE_LIB_NAME} PROPERTIES FOLDER app LINKER_LANGUAGE CXX )
