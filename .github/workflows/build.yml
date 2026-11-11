@@ -29,7 +29,7 @@ jobs:
       - name: List files
         if: runner.os	== 'Windows'
         run: |
-          cd build/libde265
+          cd bin
           Get-ChildItem -Recurse
     #   - name: Upload Artifact (Linux)
     #     uses: actions/upload-artifact@v7
