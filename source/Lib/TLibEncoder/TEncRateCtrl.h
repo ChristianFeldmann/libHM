@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -59,7 +59,12 @@ using namespace std;
 #include <cassert>
 
 const Int g_RCInvalidQPValue = -999;
-const Int g_RCSmoothWindowSize = 40;
+#if JVET_Y0105_SW_AND_QDF
+const int g_RCSmoothWindowSizeAlpha = 20;
+const int g_RCSmoothWindowSizeBeta = 60;
+#else
+const int g_RCSmoothWindowSize = 40;
+#endif
 const Int g_RCMaxPicListSize = 32;
 const Double g_RCWeightPicTargetBitInGOP    = 0.9;
 const Double g_RCWeightPicRargetBitInBuffer = 1.0 - g_RCWeightPicTargetBitInGOP;
@@ -71,6 +76,9 @@ const Double g_RCAlphaMinValue = 0.05;
 const Double g_RCAlphaMaxValue = 500.0;
 const Double g_RCBetaMinValue  = -3.0;
 const Double g_RCBetaMaxValue  = -0.1;
+#if JVET_K0390_RATE_CTRL
+const Int LAMBDA_PREC = 1000000;
+#endif
 
 #define ALPHA     6.7542;
 #define BETA1     1.2517
@@ -86,12 +94,22 @@ struct TRCLCU
   Int m_numberOfPixel;
   Double m_costIntra;
   Int m_targetBitsLeft;
+#if JVET_K0390_RATE_CTRL
+  Double m_actualSSE;
+  Double m_actualMSE;
+#endif
 };
 
 struct TRCParameter
 {
   Double m_alpha;
   Double m_beta;
+#if JVET_K0390_RATE_CTRL
+  Int    m_validPix;
+#endif
+#if JVET_M0600_RATE_CTRL
+  Double m_skipRatio;
+#endif
 };
 
 class TEncRCSeq
@@ -101,7 +119,11 @@ public:
   ~TEncRCSeq();
 
 public:
+#if JVET_Y0105_SW_AND_QDF
+  Void create( Int totalFrames, Int targetBitrate, Int frameRate, Int GOPSize, Int intraPeriod, Int picWidth, Int picHeight, Int LCUWidth, Int LCUHeight, Int numberOfLevel, Bool useLCUSeparateModel, Int adaptiveBit );
+#else
   Void create( Int totalFrames, Int targetBitrate, Int frameRate, Int GOPSize, Int picWidth, Int picHeight, Int LCUWidth, Int LCUHeight, Int numberOfLevel, Bool useLCUSeparateModel, Int adaptiveBit );
+#endif
   Void destroy();
   Void initBitsRatio( Int bitsRatio[] );
   Void initGOPID2Level( Int GOPID2Level[] );
@@ -115,6 +137,9 @@ public:
   Int  getTargetRate()                  { return m_targetRate; }
   Int  getFrameRate()                   { return m_frameRate; }
   Int  getGOPSize()                     { return m_GOPSize; }
+#if JVET_Y0105_SW_AND_QDF
+  Int  getIntraPeriod()                 { return m_intraPeriod; }
+#endif
   Int  getPicWidth()                    { return m_picWidth; }
   Int  getPicHeight()                   { return m_picHeight; }
   Int  getLCUWidth()                    { return m_LCUWidth; }
@@ -155,6 +180,9 @@ private:
   Int m_targetRate;
   Int m_frameRate;
   Int m_GOPSize;
+#if JVET_Y0105_SW_AND_QDF
+  Int m_intraPeriod;
+#endif
   Int m_picWidth;
   Int m_picHeight;
   Int m_LCUWidth;
@@ -188,15 +216,22 @@ public:
   ~TEncRCGOP();
 
 public:
+#if JVET_Y0105_SW_AND_QDF
+  Void create( TEncRCSeq* encRCSeq, Int numPic, bool useAdaptiveBitsRatio );
+#else
   Void create( TEncRCSeq* encRCSeq, Int numPic );
+#endif
   Void destroy();
   Void updateAfterPicture( Int bitsCost );
 
 private:
   Int  xEstGOPTargetBits( TEncRCSeq* encRCSeq, Int GOPSize );
   Void   xCalEquaCoeff( TEncRCSeq* encRCSeq, Double* lambdaRatio, Double* equaCoeffA, Double* equaCoeffB, Int GOPSize );
+#if JVET_K0390_RATE_CTRL
+  Double xSolveEqua(TEncRCSeq* encRCSeq, Double targetBpp, Double* equaCoeffA, Double* equaCoeffB, Int GOPSize);
+#else
   Double xSolveEqua( Double targetBpp, Double* equaCoeffA, Double* equaCoeffB, Int GOPSize );
-
+#endif
 public:
   TEncRCSeq* getEncRCSeq()        { return m_encRCSeq; }
   Int  getNumPic()                { return m_numPic;}
@@ -235,8 +270,11 @@ public:
   Double getLCUEstLambdaAndQP(Double bpp, Int clipPicQP, Int *estQP);
   Double getLCUEstLambda( Double bpp );
   Int    getLCUEstQP( Double lambda, Int clipPicQP );
-
-  Void updateAfterLCU( Int LCUIdx, Int bits, Int QP, Double lambda, Bool updateLCUParameter = true );
+#if JVET_M0600_RATE_CTRL
+  void updateAfterCTU( Int LCUIdx, Int bits, Int QP, Double lambda, Double skipRatio, Bool updateLCUParameter = true);
+#else
+  Void updateAfterCTU( Int LCUIdx, Int bits, Int QP, Double lambda, Bool updateLCUParameter = true );
+#endif
   Void updateAfterPicture( Int actualHeaderBits, Int actualTotalBits, Double averageQP, Double averageLambda, SliceType eSliceType);
 
   Void addToPictureLsit( list<TEncRCPic*>& listPreviousPictures );
@@ -246,6 +284,7 @@ public:
 private:
   Int xEstPicTargetBits( TEncRCSeq* encRCSeq, TEncRCGOP* encRCGOP );
   Int xEstPicHeaderBits( list<TEncRCPic*>& listPreviousPictures, Int frameLevel );
+  Int xEstPicLowerBound( TEncRCSeq* encRCSeq, TEncRCGOP* encRCGOP );
 
 public:
   TEncRCSeq*      getRCSequence()                         { return m_encRCSeq; }
@@ -261,9 +300,11 @@ public:
   Int  getPixelsLeft()                                    { return m_pixelsLeft; }
   Int  getBitsCoded()                                     { return m_targetBits - m_estHeaderBits - m_bitsLeft; }
   Int  getLCUCoded()                                      { return m_numberOfLCU - m_LCULeft; }
+  Int  getLowerBound()                                    { return m_lowerBound; }
   TRCLCU* getLCU()                                        { return m_LCUs; }
   TRCLCU& getLCU( Int LCUIdx )                            { return m_LCUs[LCUIdx]; }
   Int  getPicActualHeaderBits()                           { return m_picActualHeaderBits; }
+  Void setBitLeft(Int bits)                               { m_bitsLeft = bits; }
   Void setTargetBits( Int bits )                          { m_targetBits = bits; m_bitsLeft = bits;}
   Void setTotalIntraCost(Double cost)                     { m_totalCostIntra = cost; }
   Void getLCUInitTargetBits();
@@ -276,6 +317,11 @@ public:
   Double getPicEstLambda()                                { return m_estPicLambda; }
   Void setPicEstLambda( Double lambda )                   { m_picLambda = lambda; }
 
+#if JVET_K0390_RATE_CTRL
+  Double getPicMSE()                                      { return m_picMSE; }
+  void  setPicMSE(Double avgMSE)                           { m_picMSE = avgMSE; }
+#endif
+
 private:
   TEncRCSeq* m_encRCSeq;
   TEncRCGOP* m_encRCGOP;
@@ -286,6 +332,7 @@ private:
   Int m_targetBits;
   Int m_estHeaderBits;
   Int m_estPicQP;
+  Int m_lowerBound;
   Double m_estPicLambda;
 
   Int m_LCULeft;
@@ -299,6 +346,10 @@ private:
   Int m_picActualBits;          // the whole picture, including header
   Int m_picQP;                  // in integer form
   Double m_picLambda;
+#if JVET_K0390_RATE_CTRL
+  Double m_picMSE;
+  Int m_validPixelsInPic;
+#endif
 };
 
 class TEncRateCtrl
@@ -308,7 +359,11 @@ public:
   ~TEncRateCtrl();
 
 public:
+#if JVET_Y0105_SW_AND_QDF
+  Void init( Int totalFrames, Int targetBitrate, Int frameRate, Int GOPSize, Int intraPeriod, Int picWidth, Int picHeight, Int LCUWidth, Int LCUHeight, Int keepHierBits, Bool useLCUSeparateModel, GOPEntry GOPList[MAX_GOP] );
+#else
   Void init( Int totalFrames, Int targetBitrate, Int frameRate, Int GOPSize, Int picWidth, Int picHeight, Int LCUWidth, Int LCUHeight, Int keepHierBits, Bool useLCUSeparateModel, GOPEntry GOPList[MAX_GOP] );
+#endif
   Void destroy();
   Void initRCPic( Int frameLevel );
   Void initRCGOP( Int numberOfPictures );
@@ -321,6 +376,12 @@ public:
   TEncRCGOP* getRCGOP()          { assert ( m_encRCGOP != NULL ); return m_encRCGOP; }
   TEncRCPic* getRCPic()          { assert ( m_encRCPic != NULL ); return m_encRCPic; }
   list<TEncRCPic*>& getPicList() { return m_listRCPictures; }
+  Bool       getCpbSaturationEnabled()  { return m_CpbSaturationEnabled;  }
+  UInt       getCpbState()              { return m_cpbState;       }
+  UInt       getCpbSize()               { return m_cpbSize;        }
+  UInt       getBufferingRate()         { return m_bufferingRate;  }
+  Int        updateCpbState(Int actualBits);
+  Void       initHrdParam(const TComHRD* pcHrd, Int iFrameRate, Double fInitialCpbFullness);
 
 private:
   TEncRCSeq* m_encRCSeq;
@@ -328,6 +389,10 @@ private:
   TEncRCPic* m_encRCPic;
   list<TEncRCPic*> m_listRCPictures;
   Int        m_RCQP;
+  Bool       m_CpbSaturationEnabled;    // Enable target bits saturation to avoid CPB overflow and underflow
+  Int        m_cpbState;                // CPB State 
+  UInt       m_cpbSize;                 // CPB size
+  UInt       m_bufferingRate;           // Buffering rate
 };
 
 #endif

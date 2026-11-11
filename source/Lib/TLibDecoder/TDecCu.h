@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -43,8 +43,8 @@
 #endif // _MSC_VER > 1000
 
 #include "TLibCommon/TComTrQuant.h"
-#include "TLibCommon/TComPrediction.h"
 #include "TDecEntropy.h"
+#include "TDecConformance.h"
 
 //! \ingroup TLibDecoder
 //! \{
@@ -66,6 +66,9 @@ private:
   TComTrQuant*        m_pcTrQuant;
   TComPrediction*     m_pcPrediction;
   TDecEntropy*        m_pcEntropyDecoder;
+#if MCTS_ENC_CHECK
+  TDecConformanceCheck* m_pConformanceCheck;
+#endif
 
   Bool                m_bDecodeDQP;
   Bool                m_IsChromaQpAdjCoded;
@@ -75,7 +78,11 @@ public:
   virtual ~TDecCu();
 
   /// initialize access channels
+#if MCTS_ENC_CHECK
+  Void  init                    (TDecEntropy* pcEntropyDecoder, TComTrQuant* pcTrQuant, TComPrediction* pcPrediction, TDecConformanceCheck* pConformanceCheck);
+#else
   Void  init                    ( TDecEntropy* pcEntropyDecoder, TComTrQuant* pcTrQuant, TComPrediction* pcPrediction );
+#endif
 
   /// create internal buffers
   Void  create                  ( UInt uiMaxDepth, UInt uiMaxWidth, UInt uiMaxHeight, ChromaFormat chromaFormatIDC );
@@ -83,18 +90,18 @@ public:
   /// destroy internal buffers
   Void  destroy                 ();
 
-  /// decode CU information
-  Void  decodeCU                ( TComDataCU* pcCU, UInt& ruiIsLast );
+  /// decode Ctu information
+  Void  decodeCtu               ( TComDataCU* pCtu, Bool &isLastCtuOfSliceSegment );
 
-  /// reconstruct CU information
-  Void  decompressCU            ( TComDataCU* pcCU );
+  /// reconstruct Ctu information
+  Void  decompressCtu           ( TComDataCU* pCtu );
 
 protected:
 
-  Void xDecodeCU                ( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, UInt &ruiIsLast);
-  Void xFinishDecodeCU          ( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, UInt &ruiIsLast);
-  Bool xDecodeSliceEnd          ( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth);
-  Void xDecompressCU            ( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth );
+  Void xDecodeCU                ( TComDataCU* const pcCU, const UInt uiAbsPartIdx, const UInt uiDepth, Bool &isLastCtuOfSliceSegment);
+  Void xFinishDecodeCU          ( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, Bool &isLastCtuOfSliceSegment);
+  Bool xDecodeSliceEnd          ( TComDataCU* pcCU, UInt uiAbsPartIdx );
+  Void xDecompressCU            ( TComDataCU* pCtu, UInt uiAbsPartIdx, UInt uiDepth );
 
   Void xReconInter              ( TComDataCU* pcCU, UInt uiDepth );
 

@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -39,9 +39,7 @@
 #define __TCOMPATTERN__
 
 // Include files
-#include <stdio.h>
 #include "CommonDef.h"
-#include <string>
 
 //! \ingroup TLibCommon
 //! \{
@@ -53,60 +51,78 @@
 class TComDataCU;
 class TComTU;
 
-/// neighbouring pixel access class for one component
-class TComPatternParam
-{
-private:
-  Pel*  m_piROIOrigin;
-
-public:
-  Int   m_iROIWidth;
-  Int   m_iROIHeight;
-  Int   m_iPatternStride;
-
-  /// return starting position of ROI (ROI = &pattern[AboveOffset][LeftOffset])
-  __inline Pel*  getROIOrigin()
-  {
-    return  m_piROIOrigin;
-  }
-
-  /// set parameters from Pel buffer for accessing neighbouring pixels
-  Void setPatternParamPel (Pel*        piTexture,
-                           Int         iRoiWidth,
-                           Int         iRoiHeight,
-                           Int         iStride
-                           );
-};
-
 /// neighbouring pixel access class for all components
 class TComPattern
 {
 private:
-  TComPatternParam  m_cPatternY;
-//  TComPatternParam  m_cPatternCb;
-  //TComPatternParam  m_cPatternCr;
+  Pel*  m_piROIOrigin;
+  Int   m_roiWidth;
+  Int   m_roiHeight;
+  Int   m_patternStride;
+  Int   m_bitDepth;
+
+#if MCTS_ENC_CHECK  
+  Int   m_roiPosX;
+  Int   m_roiPosY;
+  Int   m_tileLeftTopPelPosX;
+  Int   m_tileLeftTopPelPosY;
+  Int   m_tileRightBottomPelPosX;
+  Int   m_tileRightBottomPelPosY;
+#endif
 
 public:
-
   // ROI & pattern information, (ROI = &pattern[AboveOffset][LeftOffset])
-  Pel*  getROIY()                 { return m_cPatternY.getROIOrigin();    }
-  Int   getROIYWidth()            { return m_cPatternY.m_iROIWidth;       }
-  Int   getROIYHeight()           { return m_cPatternY.m_iROIHeight;      }
-  Int   getPatternLStride()       { return m_cPatternY.m_iPatternStride;  }
+  Int   getROIYWidth() const      { return m_roiWidth;       }
+  Int   getROIYHeight() const     { return m_roiHeight;      }
+  Int   getPatternLStride() const { return m_patternStride;  }
+  Int   getBitDepthY() const      { return m_bitDepth;       }
+#if MCTS_ENC_CHECK
+  Int   getROIYPosX() const       { return m_roiPosX; }
+  Int   getROIYPosY() const       { return m_roiPosY; }
+
+  Int   getTileLeftTopPelPosX() const { return m_tileLeftTopPelPosX; }
+  Int   getTileLeftTopPelPosY() const { return m_tileLeftTopPelPosY; }
+  Int   getTileRightBottomPelPosX() const { return m_tileRightBottomPelPosX; }
+  Int   getTileRightBottomPelPosY() const { return m_tileRightBottomPelPosY; }
+#endif
+
+  __inline Pel*  getROIY()
+  {
+    return  m_piROIOrigin;
+  }
+  __inline const Pel*  getROIY() const
+  {
+    return  m_piROIOrigin;
+  }
+
+  TComPattern()
+  : m_piROIOrigin(NULL)
+  , m_roiWidth(0)
+  , m_roiHeight(0)
+  , m_patternStride(0)
+  , m_bitDepth(0)
+#if MCTS_ENC_CHECK
+  , m_roiPosX(0)
+  , m_roiPosY(0)
+  , m_tileLeftTopPelPosX(0)
+  , m_tileLeftTopPelPosY(0)
+  , m_tileRightBottomPelPosX(0)
+  , m_tileRightBottomPelPosY(0)
+#endif
+  {};
+
 
   // -------------------------------------------------------------------------------------------------------------------
   // initialization functions
   // -------------------------------------------------------------------------------------------------------------------
 
   /// set parameters from Pel buffers for accessing neighbouring pixels
-  Void initPattern            (Pel*        piY,
-                               Int         iRoiWidth,
-                               Int         iRoiHeight,
-                               Int         iStride );
-
-
-
-
+#if MCTS_ENC_CHECK
+  Void initPattern(Pel* piY, Int roiWidth, Int roiHeight, Int stride, Int bitDepthLuma, Int roiPosX, Int roiPosY);
+  Void setTileBorders(Int tileLeftTopPelPosX, Int tileLeftTopPelPosY, Int tileRightBottomPelPosX, Int tileRightBottomPelPosY);
+#else
+  Void initPattern(Pel* piY, Int roiWidth, Int roiHeight, Int stride, Int bitDepthLuma);
+#endif
 };
 
 //! \}

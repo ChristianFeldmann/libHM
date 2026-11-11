@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -37,39 +37,71 @@
 
 #include "NALread.h"
 #include "TDecTop.h"
-#if RExt__DECODER_DEBUG_BIT_STATISTICS
-#include "TLibCommon/TComCodingStatistics.h"
+#include "TDecConformance.h"
+
+#if JVET_AK0194_DSC_SEI || JVET_AK0194_DSC_SEI_DECODER_SYNTAX
+#include "SEIDigitallySignedContent.h"
 #endif
 
 //! \ingroup TLibDecoder
 //! \{
 
 TDecTop::TDecTop()
-  : m_pDecodedSEIOutputStream(NULL)
+  : m_iMaxRefPicNum(0)
+  , m_associatedIRAPType(NAL_UNIT_INVALID)
+  , m_pocCRA(0)
+  , m_pocRandomAccess(MAX_INT)
+  , m_cListPic()
+  , m_parameterSetManager()
+  , m_apcSlicePilot(NULL)
+  , m_SEIs()
+  , m_cPrediction()
+  , m_cTrQuant()
+  , m_cGopDecoder()
+  , m_cSliceDecoder()
+  , m_cCuDecoder()
+  , m_cEntropyDecoder()
+  , m_cCavlcDecoder()
+  , m_cSbacDecoder()
+  , m_cBinCABAC()
+  , m_seiReader()
+  , m_cLoopFilter()
+  , m_cSAO()
+  , m_pcPic(NULL)
+  , m_prevPOC(MAX_INT)
+  , m_prevNut(NAL_UNIT_INVALID)
+  , m_prevTid0POC(0)
+  , m_bFirstSliceInPicture(true)
+#if JVET_X0048_X0103_FILM_GRAIN
+  , m_bFirstPictureInSequence(true)
+  , m_grainCharacteristic()
+  , m_grainBuf()
+#endif
+  , m_bFirstSliceInSequence(true)
+  , m_prevSliceSkipped(false)
+  , m_skippedPOC(0)
+  , m_bFirstSliceInBitstream(true)
+  , m_lastPOCNoOutputPriorPics(-1)
+  , m_isNoOutputPriorPics(false)
+  , m_craNoRaslOutputFlag(false)
+  , m_noRaslOutputFlag(true)
+#if O0043_BEST_EFFORT_DECODING
+  , m_forceDecodeBitDepth(8)
+#endif
+  , m_pDecodedSEIOutputStream(NULL)
+  , m_warningMessageSkipPicture(false)
+#if MCTS_ENC_CHECK
+  , m_tmctsCheckEnabled(false)
+#endif
+  , m_prefixSEINALUs()
 {
-  m_pcPic = 0;
-  m_iMaxRefPicNum = 0;
 #if ENC_DEC_TRACE
   if (g_hTrace == NULL)
   {
-    g_hTrace = fopen( "TraceDec_RExt.txt", "wb" );
+    g_hTrace = fopen( "TraceDec.txt", "wb" );
   }
   g_bJustDoIt = g_bEncDecTraceDisable;
   g_nSymbolCounter = 0;
-#endif
-  m_associatedIRAPType = NAL_UNIT_INVALID;
-  m_pocCRA = 0;
-  m_pocRandomAccess = MAX_INT;
-  m_prevPOC                = MAX_INT;
-  m_bFirstSliceInPicture    = true;
-  m_bFirstSliceInSequence   = true;
-  m_prevSliceSkipped = false;
-  m_skippedPOC = 0;
-#if SETTING_NO_OUT_PIC_PRIOR
-  m_bFirstSliceInBitstream  = true;
-  m_lastPOCNoOutputPriorPics = -1;
-  m_craNoRaslOutputFlag = false;
-  m_isNoOutputPriorPics = false;
 #endif
 }
 
@@ -81,6 +113,11 @@ TDecTop::~TDecTop()
     fclose( g_hTrace );
   }
 #endif
+  while (!m_prefixSEINALUs.empty())
+  {
+    delete m_prefixSEINALUs.front();
+    m_prefixSEINALUs.pop_front();
+  }
 }
 
 Void TDecTop::create()
@@ -105,8 +142,12 @@ Void TDecTop::init()
   // initialize ROM
   initROM();
   m_cGopDecoder.init( &m_cEntropyDecoder, &m_cSbacDecoder, &m_cBinCABAC, &m_cCavlcDecoder, &m_cSliceDecoder, &m_cLoopFilter, &m_cSAO);
-  m_cSliceDecoder.init( &m_cEntropyDecoder, &m_cCuDecoder );
+  m_cSliceDecoder.init( &m_cEntropyDecoder, &m_cCuDecoder, &m_conformanceCheck );
+#if MCTS_ENC_CHECK
+  m_cEntropyDecoder.init(&m_cPrediction, &m_conformanceCheck );
+#else
   m_cEntropyDecoder.init(&m_cPrediction);
+#endif
 }
 
 Void TDecTop::deletePicBuffer ( )
@@ -131,24 +172,32 @@ Void TDecTop::deletePicBuffer ( )
   destroyROM();
 }
 
-Void TDecTop::xGetNewPicBuffer ( TComSlice* pcSlice, TComPic*& rpcPic )
+Void TDecTop::xGetNewPicBuffer ( const TComSPS &sps, const TComPPS &pps, TComPic*& rpcPic, const UInt temporalLayer )
 {
-  Int  numReorderPics[MAX_TLAYER];
-  Window &conformanceWindow = pcSlice->getSPS()->getConformanceWindow();
-  Window defaultDisplayWindow = pcSlice->getSPS()->getVuiParametersPresentFlag() ? pcSlice->getSPS()->getVuiParameters()->getDefaultDisplayWindow() : Window();
-
-  for( Int temporalLayer=0; temporalLayer < MAX_TLAYER; temporalLayer++)
-  {
-    numReorderPics[temporalLayer] = pcSlice->getSPS()->getNumReorderPics(temporalLayer);
-  }
-
-  m_iMaxRefPicNum = pcSlice->getSPS()->getMaxDecPicBuffering(pcSlice->getTLayer());     // m_uiMaxDecPicBuffering has the space for the picture currently being decoded
+  m_iMaxRefPicNum = sps.getMaxDecPicBuffering(temporalLayer);     // m_uiMaxDecPicBuffering has the space for the picture currently being decoded
   if (m_cListPic.size() < (UInt)m_iMaxRefPicNum)
   {
     rpcPic = new TComPic();
 
-    rpcPic->create ( pcSlice->getSPS()->getPicWidthInLumaSamples(), pcSlice->getSPS()->getPicHeightInLumaSamples(), pcSlice->getSPS()->getChromaFormatIdc(), g_uiMaxCUWidth, g_uiMaxCUHeight, g_uiMaxCUDepth,
-                     conformanceWindow, defaultDisplayWindow, numReorderPics, true);
+#if REDUCED_ENCODER_MEMORY
+    rpcPic->create ( sps, pps, false, true
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+                    , getShutterFilterFlag()
+#endif
+#if JVET_X0048_X0103_FILM_GRAIN
+                    , false
+#endif
+                    );
+#else
+    rpcPic->create ( sps, pps, true
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+                    , getShutterFilterFlag()
+#endif
+#if JVET_X0048_X0103_FILM_GRAIN
+                    , false
+#endif
+                    );
+#endif
 
     m_cListPic.pushBack( rpcPic );
 
@@ -185,10 +234,94 @@ Void TDecTop::xGetNewPicBuffer ( TComSlice* pcSlice, TComPic*& rpcPic )
     m_cListPic.pushBack( rpcPic );
   }
   rpcPic->destroy();
-  rpcPic->create ( pcSlice->getSPS()->getPicWidthInLumaSamples(), pcSlice->getSPS()->getPicHeightInLumaSamples(), pcSlice->getSPS()->getChromaFormatIdc(), g_uiMaxCUWidth, g_uiMaxCUHeight, g_uiMaxCUDepth,
-                   conformanceWindow, defaultDisplayWindow, numReorderPics, true);
+#if REDUCED_ENCODER_MEMORY
+  rpcPic->create ( sps, pps, false, true
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+                  , getShutterFilterFlag()
+#endif
+#if JVET_X0048_X0103_FILM_GRAIN
+                  , false
+#endif
+                  );
+#else
+  rpcPic->create ( sps, pps, true
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+                  , getShutterFilterFlag()
+#endif
+#if JVET_X0048_X0103_FILM_GRAIN
+                  , false
+#endif
+                  );
+#endif
 }
 
+#if JVET_AK0194_DSC_SEI
+void TDecTop::xInitDscSubstreamManager(SEIMessages &SEIs)
+{
+  SEIMessages dscInitSEIs = getSeisByType( SEIs, SEI::PayloadType::DIGITALLY_SIGNED_CONTENT_INITIALIZATION);
+  if (!dscInitSEIs.empty())
+  {
+    if (dscInitSEIs.size()>1)
+    {
+      printf ("Warning: received more than one Digitally Signed Content Initialization SEI message at a time. Using first only.\n");
+    }
+    SEIDigitallySignedContentInitialization* dsci = (SEIDigitallySignedContentInitialization*) dscInitSEIs.front();
+    m_dscSubstreamManagerMap[dsci->dsciId].initDscSubstreamManager(dsci->dsciNumVerificationSubstreams, dsci->dsciHashMethodType, dsci->dsciKeySourceUri,
+                                                  dsci->dsciContentUuidPresentFlag, dsci->dsciContentUuid, dsci->dsciRefSubstreamFlag, dsci->dsciVSSImplicitAssociationModeFlag, dsci->dsciSEISigningFlag, dsci->dsciSignedContentStartFlag);
+    if (!m_dscSubstreamManagerMap[dsci->dsciId].initVerificator(m_keyStoreDir, m_trustStoreDir))
+    {
+      printf("Error: Cannot initialize Digitally Signed Content verification\n");
+    }
+  }
+}
+
+void TDecTop::xStoreNALUnitForSignature(InputNALUnit &nalu)
+{
+  std::ostringstream rbspPayload;
+  binNalUnit binNalu;
+  binNalu.nalUnitType = nalu.m_nalUnitType;
+  binNalu.length  = nalu.getBitstream().getOrigFifo().size();
+  binNalu.data = new uint8_t [binNalu.length];
+
+  std::memcpy(binNalu.data, nalu.getBitstream().getOrigFifo().data(), binNalu.length);
+
+  m_signedContentNalUnitBuffer.push_back(binNalu);
+  nalu.getBitstream().clearOrigFifo();
+}
+
+void TDecTop::xRemoveLastNalUnitFromSignature()
+{
+  binNalUnit nalu = m_signedContentNalUnitBuffer.back();
+  free (nalu.data);
+  m_signedContentNalUnitBuffer.pop_back();
+}
+
+
+void TDecTop::xProcessStoredNALUnitsForSignature(uint8_t dscId, int substreamId)
+{
+  if (m_dscSubstreamManagerMap.find(dscId) == m_dscSubstreamManagerMap.end())
+  {
+    printf ("DSC ID %i not initialized, ignoring DSC selection for this ID", dscId);
+    return;
+  }
+  const bool verificationActive = m_dscSubstreamManagerMap[dscId].isVerificationActive();
+  for (auto nalu: m_signedContentNalUnitBuffer)
+  {
+    if (verificationActive)
+    {
+      m_dscSubstreamManagerMap[dscId].addToSubstream(substreamId, (char*)nalu.data, nalu.length);
+    }
+  }
+}
+void TDecTop::xClearStoredNALUnitsForSignature()
+{
+  for (auto nalu: m_signedContentNalUnitBuffer)
+  {
+    delete[] (nalu.data);
+  }
+  m_signedContentNalUnitBuffer.clear();
+}
+#endif
 Void TDecTop::executeLoopFilters(Int& poc, TComList<TComPic*>*& rpcListPic)
 {
   if (!m_pcPic)
@@ -197,7 +330,7 @@ Void TDecTop::executeLoopFilters(Int& poc, TComList<TComPic*>*& rpcListPic)
     return;
   }
 
-  TComPic*&   pcPic         = m_pcPic;
+  TComPic*   pcPic         = m_pcPic;
 
   // Execute Deblock + Cleanup
 
@@ -212,35 +345,27 @@ Void TDecTop::executeLoopFilters(Int& poc, TComList<TComPic*>*& rpcListPic)
   return;
 }
 
-#if SETTING_NO_OUT_PIC_PRIOR
-Void TDecTop::checkNoOutputPriorPics (TComList<TComPic*>*& rpcListPic)
+Void TDecTop::checkNoOutputPriorPics (TComList<TComPic*>* pcListPic)
 {
-  if (!rpcListPic || !m_isNoOutputPriorPics) return;
-
-  TComList<TComPic*>::iterator  iterPic   = rpcListPic->begin();
-
-  while (iterPic != rpcListPic->end())
+  if (!pcListPic || !m_isNoOutputPriorPics)
   {
-    TComPic*& pcPicTmp = *(iterPic++);
-    if (m_lastPOCNoOutputPriorPics != pcPicTmp->getPOC())
-    {
-      pcPicTmp->setOutputMark(false);
-    }
+    return;
+  }
+
+  TComList<TComPic*>::iterator  iterPic   = pcListPic->begin();
+
+  while (iterPic != pcListPic->end())
+  {
+    TComPic* pcPicTmp = *(iterPic++);
+    pcPicTmp->setOutputMark(false);
   }
 }
-#endif
 
 Void TDecTop::xCreateLostPicture(Int iLostPoc)
 {
   printf("\ninserting lost poc : %d\n",iLostPoc);
-  TComSlice cFillSlice;
-  cFillSlice.setSPS( m_parameterSetManagerDecoder.getFirstSPS() );
-  cFillSlice.setPPS( m_parameterSetManagerDecoder.getFirstPPS() );
-  cFillSlice.initSlice();
   TComPic *cFillPic;
-  xGetNewPicBuffer(&cFillSlice,cFillPic);
-  cFillPic->getSlice(0)->setSPS( m_parameterSetManagerDecoder.getFirstSPS() );
-  cFillPic->getSlice(0)->setPPS( m_parameterSetManagerDecoder.getFirstPPS() );
+  xGetNewPicBuffer(*(m_parameterSetManager.getFirstSPS()), *(m_parameterSetManager.getFirstPPS()), cFillPic, 0);
   cFillPic->getSlice(0)->initSlice();
 
   TComList<TComPic*>::iterator iterPic = m_cListPic.begin();
@@ -265,12 +390,13 @@ Void TDecTop::xCreateLostPicture(Int iLostPoc)
     }
   }
   cFillPic->setCurrSliceIdx(0);
-  for(Int i=0; i<cFillPic->getNumCUsInFrame(); i++)
+  for(Int ctuRsAddr=0; ctuRsAddr<cFillPic->getNumberOfCtusInFrame(); ctuRsAddr++)
   {
-    cFillPic->getCU(i)->initCU(cFillPic,i);
+    cFillPic->getCtu(ctuRsAddr)->initCtu(cFillPic, ctuRsAddr);
   }
   cFillPic->getSlice(0)->setReferenced(true);
   cFillPic->getSlice(0)->setPOC(iLostPoc);
+  xUpdatePreviousTid0POC(cFillPic->getSlice(0));
   cFillPic->setReconMark(true);
   cFillPic->setOutputMark(true);
   if(m_pocRandomAccess == MAX_INT)
@@ -279,79 +405,243 @@ Void TDecTop::xCreateLostPicture(Int iLostPoc)
   }
 }
 
-
+#if MCTS_EXTRACTION
+Void TDecTop::xActivateParameterSets(Bool bSkipCabacAndReconstruction)
+#else
 Void TDecTop::xActivateParameterSets()
+#endif
 {
-  m_parameterSetManagerDecoder.applyPrefetchedPS();
-
-  TComPPS *pps = m_parameterSetManagerDecoder.getPPS(m_apcSlicePilot->getPPSId());
-  assert (pps != 0);
-
-  TComSPS *sps = m_parameterSetManagerDecoder.getSPS(pps->getSPSId());
-  assert (sps != 0);
-
-  if (false == m_parameterSetManagerDecoder.activatePPS(m_apcSlicePilot->getPPSId(),m_apcSlicePilot->isIRAP()))
+  if (m_bFirstSliceInPicture)
   {
-    printf ("Parameter set activation failed!");
-    assert (0);
-  }
+    const TComPPS *pps = m_parameterSetManager.getPPS(m_apcSlicePilot->getPPSId()); // this is a temporary PPS object. Do not store this value
+    assert (pps != 0);
 
-  if( pps->getDependentSliceSegmentsEnabledFlag() )
-  {
-    Int NumCtx = pps->getEntropyCodingSyncEnabledFlag()?2:1;
+    const TComSPS *sps = m_parameterSetManager.getSPS(pps->getSPSId());             // this is a temporary SPS object. Do not store this value
+    assert (sps != 0);
 
-    if (m_cSliceDecoder.getCtxMemSize() != NumCtx)
+    m_parameterSetManager.clearSPSChangedFlag(sps->getSPSId());
+    m_parameterSetManager.clearPPSChangedFlag(pps->getPPSId());
+
+    if (false == m_parameterSetManager.activatePPS(m_apcSlicePilot->getPPSId(),m_apcSlicePilot->isIRAP()))
     {
-      m_cSliceDecoder.initCtxMem(NumCtx);
-      for ( UInt st = 0; st < NumCtx; st++ )
+      printf ("Parameter set activation failed!");
+      assert (0);
+    }
+
+    xParsePrefixSEImessages();
+#if MCTS_ENC_CHECK
+    xAnalysePrefixSEImessages();
+#endif
+
+#if RExt__HIGH_BIT_DEPTH_SUPPORT==0
+    if (sps->getSpsRangeExtension().getExtendedPrecisionProcessingFlag() || sps->getBitDepth(CHANNEL_TYPE_LUMA)>12 || sps->getBitDepth(CHANNEL_TYPE_CHROMA)>12 )
+    {
+      printf("High bit depth support must be enabled at compile-time in order to decode this bitstream\n");
+      assert (0);
+      exit(1);
+    }
+#endif
+
+    // NOTE: globals were set up here originally. You can now use:
+    // g_uiMaxCUDepth = sps->getMaxTotalCUDepth();
+    // g_uiAddCUDepth = sps->getMaxTotalCUDepth() - sps->getLog2DiffMaxMinCodingBlockSize()
+
+    //  Get a new picture buffer. This will also set up m_pcPic, and therefore give us a SPS and PPS pointer that we can use.
+    xGetNewPicBuffer (*(sps), *(pps), m_pcPic, m_apcSlicePilot->getTLayer());
+    m_apcSlicePilot->applyReferencePictureSet(m_cListPic, m_apcSlicePilot->getRPS());
+#if JVET_X0048_X0103_FILM_GRAIN
+    // Initialization of film grain synthesizer 
+    m_pcPic->createGrainSynthesizer(m_bFirstPictureInSequence, &m_grainCharacteristic, &m_grainBuf, sps);
+    m_bFirstPictureInSequence = false;
+#endif
+    // make the slice-pilot a real slice, and set up the slice-pilot for the next slice
+    assert(m_pcPic->getNumAllocatedSlice() == (m_uiSliceIdx + 1));
+    m_apcSlicePilot = m_pcPic->getPicSym()->swapSliceObject(m_apcSlicePilot, m_uiSliceIdx);
+
+    // we now have a real slice:
+    TComSlice *pSlice = m_pcPic->getSlice(m_uiSliceIdx);
+
+    // Update the PPS and SPS pointers with the ones of the picture.
+    pps=pSlice->getPPS();
+    sps=pSlice->getSPS();
+
+    // Initialise the various objects for the new set of settings
+    m_cSAO.create( sps->getPicWidthInLumaSamples(), sps->getPicHeightInLumaSamples(), sps->getChromaFormatIdc(), sps->getMaxCUWidth(), sps->getMaxCUHeight(), sps->getMaxTotalCUDepth(), pps->getPpsRangeExtension().getLog2SaoOffsetScale(CHANNEL_TYPE_LUMA), pps->getPpsRangeExtension().getLog2SaoOffsetScale(CHANNEL_TYPE_CHROMA) );
+    m_cLoopFilter.create( sps->getMaxTotalCUDepth() );
+    m_cPrediction.initTempBuff(sps->getChromaFormatIdc());
+
+
+    Bool isField = false;
+    Bool isTopField = false;
+
+    if(!m_SEIs.empty())
+    {
+      // Check if any new Picture Timing SEI has arrived
+      SEIMessages pictureTimingSEIs = getSeisByType(m_SEIs, SEI::PICTURE_TIMING);
+      if (pictureTimingSEIs.size()>0)
       {
-        TDecSbac* ctx = NULL;
-        ctx = new TDecSbac;
-        ctx->init( &m_cBinCABAC );
-        m_cSliceDecoder.setCtxMem( ctx, st );
+        SEIPictureTiming* pictureTiming = (SEIPictureTiming*) *(pictureTimingSEIs.begin());
+        isField    = (pictureTiming->m_picStruct == 1) || (pictureTiming->m_picStruct == 2) || (pictureTiming->m_picStruct == 9) || (pictureTiming->m_picStruct == 10) || (pictureTiming->m_picStruct == 11) || (pictureTiming->m_picStruct == 12);
+        isTopField = (pictureTiming->m_picStruct == 1) || (pictureTiming->m_picStruct == 9) || (pictureTiming->m_picStruct == 11);
+      }
+    }
+
+    //Set Field/Frame coding mode
+    m_pcPic->setField(isField);
+    m_pcPic->setTopField(isTopField);
+
+    // transfer any SEI messages that have been received to the picture
+    m_pcPic->setSEIs(m_SEIs);
+    m_SEIs.clear();
+#if MCTS_EXTRACTION
+  if (!bSkipCabacAndReconstruction)
+  {
+#endif
+      // Recursive structure
+      m_cCuDecoder.create ( sps->getMaxTotalCUDepth(), sps->getMaxCUWidth(), sps->getMaxCUHeight(), sps->getChromaFormatIdc() );
+  #if MCTS_ENC_CHECK
+      m_cCuDecoder.init   ( &m_cEntropyDecoder, &m_cTrQuant, &m_cPrediction, &m_conformanceCheck );
+  #else
+      m_cCuDecoder.init(&m_cEntropyDecoder, &m_cTrQuant, &m_cPrediction);
+  #endif
+      m_cTrQuant.init     ( sps->getMaxTrSize() );
+
+      m_cSliceDecoder.create();
+    }
+#if MCTS_EXTRACTION
+  }
+#endif
+  else
+  {
+    // make the slice-pilot a real slice, and set up the slice-pilot for the next slice
+    m_pcPic->allocateNewSlice();
+    assert(m_pcPic->getNumAllocatedSlice() == (m_uiSliceIdx + 1));
+    m_apcSlicePilot = m_pcPic->getPicSym()->swapSliceObject(m_apcSlicePilot, m_uiSliceIdx);
+
+    TComSlice *pSlice = m_pcPic->getSlice(m_uiSliceIdx); // we now have a real slice.
+
+    const TComSPS *sps = pSlice->getSPS();
+    const TComPPS *pps = pSlice->getPPS();
+
+    // check that the current active PPS has not changed...
+    if (m_parameterSetManager.getSPSChangedFlag(sps->getSPSId()) )
+    {
+      printf("Error - a new SPS has been decoded while processing a picture\n");
+      exit(1);
+    }
+    if (m_parameterSetManager.getPPSChangedFlag(pps->getPPSId()) )
+    {
+      printf("Error - a new PPS has been decoded while processing a picture\n");
+      exit(1);
+    }
+
+    xParsePrefixSEImessages();
+#if MCTS_ENC_CHECK
+    xAnalysePrefixSEImessages();
+#endif
+    // Check if any new SEI has arrived
+     if(!m_SEIs.empty())
+     {
+       // Currently only decoding Unit SEI message occurring between VCL NALUs copied
+       SEIMessages &picSEI = m_pcPic->getSEIs();
+       SEIMessages decodingUnitInfos = extractSeisByType (m_SEIs, SEI::DECODING_UNIT_INFO);
+       picSEI.insert(picSEI.end(), decodingUnitInfos.begin(), decodingUnitInfos.end());
+       deleteSEIs(m_SEIs);
+     }
+  }
+}
+
+
+Void TDecTop::xParsePrefixSEIsForUnknownVCLNal()
+{
+  while (!m_prefixSEINALUs.empty())
+  {
+    // do nothing?
+    printf("Discarding Prefix SEI associated with unknown VCL NAL unit.\n");
+    delete m_prefixSEINALUs.front();
+  }
+  // TODO: discard following suffix SEIs as well?
+}
+
+
+Void TDecTop::xParsePrefixSEImessages()
+{
+  while (!m_prefixSEINALUs.empty())
+  {
+    InputNALUnit &nalu=*m_prefixSEINALUs.front();
+#if JVET_AK0194_DSC_SEI
+    SEIMessages::iterator newSEI = m_seiReader.parseSEImessage( &(nalu.getBitstream()), m_SEIs, nalu.m_nalUnitType, m_parameterSetManager.getActiveSPS(), m_pDecodedSEIOutputStream );
+    bool naluStored = false;
+    bool managerInitialized = false;
+
+    // Loop through ALL parsed SEI messages belonging to this NAL unit
+    for (auto it = newSEI; it != m_SEIs.end(); ++it)
+    {
+      if ((*it)->payloadType() == SEI::PayloadType::DIGITALLY_SIGNED_CONTENT_SELECTION)
+      {
+        if (!managerInitialized)
+        {
+          xInitDscSubstreamManager(m_SEIs);
+          managerInitialized = true;
+        }
+        auto dscsSei = reinterpret_cast<SEIDigitallySignedContentSelection*>(*it);
+
+        if (m_dscSubstreamManagerMap.find(dscsSei->dscsId) == m_dscSubstreamManagerMap.end())
+        {
+          printf ("DSC ID %i not initialized, ignoring DSC selection for this ID", dscsSei->dscsId);
+        }
+        else if (!m_dscSubstreamManagerMap[dscsSei->dscsId].getSeiSigningFlag())
+        {
+          printf ("DSCI SEI signing flag is 0, this SEI NALU is not included in signing");
+        }
+        else if (!naluStored)
+        {
+          xStoreNALUnitForSignature(nalu);
+          naluStored = true;
+        }
+      }
+    }
+    (void)newSEI;
+#else
+    m_seiReader.parseSEImessage( &(nalu.getBitstream()), m_SEIs, nalu.m_nalUnitType, m_parameterSetManager.getActiveSPS(), m_pDecodedSEIOutputStream );
+#endif
+    delete m_prefixSEINALUs.front();
+    m_prefixSEINALUs.pop_front();
+  }
+}
+
+#if MCTS_ENC_CHECK
+Void TDecTop::xAnalysePrefixSEImessages()
+{
+  if (m_tmctsCheckEnabled)
+  {
+    SEIMessages mctsSEIs = getSeisByType(m_SEIs, SEI::TEMP_MOTION_CONSTRAINED_TILE_SETS);
+    for (SEIMessages::iterator it = mctsSEIs.begin(); it != mctsSEIs.end(); it++)
+    {
+      SEITempMotionConstrainedTileSets *mcts = (SEITempMotionConstrainedTileSets*)(*it);
+      if (!mcts->m_each_tile_one_tile_set_flag)
+      {
+        printf("cannot (yet) check Temporal constrained MCTS if each_tile_one_tile_set_flag is not enabled\n");
+        exit(1);
+      }
+      else
+      {
+        printf("MCTS check enabled!\n");
+        m_conformanceCheck.enableTMctsCheck(true);
       }
     }
   }
-
-  m_apcSlicePilot->setPPS(pps);
-  m_apcSlicePilot->setSPS(sps);
-  pps->setSPS(sps);
-  pps->setNumSubstreams(pps->getEntropyCodingSyncEnabledFlag() ? ((sps->getPicHeightInLumaSamples() + sps->getMaxCUHeight() - 1) / sps->getMaxCUHeight()) * (pps->getNumTileColumnsMinus1() + 1) : 1);
-  pps->setMinCuDQPSize( sps->getMaxCUWidth() >> ( pps->getMaxCuDQPDepth()) );
-  pps->setMinCuChromaQpAdjSize( sps->getMaxCUWidth() >> ( pps->getMaxCuChromaQpAdjDepth()) );
-
-  for (UInt channel = 0; channel < MAX_NUM_CHANNEL_TYPE; channel++)
-  {
-    g_bitDepth[channel] = sps->getBitDepth(ChannelType(channel));
-
-    if (sps->getUseExtendedPrecision()) g_maxTrDynamicRange[channel] = std::max<Int>(15, (g_bitDepth[channel] + 6));
-    else                                g_maxTrDynamicRange[channel] = 15;
-  }
-  g_uiMaxCUWidth  = sps->getMaxCUWidth();
-  g_uiMaxCUHeight = sps->getMaxCUHeight();
-  g_uiMaxCUDepth  = sps->getMaxCUDepth();
-  g_uiAddCUDepth  = max (0, sps->getLog2MinCodingBlockSize() - (Int)sps->getQuadtreeTULog2MinSize() + (Int)getMaxCUDepthOffset(sps->getChromaFormatIdc(), sps->getQuadtreeTULog2MinSize()));
-
-  for (Int i = 0; i < sps->getLog2DiffMaxMinCodingBlockSize(); i++)
-  {
-    sps->setAMPAcc( i, sps->getUseAMP() );
-  }
-
-  for (Int i = sps->getLog2DiffMaxMinCodingBlockSize(); i < sps->getMaxCUDepth(); i++)
-  {
-    sps->setAMPAcc( i, 0 );
-  }
-
-  m_cSAO.destroy();
-
-  m_cSAO.create( sps->getPicWidthInLumaSamples(), sps->getPicHeightInLumaSamples(), sps->getChromaFormatIdc(), sps->getMaxCUWidth(), sps->getMaxCUHeight(), sps->getMaxCUDepth(), pps->getSaoOffsetBitShift(CHANNEL_TYPE_LUMA), pps->getSaoOffsetBitShift(CHANNEL_TYPE_CHROMA) );
-  m_cLoopFilter.create( sps->getMaxCUDepth() );
 }
+#endif
 
-Bool TDecTop::xDecodeSlice(InputNALUnit &nalu, Int &iSkipFrame, Int iPOCLastDisplay )
+#if MCTS_EXTRACTION
+Bool TDecTop::xDecodeSlice(InputNALUnit &nalu, Int &iSkipFrame, Int iPOCLastDisplay, Bool bSkipCabacAndReconstruction)
+#else
+Bool TDecTop::xDecodeSlice(InputNALUnit &nalu, Int &iSkipFrame, Int iPOCLastDisplay)
+#endif
 {
-  TComPic*& pcPic = m_pcPic;
-  m_apcSlicePilot->initSlice();
+  m_apcSlicePilot->initSlice(); // the slice pilot is an object to prepare for a new slice
+                                // it is not associated with picture, sps or pps structures.
 
   if (m_bFirstSliceInPicture)
   {
@@ -359,7 +649,7 @@ Bool TDecTop::xDecodeSlice(InputNALUnit &nalu, Int &iSkipFrame, Int iPOCLastDisp
   }
   else
   {
-    m_apcSlicePilot->copySliceInfo( pcPic->getPicSym()->getSlice(m_uiSliceIdx-1) );
+    m_apcSlicePilot->copySliceInfo( m_pcPic->getPicSym()->getSlice(m_uiSliceIdx-1) );
   }
   m_apcSlicePilot->setSliceIdx(m_uiSliceIdx);
 
@@ -377,7 +667,7 @@ Bool TDecTop::xDecodeSlice(InputNALUnit &nalu, Int &iSkipFrame, Int iPOCLastDisp
   const UInt64 originalSymbolCount = g_nSymbolCounter;
 #endif
 
-  m_cEntropyDecoder.decodeSliceHeader (m_apcSlicePilot, &m_parameterSetManagerDecoder);
+  m_cEntropyDecoder.decodeSliceHeader (m_apcSlicePilot, &m_parameterSetManager, m_prevTid0POC);
 
   // set POC for dependent slices in skipped pictures
   if(m_apcSlicePilot->getDependentSliceSegmentFlag() && m_prevSliceSkipped)
@@ -385,10 +675,11 @@ Bool TDecTop::xDecodeSlice(InputNALUnit &nalu, Int &iSkipFrame, Int iPOCLastDisp
     m_apcSlicePilot->setPOC(m_skippedPOC);
   }
 
+  xUpdatePreviousTid0POC(m_apcSlicePilot);
+
   m_apcSlicePilot->setAssociatedIRAPPOC(m_pocCRA);
   m_apcSlicePilot->setAssociatedIRAPType(m_associatedIRAPType);
 
-#if SETTING_NO_OUT_PIC_PRIOR
   //For inference of NoOutputOfPriorPicsFlag
   if (m_apcSlicePilot->getRapPicFlag())
   {
@@ -434,17 +725,20 @@ Bool TDecTop::xDecodeSlice(InputNALUnit &nalu, Int &iSkipFrame, Int iPOCLastDisp
       m_apcSlicePilot->setPicOutputFlag(false);
     }
   }
-#endif
 
-#if FIX_POC_CRA_NORASL_OUTPUT
   if (m_apcSlicePilot->getNalUnitType() == NAL_UNIT_CODED_SLICE_CRA && m_craNoRaslOutputFlag) //Reset POC MSB when CRA has NoRaslOutputFlag equal to 1
   {
-    Int iMaxPOClsb = 1 << m_apcSlicePilot->getSPS()->getBitsForPOC();
+    TComPPS *pps = m_parameterSetManager.getPPS(m_apcSlicePilot->getPPSId());
+    assert (pps != 0);
+    TComSPS *sps = m_parameterSetManager.getSPS(pps->getSPSId());
+    assert (sps != 0);
+    Int iMaxPOClsb = 1 << sps->getBitsForPOC();
     m_apcSlicePilot->setPOC( m_apcSlicePilot->getPOC() & (iMaxPOClsb - 1) );
+    xUpdatePreviousTid0POC(m_apcSlicePilot);
   }
-#endif
 
   // Skip pictures due to random access
+
   if (isRandomAccessSkipPicture(iSkipFrame, iPOCLastDisplay))
   {
     m_prevSliceSkipped = true;
@@ -463,144 +757,133 @@ Bool TDecTop::xDecodeSlice(InputNALUnit &nalu, Int &iSkipFrame, Int iPOCLastDisp
   m_prevSliceSkipped = false;
 
   //we should only get a different poc for a new picture (with CTU address==0)
-  if (m_apcSlicePilot->isNextSlice() && m_apcSlicePilot->getPOC()!=m_prevPOC && !m_bFirstSliceInSequence && (m_apcSlicePilot->getSliceCurStartCUAddr() != 0))
+  if (!m_apcSlicePilot->getDependentSliceSegmentFlag() && m_apcSlicePilot->getPOC()!=m_prevPOC && !m_bFirstSliceInSequence && (m_apcSlicePilot->getSliceCurStartCtuTsAddr() != 0))
   {
     printf ("Warning, the first slice of a picture might have been lost!\n");
   }
 
   // exit when a new picture is found
-#if FIX_OUTPUT_ORDER_BEHAVIOR
-  if (m_apcSlicePilot->isNextSlice() && (m_apcSlicePilot->getSliceCurStartCUAddr() == 0 && !m_bFirstSliceInPicture) )
-#else
-  if (m_apcSlicePilot->isNextSlice() && (m_apcSlicePilot->getSliceCurStartCUAddr() == 0 && !m_bFirstSliceInPicture) && !m_bFirstSliceInSequence )
-#endif
+  if (!m_apcSlicePilot->getDependentSliceSegmentFlag() && (m_apcSlicePilot->getSliceCurStartCtuTsAddr() == 0 && !m_bFirstSliceInPicture) )
   {
-    if (m_prevPOC >= m_pocRandomAccess)
+    if (m_prevPOC >= m_pocRandomAccess || m_pocRandomAccess != m_pocCRA ||
+      (m_prevNut == NAL_UNIT_CODED_SLICE_RADL_N ||
+       m_prevNut == NAL_UNIT_CODED_SLICE_RADL_R) ||
+      ((m_prevNut == NAL_UNIT_CODED_SLICE_RASL_N ||
+        m_prevNut == NAL_UNIT_CODED_SLICE_RASL_R) && !m_noRaslOutputFlag))
     {
       m_prevPOC = m_apcSlicePilot->getPOC();
+      m_prevNut = m_apcSlicePilot->getNalUnitType();
+      if(m_apcSlicePilot->isIRAP())
+      {
+        m_noRaslOutputFlag = m_apcSlicePilot->getNoRaslOutputFlag();
+      }
 #if ENC_DEC_TRACE
       //rewind the trace counter since we didn't actually decode the slice
       g_nSymbolCounter = originalSymbolCount;
+#endif
+#if JVET_AK0194_DSC_SEI
+      xRemoveLastNalUnitFromSignature();
 #endif
       return true;
     }
     m_prevPOC = m_apcSlicePilot->getPOC();
   }
 
-  // actual decoding starts here
-  xActivateParameterSets();
+  //detect lost reference picture and insert copy of earlier frame.
+  {
+    Int lostPoc;
+    while((lostPoc=m_apcSlicePilot->checkThatAllRefPicsAreAvailable(m_cListPic, m_apcSlicePilot->getRPS(), true, m_pocRandomAccess)) > 0)
+    {
+      xCreateLostPicture(lostPoc-1);
+    }
+  }
 
-  if (m_apcSlicePilot->isNextSlice())
+  if (!m_apcSlicePilot->getDependentSliceSegmentFlag())
   {
     m_prevPOC = m_apcSlicePilot->getPOC();
+    m_prevNut = m_apcSlicePilot->getNalUnitType();
   }
-  m_bFirstSliceInSequence = false;
-#if SETTING_NO_OUT_PIC_PRIOR  
-  m_bFirstSliceInBitstream  = false;
+
+  // actual decoding starts here
+#if MCTS_EXTRACTION
+  xActivateParameterSets(bSkipCabacAndReconstruction);
+#else
+  xActivateParameterSets();
 #endif
-  //detect lost reference picture and insert copy of earlier frame.
-  Int lostPoc;
-  while((lostPoc=m_apcSlicePilot->checkThatAllRefPicsAreAvailable(m_cListPic, m_apcSlicePilot->getRPS(), true, m_pocRandomAccess)) > 0)
-  {
-    xCreateLostPicture(lostPoc-1);
-  }
-  if (m_bFirstSliceInPicture)
-  {
-    // Buffer initialize for prediction.
-    m_cPrediction.initTempBuff(m_apcSlicePilot->getSPS()->getChromaFormatIdc());
-    m_apcSlicePilot->applyReferencePictureSet(m_cListPic, m_apcSlicePilot->getRPS());
-    //  Get a new picture buffer
-    xGetNewPicBuffer (m_apcSlicePilot, pcPic);
 
-    Bool isField = false;
-    Bool isTff = false;
-
-    if(!m_SEIs.empty())
+#if JVET_AK0194_DSC_SEI
+  SEIMessages dscSelectionSEIs = getSeisByType(m_pcPic->getSEIs(), SEI::PayloadType::DIGITALLY_SIGNED_CONTENT_SELECTION);
+  // iterate over all DSC IDs for which a initialization was received
+  for (auto& [dscId, dscSubstreamManager]: m_dscSubstreamManagerMap)
+  {
+    SEIMessages currentSEIs;
+    // find the SEIs that are assiciated with the current DSC ID
+    for (auto *sei: dscSelectionSEIs)
     {
-      // Check if any new Picture Timing SEI has arrived
-      SEIMessages pictureTimingSEIs = extractSeisByType (m_SEIs, SEI::PICTURE_TIMING);
-      if (pictureTimingSEIs.size()>0)
+      if (((SEIDigitallySignedContentSelection*) sei)->dscsId == dscId )
       {
-        SEIPictureTiming* pictureTiming = (SEIPictureTiming*) *(pictureTimingSEIs.begin());
-        isField = (pictureTiming->m_picStruct == 1) || (pictureTiming->m_picStruct == 2);
-        isTff =  (pictureTiming->m_picStruct == 1);
+        currentSEIs.push_back(sei);
       }
     }
-
-    //Set Field/Frame coding mode
-    m_pcPic->setField(isField);
-    m_pcPic->setTopField(isTff);
-
-    // transfer any SEI messages that have been received to the picture
-    pcPic->setSEIs(m_SEIs);
-    m_SEIs.clear();
-
-    // Recursive structure
-    m_cCuDecoder.create ( g_uiMaxCUDepth, g_uiMaxCUWidth, g_uiMaxCUHeight, m_apcSlicePilot->getSPS()->getChromaFormatIdc() );
-    m_cCuDecoder.init   ( &m_cEntropyDecoder, &m_cTrQuant, &m_cPrediction );
-    m_cTrQuant.init     ( g_uiMaxCUWidth, g_uiMaxCUHeight, m_apcSlicePilot->getSPS()->getMaxTrSize());
-
-    m_cSliceDecoder.create();
-  }
-  else
-  {
-    // Check if any new SEI has arrived
-    if(!m_SEIs.empty())
+    // If there is a DSCS message, use the explicitly sigalled substream ID
+    if (!currentSEIs.empty())
     {
-      // Currently only decoding Unit SEI message occurring between VCL NALUs copied
-      SEIMessages &picSEI = pcPic->getSEIs();
-      SEIMessages decodingUnitInfos = extractSeisByType (m_SEIs, SEI::DECODING_UNIT_INFO);
-      picSEI.insert(picSEI.end(), decodingUnitInfos.begin(), decodingUnitInfos.end());
-      deleteSEIs(m_SEIs);
+      if (currentSEIs.size()>1)
+      {
+        printf ("Warming: received more than one Digitally Signed Content Selection SEI message at a time for DSC ID %i. Using first only.\n", dscId);
+      }
+      SEIDigitallySignedContentSelection* dscs = (SEIDigitallySignedContentSelection*) dscSelectionSEIs.front();
+      xProcessStoredNALUnitsForSignature(dscId, dscs->dscsVerificationSubstreamId);
     }
-  }
-
-  //  Set picture slice pointer
-  TComSlice*  pcSlice = m_apcSlicePilot;
-  Bool bNextSlice     = pcSlice->isNextSlice();
-
-  UInt i;
-  pcPic->getPicSym()->initTiles(pcSlice->getPPS());
-
-  //generate the Coding Order Map and Inverse Coding Order Map
-  UInt uiEncCUAddr;
-  for(i=0, uiEncCUAddr=0; i<pcPic->getPicSym()->getNumberOfCUsInFrame(); i++, uiEncCUAddr = pcPic->getPicSym()->xCalculateNxtCUAddr(uiEncCUAddr))
-  {
-    pcPic->getPicSym()->setCUOrderMap(i, uiEncCUAddr);
-    pcPic->getPicSym()->setInverseCUOrderMap(uiEncCUAddr, i);
-  }
-  pcPic->getPicSym()->setCUOrderMap(pcPic->getPicSym()->getNumberOfCUsInFrame(), pcPic->getPicSym()->getNumberOfCUsInFrame());
-  pcPic->getPicSym()->setInverseCUOrderMap(pcPic->getPicSym()->getNumberOfCUsInFrame(), pcPic->getPicSym()->getNumberOfCUsInFrame());
-
-  //convert the start and end CU addresses of the slice and dependent slice into encoding order
-  pcSlice->setSliceSegmentCurStartCUAddr( pcPic->getPicSym()->getPicSCUEncOrder(pcSlice->getSliceSegmentCurStartCUAddr()) );
-  pcSlice->setSliceSegmentCurEndCUAddr( pcPic->getPicSym()->getPicSCUEncOrder(pcSlice->getSliceSegmentCurEndCUAddr()) );
-  if(pcSlice->isNextSlice())
-  {
-    pcSlice->setSliceCurStartCUAddr(pcPic->getPicSym()->getPicSCUEncOrder(pcSlice->getSliceCurStartCUAddr()));
-    pcSlice->setSliceCurEndCUAddr(pcPic->getPicSym()->getPicSCUEncOrder(pcSlice->getSliceCurEndCUAddr()));
-  }
-
-  if (m_bFirstSliceInPicture)
-  {
-    if(pcPic->getNumAllocatedSlice() != 1)
+    else
     {
-      pcPic->clearSliceBuffer();
+      // inference of substream ID
+      int32_t dscsVSSID = 0;
+      if( m_dscSubstreamManagerMap[dscId].getDscAssociationModeFlag() )
+      {
+        const TComVPS *vps = m_parameterSetManager.getActiveVPS();
+        dscsVSSID = vps->getMaxLayers()*nalu.m_nuhLayerId + nalu.m_temporalId;
+      }
+      xProcessStoredNALUnitsForSignature(dscId, dscsVSSID);
     }
+    xClearStoredNALUnitsForSignature();
   }
-  else
+#endif
+
+
+  TComSlice* pcSlice = m_pcPic->getPicSym()->getSlice(m_uiSliceIdx);
+
+  if (TDecConformanceCheck::doChecking())
   {
-    pcPic->allocateNewSlice();
+    m_conformanceCheck.checkSliceActivation(*pcSlice, nalu, *m_pcPic, m_bFirstSliceInBitstream, m_bFirstSliceInSequence, m_bFirstSliceInPicture);
   }
-  assert(pcPic->getNumAllocatedSlice() == (m_uiSliceIdx + 1));
-  m_apcSlicePilot = pcPic->getPicSym()->getSlice(m_uiSliceIdx);
-  pcPic->getPicSym()->setSlice(pcSlice, m_uiSliceIdx);
 
-  pcPic->setTLayer(nalu.m_temporalId);
+  m_bFirstSliceInSequence = false;
+  m_bFirstSliceInBitstream  = false;
 
-  if (bNextSlice)
+  // When decoding the slice header, the stored start and end addresses were actually RS addresses, not TS addresses.
+  // Now, having set up the maps, convert them to the correct form.
+  pcSlice->setSliceSegmentCurStartCtuTsAddr( m_pcPic->getPicSym()->getCtuRsToTsAddrMap(pcSlice->getSliceSegmentCurStartCtuTsAddr()) );
+  pcSlice->setSliceSegmentCurEndCtuTsAddr( m_pcPic->getPicSym()->getCtuRsToTsAddrMap(pcSlice->getSliceSegmentCurEndCtuTsAddr()) );
+  if(!pcSlice->getDependentSliceSegmentFlag())
   {
-    pcSlice->checkCRA(pcSlice->getRPS(), m_pocCRA, m_associatedIRAPType, m_cListPic );
+    pcSlice->setSliceCurStartCtuTsAddr(m_pcPic->getPicSym()->getCtuRsToTsAddrMap(pcSlice->getSliceCurStartCtuTsAddr()));
+    pcSlice->setSliceCurEndCtuTsAddr(m_pcPic->getPicSym()->getCtuRsToTsAddrMap(pcSlice->getSliceCurEndCtuTsAddr()));
+  }
+
+  m_pcPic->setTLayer(nalu.m_temporalId);
+
+  if (!pcSlice->getDependentSliceSegmentFlag())
+  {
+    pcSlice->checkCRA(pcSlice->getRPS(), m_pocCRA, m_associatedIRAPType, m_cListPic);
+#if MCTS_EXTRACTION
+    if (bSkipCabacAndReconstruction)
+    {
+      m_bFirstSliceInPicture = false;
+      m_uiSliceIdx++;
+      return false;
+    }
+#endif
     // Set reference list
     pcSlice->setRefPicList( m_cListPic, true );
 
@@ -647,29 +930,38 @@ Bool TDecTop::xDecodeSlice(InputNALUnit &nalu, Int &iSkipFrame, Int iPOCLastDisp
     pcSlice->setRefPOCList();
   }
 
-  pcPic->setCurrSliceIdx(m_uiSliceIdx);
+  m_pcPic->setCurrSliceIdx(m_uiSliceIdx);
   if(pcSlice->getSPS()->getScalingListFlag())
   {
-    pcSlice->setScalingList ( pcSlice->getSPS()->getScalingList()  );
+    TComScalingList scalingList;
     if(pcSlice->getPPS()->getScalingListPresentFlag())
     {
-      pcSlice->setScalingList ( pcSlice->getPPS()->getScalingList()  );
+      scalingList = pcSlice->getPPS()->getScalingList();
     }
-    if(!pcSlice->getPPS()->getScalingListPresentFlag() && !pcSlice->getSPS()->getScalingListPresentFlag())
+    else if (pcSlice->getSPS()->getScalingListPresentFlag())
     {
-      pcSlice->setDefaultScalingList();
+      scalingList = pcSlice->getSPS()->getScalingList();
     }
-    m_cTrQuant.setScalingListDec(pcSlice->getScalingList(), pcSlice->getSPS()->getChromaFormatIdc());
+    else
+    {
+      scalingList.setDefaultScalingList();
+    }
+    m_cTrQuant.setScalingListDec(scalingList);
     m_cTrQuant.setUseScalingList(true);
   }
   else
   {
-    m_cTrQuant.setFlatScalingList(pcSlice->getSPS()->getChromaFormatIdc());
+    const Int maxLog2TrDynamicRange[MAX_NUM_CHANNEL_TYPE] =
+    {
+        pcSlice->getSPS()->getMaxLog2TrDynamicRange(CHANNEL_TYPE_LUMA),
+        pcSlice->getSPS()->getMaxLog2TrDynamicRange(CHANNEL_TYPE_CHROMA)
+    };
+    m_cTrQuant.setFlatScalingList(maxLog2TrDynamicRange, pcSlice->getSPS()->getBitDepths());
     m_cTrQuant.setUseScalingList(false);
   }
 
   //  Decode a picture
-  m_cGopDecoder.decompressSlice(nalu.m_Bitstream, pcPic);
+  m_cGopDecoder.decompressSlice(&(nalu.getBitstream()), m_pcPic);
 
   m_bFirstSliceInPicture = false;
   m_uiSliceIdx++;
@@ -677,92 +969,132 @@ Bool TDecTop::xDecodeSlice(InputNALUnit &nalu, Int &iSkipFrame, Int iPOCLastDisp
   return false;
 }
 
-Void TDecTop::xDecodeVPS()
+Void TDecTop::xDecodeVPS(const std::vector<UChar> &naluData)
 {
   TComVPS* vps = new TComVPS();
 
   m_cEntropyDecoder.decodeVPS( vps );
-  m_parameterSetManagerDecoder.storePrefetchedVPS(vps);
+  m_parameterSetManager.storeVPS(vps, naluData);
 }
 
-Void TDecTop::xDecodeSPS()
+Void TDecTop::xDecodeSPS(const std::vector<UChar> &naluData)
 {
   TComSPS* sps = new TComSPS();
-#if RExt__O0043_BEST_EFFORT_DECODING
+#if O0043_BEST_EFFORT_DECODING
   sps->setForceDecodeBitDepth(m_forceDecodeBitDepth);
 #endif
   m_cEntropyDecoder.decodeSPS( sps );
-  m_parameterSetManagerDecoder.storePrefetchedSPS(sps);
+  m_parameterSetManager.storeSPS(sps, naluData);
 }
 
-Void TDecTop::xDecodePPS()
+Void TDecTop::xDecodePPS(const std::vector<UChar> &naluData)
 {
   TComPPS* pps = new TComPPS();
   m_cEntropyDecoder.decodePPS( pps );
-  m_parameterSetManagerDecoder.storePrefetchedPPS( pps );
+  m_parameterSetManager.storePPS( pps, naluData);
 }
 
-Void TDecTop::xDecodeSEI( TComInputBitstream* bs, const NalUnitType nalUnitType )
-{
-  if(nalUnitType == NAL_UNIT_SUFFIX_SEI)
-  {
-    m_seiReader.parseSEImessage( bs, m_pcPic->getSEIs(), nalUnitType, m_parameterSetManagerDecoder.getActiveSPS(), m_pDecodedSEIOutputStream );
-  }
-  else
-  {
-    m_seiReader.parseSEImessage( bs, m_SEIs, nalUnitType, m_parameterSetManagerDecoder.getActiveSPS(), m_pDecodedSEIOutputStream );
-
-    SEIMessages activeParamSets = getSeisByType(m_SEIs, SEI::ACTIVE_PARAMETER_SETS);
-    if (activeParamSets.size()>0)
-    {
-      SEIActiveParameterSets *seiAps = (SEIActiveParameterSets*)(*activeParamSets.begin());
-      m_parameterSetManagerDecoder.applyPrefetchedPS();
-      assert(seiAps->activeSeqParameterSetId.size()>0);
-      if (! m_parameterSetManagerDecoder.activateSPSWithSEI(seiAps->activeSeqParameterSetId[0] ))
-      {
-        printf ("Warning SPS activation with Active parameter set SEI failed");
-      }
-    }
-  }
-}
-
+#if MCTS_EXTRACTION
+Bool TDecTop::decode(InputNALUnit& nalu, Int& iSkipFrame, Int& iPOCLastDisplay, Bool bSkipCabacAndReconstruction)
+#else
 Bool TDecTop::decode(InputNALUnit& nalu, Int& iSkipFrame, Int& iPOCLastDisplay)
+#endif
 {
+  // ignore all NAL units of layers > 0
+  if (nalu.m_nuhLayerId > 0)
+  {
+    fprintf (stderr, "Warning: found NAL unit with nuh_layer_id equal to %d. Ignoring.\n", nalu.m_nuhLayerId);
+    return false;
+  }
   // Initialize entropy decoder
   m_cEntropyDecoder.setEntropyDecoder (&m_cCavlcDecoder);
-  m_cEntropyDecoder.setBitstream      (nalu.m_Bitstream);
+  m_cEntropyDecoder.setBitstream      (&(nalu.getBitstream()));
 
   switch (nalu.m_nalUnitType)
   {
     case NAL_UNIT_VPS:
-      xDecodeVPS();
-#if RExt__DECODER_DEBUG_BIT_STATISTICS
-      TComCodingStatistics::IncrementStatisticEP(STATS__BYTE_ALIGNMENT_BITS,nalu.m_Bitstream->readByteAlignment(),0);
+      xDecodeVPS(nalu.getBitstream().getFifo());
+#if JVET_AK0194_DSC_SEI
+      xStoreNALUnitForSignature(nalu);
 #endif
       return false;
 
     case NAL_UNIT_SPS:
-      xDecodeSPS();
-#if RExt__DECODER_DEBUG_BIT_STATISTICS
-      TComCodingStatistics::IncrementStatisticEP(STATS__BYTE_ALIGNMENT_BITS,nalu.m_Bitstream->readByteAlignment(),0);
+#if JVET_AK0194_DSC_SEI
+      xStoreNALUnitForSignature(nalu);
 #endif
+      xDecodeSPS(nalu.getBitstream().getFifo());
       return false;
 
     case NAL_UNIT_PPS:
-      xDecodePPS();
-#if RExt__DECODER_DEBUG_BIT_STATISTICS
-      TComCodingStatistics::IncrementStatisticEP(STATS__BYTE_ALIGNMENT_BITS,nalu.m_Bitstream->readByteAlignment(),0);
+#if JVET_AK0194_DSC_SEI
+      xStoreNALUnitForSignature(nalu);
 #endif
+      xDecodePPS(nalu.getBitstream().getFifo());
       return false;
 
     case NAL_UNIT_PREFIX_SEI:
-    case NAL_UNIT_SUFFIX_SEI:
-      xDecodeSEI( nalu.m_Bitstream, nalu.m_nalUnitType );
-#if RExt__DECODER_DEBUG_BIT_STATISTICS
-//      TComCodingStatistics::IncrementStatisticEP(STATS__BYTE_ALIGNMENT_BITS,nalu.m_Bitstream->readByteAlignment(),0); // NOTE: RExt - Byte alignment now read as part of xDecodeSEI (SEIReader::parseSEImessage)
-#endif
+      // Buffer up prefix SEI messages until SPS of associated VCL is known.
+      m_prefixSEINALUs.push_back(new InputNALUnit(nalu));
       return false;
 
+    case NAL_UNIT_SUFFIX_SEI:
+      {
+        if (m_pcPic)
+        {
+#if JVET_AK0194_DSC_SEI
+          SEIMessages::iterator newSEI = m_seiReader.parseSEImessage( &(nalu.getBitstream()), m_pcPic->getSEIs(), nalu.m_nalUnitType,
+                                                                    m_parameterSetManager.getActiveSPS(), m_pDecodedSEIOutputStream );
+
+          // Loop through ALL parsed suffix SEI messages belonging to this NAL unit
+          for (auto it = newSEI; it != m_pcPic->getSEIs().end(); ++it)
+          {
+            if ((*it)->payloadType() == SEI::PayloadType::DIGITALLY_SIGNED_CONTENT_SELECTION)
+            {
+              auto dscsSei = reinterpret_cast<SEIDigitallySignedContentSelection*>(*it);
+              if (m_dscSubstreamManagerMap.find(dscsSei->dscsId) == m_dscSubstreamManagerMap.end())
+              {
+                printf ("DSC ID %i not initialized, ignoring DSC selection for this ID\n", dscsSei->dscsId);
+              }
+              else if (!m_dscSubstreamManagerMap[dscsSei->dscsId].getSeiSigningFlag())
+              {
+                printf ("DSCI SEI signing flag is 0, this SEI NALU is not included in signing\n");
+              }
+              else
+              {
+                m_dscSubstreamManagerMap[dscsSei->dscsId].addToSubstream(dscsSei->dscsVerificationSubstreamId, (char*)nalu.getBitstream().getOrigFifo().data(), nalu.getBitstream().getOrigFifo().size());
+              }
+            }
+          }
+
+          SEIMessages dscVerifySEIs = getSeisByType( m_pcPic->getSEIs(), SEI::PayloadType::DIGITALLY_SIGNED_CONTENT_VERIFICATION);
+          if (!dscVerifySEIs.empty())
+          {
+            for (auto dscvsei:dscVerifySEIs)
+            {
+              SEIDigitallySignedContentVerification *sei = (SEIDigitallySignedContentVerification*) dscvsei;
+              const uint8_t dscId = sei->dscvId;
+              if (m_dscSubstreamManagerMap.find(dscId) != m_dscSubstreamManagerMap.end())
+              {
+                m_dscSubstreamManagerMap[dscId].verifySubstream(sei->dscvVerificationSubstreamId, sei->dscvSignedContentEndFlag, sei->dscvSignature );
+              }
+              else
+              {
+                printf ("Received DSC verification SEI message for ID %i without previous DSC initialization", dscId);
+              }
+            }
+          }
+#else
+          m_seiReader.parseSEImessage( &(nalu.getBitstream()), m_pcPic->getSEIs(), nalu.m_nalUnitType,
+                                        m_parameterSetManager.getActiveSPS(), m_pDecodedSEIOutputStream );
+#endif
+        }
+        else
+        {
+          printf ("Note: received suffix SEI but no picture currently active.\n");
+        }
+        return false;
+      }
     case NAL_UNIT_CODED_SLICE_TRAIL_R:
     case NAL_UNIT_CODED_SLICE_TRAIL_N:
     case NAL_UNIT_CODED_SLICE_TSA_R:
@@ -779,7 +1111,14 @@ Bool TDecTop::decode(InputNALUnit& nalu, Int& iSkipFrame, Int& iPOCLastDisplay)
     case NAL_UNIT_CODED_SLICE_RADL_R:
     case NAL_UNIT_CODED_SLICE_RASL_N:
     case NAL_UNIT_CODED_SLICE_RASL_R:
+#if JVET_AK0194_DSC_SEI
+      xStoreNALUnitForSignature(nalu);
+#endif
+#if MCTS_EXTRACTION
+      return xDecodeSlice(nalu, iSkipFrame, iPOCLastDisplay, bSkipCabacAndReconstruction);
+#else
       return xDecodeSlice(nalu, iSkipFrame, iPOCLastDisplay);
+#endif
       break;
 
     case NAL_UNIT_EOS:
@@ -787,23 +1126,30 @@ Bool TDecTop::decode(InputNALUnit& nalu, Int& iSkipFrame, Int& iPOCLastDisplay)
       m_pocCRA = 0;
       m_pocRandomAccess = MAX_INT;
       m_prevPOC = MAX_INT;
-#if !FIX_OUTPUT_ORDER_BEHAVIOR
-      m_bFirstSliceInPicture = true;
-      m_bFirstSliceInSequence = true;
-#endif
       m_prevSliceSkipped = false;
       m_skippedPOC = 0;
       return false;
 
     case NAL_UNIT_ACCESS_UNIT_DELIMITER:
-      // TODO: process AU delimiter
-      return false;
+      {
+        AUDReader audReader;
+        UInt picType;
+        audReader.parseAccessUnitDelimiter(&(nalu.getBitstream()),picType);
+        printf ("Note: found NAL_UNIT_ACCESS_UNIT_DELIMITER\n");
+        return false;
+      }
 
     case NAL_UNIT_EOB:
       return false;
 
     case NAL_UNIT_FILLER_DATA:
-      return false;
+      {
+        FDReader fdReader;
+        UInt size;
+        fdReader.parseFillerData(&(nalu.getBitstream()),size);
+        printf ("Note: found NAL_UNIT_FILLER_DATA with %u bytes payload.\n", size);
+        return false;
+      }
 
     case NAL_UNIT_RESERVED_VCL_N10:
     case NAL_UNIT_RESERVED_VCL_R11:
@@ -823,6 +1169,9 @@ Bool TDecTop::decode(InputNALUnit& nalu, Int& iSkipFrame, Int& iPOCLastDisplay)
     case NAL_UNIT_RESERVED_VCL29:
     case NAL_UNIT_RESERVED_VCL30:
     case NAL_UNIT_RESERVED_VCL31:
+      printf ("Note: found reserved VCL NAL unit.\n");
+      xParsePrefixSEIsForUnknownVCLNal();
+      return false;
 
     case NAL_UNIT_RESERVED_NVCL41:
     case NAL_UNIT_RESERVED_NVCL42:
@@ -831,6 +1180,8 @@ Bool TDecTop::decode(InputNALUnit& nalu, Int& iSkipFrame, Int& iPOCLastDisplay)
     case NAL_UNIT_RESERVED_NVCL45:
     case NAL_UNIT_RESERVED_NVCL46:
     case NAL_UNIT_RESERVED_NVCL47:
+      printf ("Note: found reserved NAL unit.\n");
+      return false;
     case NAL_UNIT_UNSPECIFIED_48:
     case NAL_UNIT_UNSPECIFIED_49:
     case NAL_UNIT_UNSPECIFIED_50:
@@ -847,7 +1198,8 @@ Bool TDecTop::decode(InputNALUnit& nalu, Int& iSkipFrame, Int& iPOCLastDisplay)
     case NAL_UNIT_UNSPECIFIED_61:
     case NAL_UNIT_UNSPECIFIED_62:
     case NAL_UNIT_UNSPECIFIED_63:
-
+      printf ("Note: found unspecified NAL unit.\n");
+      return false;
     default:
       assert (0);
       break;
@@ -909,17 +1261,19 @@ Bool TDecTop::isRandomAccessSkipPicture(Int& iSkipFrame,  Int& iPOCLastDisplay)
     }
     else
     {
-      static Bool warningMessage = false;
-      if(!warningMessage)
+      if(!m_warningMessageSkipPicture)
       {
         printf("\nWarning: this is not a valid random access point and the data is discarded until the first CRA picture");
-        warningMessage = true;
+        m_warningMessageSkipPicture = true;
       }
       return true;
     }
   }
   // skip the reordered pictures, if necessary
-  else if (m_apcSlicePilot->getPOC() < m_pocRandomAccess && (m_apcSlicePilot->getNalUnitType() == NAL_UNIT_CODED_SLICE_RASL_R || m_apcSlicePilot->getNalUnitType() == NAL_UNIT_CODED_SLICE_RASL_N))
+  else if (m_apcSlicePilot->getPOC() < m_pocRandomAccess &&
+      (m_apcSlicePilot->getNalUnitType() == NAL_UNIT_CODED_SLICE_RASL_R ||
+       m_apcSlicePilot->getNalUnitType() == NAL_UNIT_CODED_SLICE_RASL_N) &&
+      m_noRaslOutputFlag) // Skip only when NoRaslOutputFlag = 1
   {
     iPOCLastDisplay++;
     return true;

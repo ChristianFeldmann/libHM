@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -49,7 +49,6 @@ TComPic::TComPic()
 : m_uiTLayer                              (0)
 , m_bUsedByCurr                           (false)
 , m_bIsLongTerm                           (false)
-, m_apcPicSym                             (NULL)
 , m_pcPicYuvPred                          (NULL)
 , m_pcPicYuvResi                          (NULL)
 , m_bReconstructed                        (false)
@@ -61,22 +60,79 @@ TComPic::TComPic()
   {
     m_apcPicYuv[i]      = NULL;
   }
+#if JVET_X0048_X0103_FILM_GRAIN
+  m_isMctfFiltered      = false;
+  m_grainCharacteristic = NULL;
+  m_grainBuf            = NULL;
+#endif
 }
 
 TComPic::~TComPic()
 {
+  destroy();
 }
 
-Void TComPic::create( Int iWidth, Int iHeight, ChromaFormat chromaFormatIDC, UInt uiMaxWidth, UInt uiMaxHeight, UInt uiMaxDepth, Window &conformanceWindow, Window &defaultDisplayWindow,
-                      Int *numReorderPics, Bool bIsVirtual)
+#if REDUCED_ENCODER_MEMORY
+Void TComPic::create( const TComSPS &sps, const TComPPS &pps, const Bool bCreateEncoderSourcePicYuv, const Bool bCreateForImmediateReconstruction
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+  , const Bool bCreateForProcessedReconstruction
+#endif
+#if JVET_X0048_X0103_FILM_GRAIN
+  , const Bool bCreateFilteredSourcePicYuv
+#endif
+)
+#else
+Void TComPic::create(const TComSPS &sps, const TComPPS &pps, const Bool bIsVirtual
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+  , const Bool bCreateForProcessedReconstruction
+#endif
+#if JVET_X0048_X0103_FILM_GRAIN
+  , const Bool bCreateFilteredSourcePicYuv
+#endif
+)
+#endif
 {
-  m_apcPicSym     = new TComPicSym;  m_apcPicSym   ->create( chromaFormatIDC, iWidth, iHeight, uiMaxWidth, uiMaxHeight, uiMaxDepth );
+  destroy();
+
+  const ChromaFormat chromaFormatIDC = sps.getChromaFormatIdc();
+  const Int          iWidth          = sps.getPicWidthInLumaSamples();
+  const Int          iHeight         = sps.getPicHeightInLumaSamples();
+  const UInt         uiMaxCuWidth    = sps.getMaxCUWidth();
+  const UInt         uiMaxCuHeight   = sps.getMaxCUHeight();
+  const UInt         uiMaxDepth      = sps.getMaxTotalCUDepth();
+
+#if REDUCED_ENCODER_MEMORY
+  m_picSym.create( sps, pps, uiMaxDepth, bCreateForImmediateReconstruction );
+  if (bCreateEncoderSourcePicYuv)
+#else
+  m_picSym.create( sps, pps, uiMaxDepth );
   if (!bIsVirtual)
+#endif
   {
-    m_apcPicYuv[PIC_YUV_ORG]  = new TComPicYuv;  m_apcPicYuv[PIC_YUV_ORG]->create( iWidth, iHeight, chromaFormatIDC, uiMaxWidth, uiMaxHeight, uiMaxDepth );
-    m_apcPicYuv[PIC_YUV_TRUE_ORG]  = new TComPicYuv;  m_apcPicYuv[PIC_YUV_TRUE_ORG]->create( iWidth, iHeight, chromaFormatIDC, uiMaxWidth, uiMaxHeight, uiMaxDepth );
+    m_apcPicYuv[PIC_YUV_ORG    ]   = new TComPicYuv;  m_apcPicYuv[PIC_YUV_ORG     ]->create( iWidth, iHeight, chromaFormatIDC, uiMaxCuWidth, uiMaxCuHeight, uiMaxDepth, true );
+    m_apcPicYuv[PIC_YUV_TRUE_ORG]  = new TComPicYuv;  m_apcPicYuv[PIC_YUV_TRUE_ORG]->create( iWidth, iHeight, chromaFormatIDC, uiMaxCuWidth, uiMaxCuHeight, uiMaxDepth, true );
   }
-  m_apcPicYuv[PIC_YUV_REC]  = new TComPicYuv;  m_apcPicYuv[PIC_YUV_REC]->create( iWidth, iHeight, chromaFormatIDC, uiMaxWidth, uiMaxHeight, uiMaxDepth );
+#if REDUCED_ENCODER_MEMORY
+  if (bCreateForImmediateReconstruction)
+  {
+#endif
+    m_apcPicYuv[PIC_YUV_REC]  = new TComPicYuv;  m_apcPicYuv[PIC_YUV_REC]->create( iWidth, iHeight, chromaFormatIDC, uiMaxCuWidth, uiMaxCuHeight, uiMaxDepth, true );
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+    if (bCreateForProcessedReconstruction)
+    {
+      m_apcPicYuv[PIC_YUV_POST_REC] = new TComPicYuv;  m_apcPicYuv[PIC_YUV_POST_REC]->create(iWidth, iHeight, chromaFormatIDC, uiMaxCuWidth, uiMaxCuHeight, uiMaxDepth, true);
+    }
+#endif
+#if REDUCED_ENCODER_MEMORY
+  }
+#endif
+
+#if JVET_X0048_X0103_FILM_GRAIN
+  if (bCreateFilteredSourcePicYuv)
+  {
+    m_apcPicYuv[PIC_FILTERED_ORIGINAL_FG] = new TComPicYuv;  m_apcPicYuv[PIC_FILTERED_ORIGINAL_FG]->create(iWidth, iHeight, chromaFormatIDC, uiMaxCuWidth, uiMaxCuHeight, uiMaxDepth, true);
+  }
+#endif
 
   // there are no SEI messages associated with this picture initially
   if (m_SEIs.size() > 0)
@@ -84,27 +140,138 @@ Void TComPic::create( Int iWidth, Int iHeight, ChromaFormat chromaFormatIDC, UIn
     deleteSEIs (m_SEIs);
   }
   m_bUsedByCurr = false;
-
-  /* store conformance window parameters with picture */
-  m_conformanceWindow = conformanceWindow;
-
-  /* store display window parameters with picture */
-  m_defaultDisplayWindow = defaultDisplayWindow;
-
-  /* store number of reorder pics with picture */
-  memcpy(m_numReorderPics, numReorderPics, MAX_TLAYER*sizeof(Int));
-
-  return;
 }
+
+#if REDUCED_ENCODER_MEMORY
+#if JVET_X0048_X0103_FILM_GRAIN
+Void TComPic::prepareForEncoderSourcePicYuv( const Bool bCreateFilteredSourcePicYuv )
+#else
+Void TComPic::prepareForEncoderSourcePicYuv()
+#endif
+{
+  const TComSPS &sps=m_picSym.getSPS();
+
+  const ChromaFormat chromaFormatIDC = sps.getChromaFormatIdc();
+  const Int          iWidth          = sps.getPicWidthInLumaSamples();
+  const Int          iHeight         = sps.getPicHeightInLumaSamples();
+  const UInt         uiMaxCuWidth    = sps.getMaxCUWidth();
+  const UInt         uiMaxCuHeight   = sps.getMaxCUHeight();
+  const UInt         uiMaxDepth      = sps.getMaxTotalCUDepth();
+
+  if (m_apcPicYuv[PIC_YUV_ORG    ]==NULL)
+  {
+    m_apcPicYuv[PIC_YUV_ORG    ]   = new TComPicYuv;  m_apcPicYuv[PIC_YUV_ORG     ]->create( iWidth, iHeight, chromaFormatIDC, uiMaxCuWidth, uiMaxCuHeight, uiMaxDepth, true );
+  }
+  if (m_apcPicYuv[PIC_YUV_TRUE_ORG    ]==NULL)
+  {
+    m_apcPicYuv[PIC_YUV_TRUE_ORG]  = new TComPicYuv;  m_apcPicYuv[PIC_YUV_TRUE_ORG]->create( iWidth, iHeight, chromaFormatIDC, uiMaxCuWidth, uiMaxCuHeight, uiMaxDepth, true );
+  }
+#if JVET_X0048_X0103_FILM_GRAIN
+  if (m_apcPicYuv[PIC_FILTERED_ORIGINAL_FG] == NULL && bCreateFilteredSourcePicYuv)
+  {
+    m_apcPicYuv[PIC_FILTERED_ORIGINAL_FG] = new TComPicYuv; m_apcPicYuv[PIC_FILTERED_ORIGINAL_FG]->create(iWidth, iHeight, chromaFormatIDC, uiMaxCuWidth, uiMaxCuHeight, uiMaxDepth, true);
+  }
+#endif
+}
+
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+Void TComPic::prepareForReconstruction( const Bool bCreateForProcessedReconstruction )
+#else
+Void TComPic::prepareForReconstruction()
+#endif
+{
+  if (m_apcPicYuv[PIC_YUV_REC] == NULL)
+  {
+    const TComSPS &sps=m_picSym.getSPS();
+    const ChromaFormat chromaFormatIDC = sps.getChromaFormatIdc();
+    const Int          iWidth          = sps.getPicWidthInLumaSamples();
+    const Int          iHeight         = sps.getPicHeightInLumaSamples();
+    const UInt         uiMaxCuWidth    = sps.getMaxCUWidth();
+    const UInt         uiMaxCuHeight   = sps.getMaxCUHeight();
+    const UInt         uiMaxDepth      = sps.getMaxTotalCUDepth();
+
+    m_apcPicYuv[PIC_YUV_REC]  = new TComPicYuv;  m_apcPicYuv[PIC_YUV_REC]->create( iWidth, iHeight, chromaFormatIDC, uiMaxCuWidth, uiMaxCuHeight, uiMaxDepth, true );
+  }
+
+  // mark it should be extended
+  m_apcPicYuv[PIC_YUV_REC]->setBorderExtension(false);
+
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+  if (m_apcPicYuv[PIC_YUV_POST_REC] == NULL && bCreateForProcessedReconstruction)
+  {
+    const TComSPS &sps = m_picSym.getSPS();
+    const ChromaFormat chromaFormatIDC = sps.getChromaFormatIdc();
+    const Int          iWidth = sps.getPicWidthInLumaSamples();
+    const Int          iHeight = sps.getPicHeightInLumaSamples();
+    const UInt         uiMaxCuWidth = sps.getMaxCUWidth();
+    const UInt         uiMaxCuHeight = sps.getMaxCUHeight();
+    const UInt         uiMaxDepth = sps.getMaxTotalCUDepth();
+
+    m_apcPicYuv[PIC_YUV_POST_REC] = new TComPicYuv;  m_apcPicYuv[PIC_YUV_POST_REC]->create(iWidth, iHeight, chromaFormatIDC, uiMaxCuWidth, uiMaxCuHeight, uiMaxDepth, true);
+  }
+
+  // mark it should be extended
+  if (bCreateForProcessedReconstruction)
+  {
+    m_apcPicYuv[PIC_YUV_POST_REC]->setBorderExtension(false);
+  }
+#endif
+
+  m_picSym.prepareForReconstruction();
+}
+
+Void TComPic::releaseReconstructionIntermediateData()
+{
+  m_picSym.releaseReconstructionIntermediateData();
+}
+
+Void TComPic::releaseEncoderSourceImageData()
+{
+  if (m_apcPicYuv[PIC_YUV_ORG    ])
+  {
+    m_apcPicYuv[PIC_YUV_ORG]->destroy();
+    delete m_apcPicYuv[PIC_YUV_ORG];
+    m_apcPicYuv[PIC_YUV_ORG] = NULL;
+  }
+  if (m_apcPicYuv[PIC_YUV_TRUE_ORG    ])
+  {
+    m_apcPicYuv[PIC_YUV_TRUE_ORG]->destroy();
+    delete m_apcPicYuv[PIC_YUV_TRUE_ORG];
+    m_apcPicYuv[PIC_YUV_TRUE_ORG] = NULL;
+  }
+#if JVET_X0048_X0103_FILM_GRAIN
+  if (m_apcPicYuv[PIC_FILTERED_ORIGINAL_FG])
+  {
+    m_apcPicYuv[PIC_FILTERED_ORIGINAL_FG]->destroy();
+    delete m_apcPicYuv[PIC_FILTERED_ORIGINAL_FG];
+    m_apcPicYuv[PIC_FILTERED_ORIGINAL_FG] = NULL;
+  }
+#endif
+}
+
+Void TComPic::releaseAllReconstructionData()
+{
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+  if (m_apcPicYuv[PIC_YUV_POST_REC])
+  {
+    m_apcPicYuv[PIC_YUV_POST_REC]->destroy();
+    delete m_apcPicYuv[PIC_YUV_POST_REC];
+    m_apcPicYuv[PIC_YUV_POST_REC] = NULL;
+  }
+#endif
+  if (m_apcPicYuv[PIC_YUV_REC    ])
+  {
+    m_apcPicYuv[PIC_YUV_REC]->destroy();
+    delete m_apcPicYuv[PIC_YUV_REC];
+    m_apcPicYuv[PIC_YUV_REC] = NULL;
+  }
+  m_picSym.releaseAllReconstructionData();
+}
+#endif
 
 Void TComPic::destroy()
 {
-  if (m_apcPicSym)
-  {
-    m_apcPicSym->destroy();
-    delete m_apcPicSym;
-    m_apcPicSym = NULL;
-  }
+  m_picSym.destroy();
 
   for(UInt i=0; i<NUM_PIC_YUV; i++)
   {
@@ -117,52 +284,230 @@ Void TComPic::destroy()
   }
 
   deleteSEIs(m_SEIs);
+#if JVET_X0048_X0103_FILM_GRAIN
+  m_grainBuf = NULL;
+#endif
 }
 
 Void TComPic::compressMotion()
 {
   TComPicSym* pPicSym = getPicSym();
-  for ( UInt uiCUAddr = 0; uiCUAddr < pPicSym->getFrameHeightInCU()*pPicSym->getFrameWidthInCU(); uiCUAddr++ )
+  for ( UInt uiCUAddr = 0; uiCUAddr < pPicSym->getNumberOfCtusInFrame(); uiCUAddr++ )
   {
-    TComDataCU* pcCU = pPicSym->getCU(uiCUAddr);
-    pcCU->compressMV();
+    TComDataCU* pCtu = pPicSym->getCtu(uiCUAddr);
+    pCtu->compressMV();
   }
 }
 
 Bool  TComPic::getSAOMergeAvailability(Int currAddr, Int mergeAddr)
 {
-  Bool mergeCtbInSliceSeg = (mergeAddr >= getPicSym()->getCUOrderMap(getCU(currAddr)->getSlice()->getSliceCurStartCUAddr()/getNumPartInCU()));
+  Bool mergeCtbInSliceSeg = (mergeAddr >= getPicSym()->getCtuTsToRsAddrMap(getCtu(currAddr)->getSlice()->getSliceCurStartCtuTsAddr()));
   Bool mergeCtbInTile     = (getPicSym()->getTileIdxMap(mergeAddr) == getPicSym()->getTileIdxMap(currAddr));
   return (mergeCtbInSliceSeg && mergeCtbInTile);
 }
 
-UInt TComPic::getSubstreamForLCUAddr(const UInt uiLCUAddr, const Bool bAddressInRaster, TComSlice *pcSlice)
+UInt TComPic::getSubstreamForCtuAddr(const UInt ctuAddr, const Bool bAddressInRaster, TComSlice *pcSlice)
 {
-  const Int iNumSubstreams = pcSlice->getPPS()->getNumSubstreams();
-  UInt uiSubStrm;
+  UInt subStrm;
+  const bool bWPPEnabled=pcSlice->getPPS()->getEntropyCodingSyncEnabledFlag();
+  const TComPicSym &picSym            = *(getPicSym());
 
-  if (iNumSubstreams > 1) // wavefronts, and possibly tiles being used.
+  if ((bWPPEnabled && picSym.getFrameHeightInCtus()>1) || (picSym.getNumTiles()>1)) // wavefronts, and possibly tiles being used.
   {
-    TComPicSym &picSym=*(getPicSym());
-    const UInt uiLCUAddrRaster = bAddressInRaster?uiLCUAddr : picSym.getCUOrderMap(uiLCUAddr);
-    const UInt uiWidthInLCUs  = picSym.getFrameWidthInCU();
-    const UInt uiTileIndex=picSym.getTileIdxMap(uiLCUAddrRaster);
-    const UInt widthInTiles=(picSym.getNumColumnsMinus1()+1);
-    TComTile *pTile=picSym.getTComTile(uiTileIndex);
-    const UInt uiTileStartLCU = pTile->getFirstCUAddr();
-    const UInt uiTileLCUY = uiTileStartLCU / uiWidthInLCUs;
-    // independent tiles => substreams are "per tile".  iNumSubstreams has already been multiplied.
-    const UInt uiLin = uiLCUAddrRaster / uiWidthInLCUs;
-          UInt uiStartingSubstreamForTile=(uiTileLCUY*widthInTiles) + (pTile->getTileHeight()*(uiTileIndex%widthInTiles));
-    uiSubStrm = uiStartingSubstreamForTile + (uiLin-uiTileLCUY);
+    if (bWPPEnabled)
+    {
+      const UInt ctuRsAddr                = bAddressInRaster?ctuAddr : picSym.getCtuTsToRsAddrMap(ctuAddr);
+      const UInt frameWidthInCtus         = picSym.getFrameWidthInCtus();
+      const UInt tileIndex                = picSym.getTileIdxMap(ctuRsAddr);
+      const UInt numTileColumns           = (picSym.getNumTileColumnsMinus1()+1);
+      const TComTile *pTile               = picSym.getTComTile(tileIndex);
+      const UInt firstCtuRsAddrOfTile     = pTile->getFirstCtuRsAddr();
+      const UInt tileYInCtus              = firstCtuRsAddrOfTile / frameWidthInCtus;
+      // independent tiles => substreams are "per tile"
+      const UInt ctuLine                  = ctuRsAddr / frameWidthInCtus;
+      const UInt startingSubstreamForTile =(tileYInCtus*numTileColumns) + (pTile->getTileHeightInCtus()*(tileIndex%numTileColumns));
+      subStrm = startingSubstreamForTile + (ctuLine - tileYInCtus);
+    }
+    else
+    {
+      const UInt ctuRsAddr                = bAddressInRaster?ctuAddr : picSym.getCtuTsToRsAddrMap(ctuAddr);
+      const UInt tileIndex                = picSym.getTileIdxMap(ctuRsAddr);
+      subStrm=tileIndex;
+    }
   }
   else
   {
     // dependent tiles => substreams are "per frame".
-    uiSubStrm = 0;//uiLin % iNumSubstreams; // x modulo 1 = 0 !
+    subStrm = 0;
   }
-  return uiSubStrm;
+  return subStrm;
 }
 
+#if JVET_X0048_X0103_FILM_GRAIN
+// initialization of frequency based film grain syntheis buffers and parameters
+void TComPic::createGrainSynthesizer(Bool bFirstPictureInSequence, SEIFilmGrainSynthesizer* pGrainCharacteristics, TComPicYuv* pGrainBuf, const TComSPS* sps)
+{
+    m_grainCharacteristic = pGrainCharacteristics;
+    m_grainBuf = pGrainBuf;
 
+    Int width         = sps->getPicWidthInLumaSamples();
+    Int height        = sps->getPicHeightInLumaSamples();
+    ChromaFormat fmt  = sps->getChromaFormatIdc();
+    Int bitDepth      = sps->getBitDepth(CHANNEL_TYPE_LUMA);
+
+    // Padding to make wd and ht multiple of max fgs window size(64)
+    int paddedWdFGS = ((width - 1) | 0x3F) + 1 - width;
+    int paddedHtFGS = ((height - 1) | 0x3F) + 1 - height;
+    m_padValue = (paddedWdFGS > paddedHtFGS) ? paddedWdFGS : paddedHtFGS;
+
+    if (bFirstPictureInSequence)
+    {
+      // Create and initialize the Film Grain Synthesizer
+      m_grainCharacteristic->create(width, height, fmt, bitDepth, 1);
+
+      //Frame level TComPicYuv buffer created to blend Film Grain Noise into it
+      m_grainBuf->createWithPadding(width, height, fmt, true, true, m_padValue, m_padValue);
+
+      m_grainCharacteristic->fgsInit();
+    }
+}
+
+TComPicYuv* TComPic::getPicYuvDisp()
+{
+    Int payloadType = 0;
+    std::list<SEI*>::iterator message;
+
+    for (message = m_SEIs.begin(); message != m_SEIs.end(); ++message)
+    {
+        payloadType = (*message)->payloadType();
+        if (payloadType == SEI::FILM_GRAIN_CHARACTERISTICS)
+        {
+          m_grainCharacteristic->m_errorCode = -1;
+          *m_grainCharacteristic->m_fgcParameters = *static_cast<SEIFilmGrainCharacteristics*>(*message);
+          /* Validation of Film grain characteristic parameters for the constrains of SMPTE-RDD5*/
+          m_grainCharacteristic->m_errorCode = m_grainCharacteristic->grainValidateParams();
+          break;
+        }
+    }
+
+    if (FGS_SUCCESS == m_grainCharacteristic->m_errorCode)
+    {
+      m_apcPicYuv[PIC_YUV_REC]->copyToPic(m_grainBuf);
+      m_grainBuf->extendPicBorder();  // Padding to make wd and ht multiple of max fgs window size(64)
+
+      m_grainCharacteristic->m_poc = getPOC();
+      m_grainCharacteristic->grainSynthesizeAndBlend(m_grainBuf, getSlice(0)->getIdrPicFlag());
+      return m_grainBuf;
+    }
+    else
+    {
+      if (payloadType == SEI::FILM_GRAIN_CHARACTERISTICS)
+      {
+        fprintf(stdout, "Film Grain synthesis is not performed. Error code: 0x%x \n", m_grainCharacteristic->m_errorCode);
+      }
+      return  m_apcPicYuv[PIC_YUV_REC];
+    }
+}
+#endif
+
+
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+TComPic*  TComPic::findPrevPicPOC(TComPic* pcPic, TComList<TComPic*>* pcListPic)
+{
+  TComPic*  prevPic = NULL;
+  TComPic*  listPic = NULL;
+  TComList<TComPic*>::iterator  iterListPic = pcListPic->begin();
+  for (Int i = 0; i < (Int)(pcListPic->size()); i++)
+  {
+    listPic = *(iterListPic);
+    listPic->setCurrSliceIdx(0);
+    if (listPic->getPOC() == pcPic->getPOC() - 1)
+    {
+      prevPic = *(iterListPic);
+      prevPic->setCurrSliceIdx(0);
+    }
+    iterListPic++;
+  }
+  return prevPic;
+}
+Void TComPic::xOutputPostFilteredPic(TComPic* pcPic, TComList<TComPic*>* pcListPic)
+{
+  if (pcPic->getPOC() % 2 == 0)
+  {
+    TComPic* prevPic = findPrevPicPOC(pcPic, pcListPic);
+    if (prevPic)
+    {
+      TComPicYuv* currYuv = pcPic->getPicYuvRec();
+      TComPicYuv* prevYuv = prevPic->getPicYuvRec();
+      TComPicYuv* postYuv = pcPic->getPicYuvPostRec();
+      for (Int chan = 0; chan < currYuv->getNumberValidComponents(); chan++)
+      {
+        const ComponentID ch = ComponentID(chan);
+        const ChannelType cType = (ch == COMPONENT_Y) ? CHANNEL_TYPE_LUMA : CHANNEL_TYPE_CHROMA;
+        const Int bitDepth = pcPic->getSlice(0)->getSPS()->getBitDepth(cType);
+        const Int maxOutputValue = (1 << bitDepth) - 1;
+
+        Pel*  currPxl = currYuv->getAddr(ch);
+        Pel*  prevPxl = prevYuv->getAddr(ch);
+        Pel*  postPxl = postYuv->getAddr(ch);
+        Int iStride = currYuv->getStride(ch);
+        Int iHeight = currYuv->getHeight(ch);
+        Int iWidth = currYuv->getWidth(ch);
+        for (Int y = 0; y < iHeight; y++)
+        {
+          for (Int x = 0; x < iWidth; x++)
+          {
+            postPxl[x] = std::min(maxOutputValue, std::max(0, (currPxl[x] << 1) - prevPxl[x]));
+          }
+          currPxl += iStride;
+          prevPxl += iStride;
+          postPxl += iStride;
+        }
+      }
+    }
+    else
+    {
+      pcPic->getPicYuvRec()->copyToPic(pcPic->getPicYuvPostRec());
+    }
+  }
+  else
+  {
+    pcPic->getPicYuvRec()->copyToPic(pcPic->getPicYuvPostRec());
+  }
+}
+Void TComPic::xOutputPreFilteredPic(TComPic* pcPic, TComList<TComPic*>* pcListPic)
+{
+  if (pcPic->getPOC() % 2 == 0)
+  {
+    TComPic* prevPic = findPrevPicPOC(pcPic, pcListPic);
+    if (prevPic)
+    {
+      TComPicYuv* currYuv = pcPic->getPicYuvOrg();
+      TComPicYuv* prevYuv = prevPic->getPicYuvOrg();
+      for (Int chan = 0; chan < currYuv->getNumberValidComponents(); chan++)
+      {
+        const ComponentID ch = ComponentID(chan);
+        const ChannelType cType = (ch == COMPONENT_Y) ? CHANNEL_TYPE_LUMA : CHANNEL_TYPE_CHROMA;
+        const Int bitDepth = pcPic->getSlice(0)->getSPS()->getBitDepth(cType);
+        const Int maxOutputValue = (1 << bitDepth) - 1;
+
+        Pel*  currPxl = currYuv->getAddr(ch);
+        Pel*  prevPxl = prevYuv->getAddr(ch);
+        Int iStride = currYuv->getStride(ch);
+        Int iHeight = currYuv->getHeight(ch);
+        Int iWidth = currYuv->getWidth(ch);
+        for (Int y = 0; y < iHeight; y++)
+        {
+          for (Int x = 0; x < iWidth; x++)
+          {
+            currPxl[x] = std::min( maxOutputValue, std::max( 0, (currPxl[x] + prevPxl[x]) >> 1) );
+          }
+          currPxl += iStride;
+          prevPxl += iStride;
+        }
+      }
+    }
+  }
+}
+#endif
 //! \}
