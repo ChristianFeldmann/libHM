@@ -175,6 +175,9 @@ public:
   SEIMessages& getSEIs() { return m_SEIs; }
   TComSlice* getApcSlicePilot() { return m_apcSlicePilot; }
   TComPic* getPcPic() const { return m_pcPic; }
+
+  const TComSPS *getActiveSPS() const { return m_parameterSetManager.getActiveSPS(); }
+  
   Bool  decode(InputNALUnit& nalu, Int& iSkipFrame, Int& iPOCLastDisplay, Bool bSkipCabacAndReconstruction=false);
 #else
   Bool  decode(InputNALUnit& nalu, Int& iSkipFrame, Int& iPOCLastDisplay);
