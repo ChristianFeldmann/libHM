@@ -993,7 +993,7 @@ Void TAppEncTop::encode()
   if (m_fgcSEIAnalysisEnabled && m_fgcSEIExternalDenoised.empty())
   {
     m_filteredOrgPicForFG = new TComPicYuv;
-    m_filteredOrgPicForFG->create(m_sourceWidth, m_sourceHeight, m_chromaFormatIDC, m_uiMaxCUWidth, m_uiMaxCUHeight, m_uiMaxTotalCUDepth, true);
+    m_filteredOrgPicForFG->create(m_sourceWidth, m_sourceHeight, m_chromaFormatIDC, m_uiMaxCUWidth, m_uiMaxCUHeight, m_uiMaxTotalCUDepth, true, &m_cTEncTop.romScan);
   }
   else
   {

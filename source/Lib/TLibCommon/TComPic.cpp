@@ -132,7 +132,8 @@ Void TComPic::create(const TComSPS &sps, const TComPPS &pps, const Bool bIsVirtu
 #if JVET_X0048_X0103_FILM_GRAIN
   if (bCreateFilteredSourcePicYuv)
   {
-    m_apcPicYuv[PIC_FILTERED_ORIGINAL_FG] = new TComPicYuv;  m_apcPicYuv[PIC_FILTERED_ORIGINAL_FG]->create(iWidth, iHeight, chromaFormatIDC, uiMaxCuWidth, uiMaxCuHeight, uiMaxDepth, true);
+    m_apcPicYuv[PIC_FILTERED_ORIGINAL_FG] = new TComPicYuv;  
+    m_apcPicYuv[PIC_FILTERED_ORIGINAL_FG]->create(iWidth, iHeight, chromaFormatIDC, uiMaxCuWidth, uiMaxCuHeight, uiMaxDepth, true, romScan);
   }
 #endif
 
@@ -171,7 +172,8 @@ Void TComPic::prepareForEncoderSourcePicYuv()
 #if JVET_X0048_X0103_FILM_GRAIN
   if (m_apcPicYuv[PIC_FILTERED_ORIGINAL_FG] == NULL && bCreateFilteredSourcePicYuv)
   {
-    m_apcPicYuv[PIC_FILTERED_ORIGINAL_FG] = new TComPicYuv; m_apcPicYuv[PIC_FILTERED_ORIGINAL_FG]->create(iWidth, iHeight, chromaFormatIDC, uiMaxCuWidth, uiMaxCuHeight, uiMaxDepth, true);
+    m_apcPicYuv[PIC_FILTERED_ORIGINAL_FG] = new TComPicYuv; 
+    m_apcPicYuv[PIC_FILTERED_ORIGINAL_FG]->create(iWidth, iHeight, chromaFormatIDC, uiMaxCuWidth, uiMaxCuHeight, uiMaxDepth, true, romScan);
   }
 #endif
 }
@@ -209,7 +211,8 @@ Void TComPic::prepareForReconstruction()
     const UInt         uiMaxCuHeight = sps.getMaxCUHeight();
     const UInt         uiMaxDepth = sps.getMaxTotalCUDepth();
 
-    m_apcPicYuv[PIC_YUV_POST_REC] = new TComPicYuv;  m_apcPicYuv[PIC_YUV_POST_REC]->create(iWidth, iHeight, chromaFormatIDC, uiMaxCuWidth, uiMaxCuHeight, uiMaxDepth, true);
+    m_apcPicYuv[PIC_YUV_POST_REC] = new TComPicYuv; 
+    m_apcPicYuv[PIC_YUV_POST_REC]->create(iWidth, iHeight, chromaFormatIDC, uiMaxCuWidth, uiMaxCuHeight, uiMaxDepth, true, romScan);
   }
 
   // mark it should be extended

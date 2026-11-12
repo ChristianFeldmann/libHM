@@ -1380,7 +1380,7 @@ void FGAnalyser::blockTransform(const TComPicYuv &buff, PelMatrix64u &squaredDct
   Intermediate_Int maxDynamicRange    = (1 << (bitDepth + log2WindowSize)) - 1;   // dynamic range after DCT transform for windowSize x windowSize block
   Intermediate_Int minDynamicRange    = -((1 << (bitDepth + log2WindowSize)) - 1);
 
-  const TMatrixCoeff* tmp                 = g_aiT16[TRANSFORM_FORWARD][0];
+  const TMatrixCoeff* tmp                 = TComRom::g_aiT16[TRANSFORM_FORWARD][0];
   const int           transformScale1st   = 8;  // upscaling of original transform as specified in VVC (for windowSize x windowSize block)
   const int           add1st              = 1 << (transformScale1st - 1);
   const int           transformScale2nd   = 8;  // upscaling of original transform as specified in VVC (for windowSize x windowSize block)

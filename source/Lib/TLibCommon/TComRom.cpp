@@ -529,25 +529,25 @@ const Int TComRom::g_transformMatrixShift[TRANSFORM_NUMBER_OF_DIRECTIONS] = { 6,
 //coefficients
 
 #if RExt__HIGH_PRECISION_FORWARD_TRANSFORM
-const TMatrixCoeff g_aiT4 [TRANSFORM_NUMBER_OF_DIRECTIONS][4][4]   =
+const TMatrixCoeff TComRom::g_aiT4 [TRANSFORM_NUMBER_OF_DIRECTIONS][4][4]   =
 {
   DEFINE_DCT4x4_MATRIX  (16384, 21266,  9224),
   DEFINE_DCT4x4_MATRIX  (   64,    83,    36)
 };
 
-const TMatrixCoeff g_aiT8 [TRANSFORM_NUMBER_OF_DIRECTIONS][8][8]   =
+const TMatrixCoeff TComRom::g_aiT8 [TRANSFORM_NUMBER_OF_DIRECTIONS][8][8]   =
 {
   DEFINE_DCT8x8_MATRIX  (16384, 21266,  9224, 22813, 19244, 12769,  4563),
   DEFINE_DCT8x8_MATRIX  (   64,    83,    36,    89,    75,    50,    18)
 };
 
-const TMatrixCoeff g_aiT16[TRANSFORM_NUMBER_OF_DIRECTIONS][16][16] =
+const TMatrixCoeff TComRom::g_aiT16[TRANSFORM_NUMBER_OF_DIRECTIONS][16][16] =
 {
   DEFINE_DCT16x16_MATRIX(16384, 21266,  9224, 22813, 19244, 12769,  4563, 23120, 22063, 20450, 17972, 14642, 11109,  6446,  2316),
   DEFINE_DCT16x16_MATRIX(   64,    83,    36,    89,    75,    50,    18,    90,    87,    80,    70,    57,    43,    25,     9)
 };
 
-const TMatrixCoeff g_aiT32[TRANSFORM_NUMBER_OF_DIRECTIONS][32][32] =
+const TMatrixCoeff TComRom::g_aiT32[TRANSFORM_NUMBER_OF_DIRECTIONS][32][32] =
 {
   DEFINE_DCT32x32_MATRIX(16384, 21266,  9224, 22813, 19244, 12769,  4563, 23120, 22063, 20450, 17972, 14642, 11109,  6446,  2316, 23106, 22852, 22445, 21848, 20995, 19810, 18601, 17143, 15718, 13853, 11749,  9846,  7908,  5573,  3281,   946),
   DEFINE_DCT32x32_MATRIX(   64,    83,    36,    89,    75,    50,    18,    90,    87,    80,    70,    57,    43,    25,     9,    90,    90,    88,    85,    82,    78,    73,    67,    61,    54,    46,    38,    31,    22,    13,     4)
@@ -555,14 +555,14 @@ const TMatrixCoeff g_aiT32[TRANSFORM_NUMBER_OF_DIRECTIONS][32][32] =
 
 #if JVET_X0048_X0103_FILM_GRAIN
 // dct-2 for film grain synthesis and analysis (dct2 64x64 as in vvc)
-const TMatrixCoeff g_aiT64[TRANSFORM_NUMBER_OF_DIRECTIONS][64][64] =
+const TMatrixCoeff TComRom::g_aiT64[TRANSFORM_NUMBER_OF_DIRECTIONS][64][64] =
 {
   DEFINE_DCT2_P64_MATRIX(16384, 21266,  9224, 22813, 19244, 12769,  4563, 23129, 22063, 20450, 17972, 14642, 11109,  6446,  2316, 23106, 22852, 22445, 21848, 20995, 19810, 18601, 17143, 15718, 13853, 11749,  9846,  7908,  5573,  3281,   946, 23360, 23053, 23048, 23023, 22610, 22339, 21936, 21502, 21266, 20730, 20251, 19726, 18731, 18201, 17638, 16604, 15881, 15084, 14322, 13340, 12238, 11330, 10493,  9428,  8426,  7100,  6151,  5101,  3848,  2734,  1754,   574),
   DEFINE_DCT2_P64_MATRIX(   64,    83,    36,    89,    75,    50,    18,    90,    87,    80,    70,    57,    43,    25,     9,    90,    90,    88,    85,    82,    78,    73,    67,    61,    54,    46,    38,    31,    22,    13,     4,    91,    90,    90,    90,    88,    87,    86,    84,    83,    81,    79,    77,    73,    71,    69,    65,    62,    59,    56,    52,    48,    44,    41,    37,    33,    28,    24,    20,    15,    11,     7,     2)
 };
 #endif
 
-const TMatrixCoeff g_as_DST_MAT_4[TRANSFORM_NUMBER_OF_DIRECTIONS][4][4] =
+const TMatrixCoeff TComRom::g_as_DST_MAT_4[TRANSFORM_NUMBER_OF_DIRECTIONS][4][4] =
 {
   DEFINE_DST4x4_MATRIX( 7424, 14081, 18893, 21505),
   DEFINE_DST4x4_MATRIX(   29,    55,    74,    84)
@@ -596,14 +596,14 @@ const TMatrixCoeff TComRom::g_aiT32[TRANSFORM_NUMBER_OF_DIRECTIONS][32][32] =
 
 #if JVET_X0048_X0103_FILM_GRAIN
 // dct-2 for film grain synthesis and analysis (dct2 64x64 as in vvc)
-const TMatrixCoeff g_aiT64[TRANSFORM_NUMBER_OF_DIRECTIONS][64][64] =
+const TMatrixCoeff TComRom::g_aiT64[TRANSFORM_NUMBER_OF_DIRECTIONS][64][64] =
 {
   DEFINE_DCT2_P64_MATRIX(64,    83,    36,    89,    75,    50,    18,    90,    87,    80,    70,    57,    43,    25,     9,    90,    90,    88,    85,    82,    78,    73,    67,    61,    54,    46,    38,    31,    22,    13,     4,    91,    90,    90,    90,    88,    87,    86,    84,    83,    81,    79,    77,    73,    71,    69,    65,    62,    59,    56,    52,    48,    44,    41,    37,    33,    28,    24,    20,    15,    11,     7,     2),
   DEFINE_DCT2_P64_MATRIX(64,    83,    36,    89,    75,    50,    18,    90,    87,    80,    70,    57,    43,    25,     9,    90,    90,    88,    85,    82,    78,    73,    67,    61,    54,    46,    38,    31,    22,    13,     4,    91,    90,    90,    90,    88,    87,    86,    84,    83,    81,    79,    77,    73,    71,    69,    65,    62,    59,    56,    52,    48,    44,    41,    37,    33,    28,    24,    20,    15,    11,     7,     2)
 };
 #endif
 
-const TMatrixCoeff g_as_DST_MAT_4[TRANSFORM_NUMBER_OF_DIRECTIONS][4][4] =
+const TMatrixCoeff TComRom::g_as_DST_MAT_4[TRANSFORM_NUMBER_OF_DIRECTIONS][4][4] =
 {
   DEFINE_DST4x4_MATRIX(   29,    55,    74,    84),
   DEFINE_DST4x4_MATRIX(   29,    55,    74,    84)

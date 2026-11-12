@@ -624,7 +624,7 @@ void SEIFilmGrainSynthesizer::dataBaseGen()
   int32_t       B[FG_DATA_BASE_SIZE][FG_DATA_BASE_SIZE], IDCT[FG_DATA_BASE_SIZE][FG_DATA_BASE_SIZE];
   int32_t       Grain[FG_DATA_BASE_SIZE][FG_DATA_BASE_SIZE];
 
-  const TMatrixCoeff *Tmp = g_aiT64[TRANSFORM_FORWARD][0];
+  const TMatrixCoeff *Tmp = TComRom::g_aiT64[TRANSFORM_FORWARD][0];
   const int transform_scale = 9;                      // upscaling of original transform as specified in VVC (for 64x64 block)
   const int add_1st = 1 << (transform_scale - 1);
 
