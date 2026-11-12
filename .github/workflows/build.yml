@@ -26,19 +26,19 @@ jobs:
           cd build
           cmake ..
           cmake --build . --parallel 4 --config Release
-      - name: List files (windows)
-        if: runner.os	== 'Windows'
-        run: |
-          cd bin
-          Get-ChildItem -Recurse
-      - name: List files (other)
-        if: runner.os	!= 'Windows'
-        run: |
-          cd bin
-          ls -lR
-          cd ..
-          cd lib
-          ls -lR
+      # - name: List files (windows)
+      #   if: runner.os	== 'Windows'
+      #   run: |
+      #     cd bin
+      #     Get-ChildItem -Recurse
+      # - name: List files (other)
+      #   if: runner.os	!= 'Windows'
+      #   run: |
+      #     cd bin
+      #     ls -lR
+      #     cd ..
+      #     cd lib
+      #     ls -lR
       - name: Upload Artifact (Linux)
         uses: actions/upload-artifact@v7
         if: runner.os	== 'Linux'
@@ -50,10 +50,10 @@ jobs:
         if: runner.os	== 'Windows'
         with:
           name: libHMDecoder-${{ matrix.os }}.dll
-          path: bin/vs17/msvc-19.44/x86_64/release/libHMDecoder.dll
-      # - name: Upload Artifact (MacOS)
-      #   uses: actions/upload-artifact@v7
-      #   if: runner.os	== 'macOS'
-      #   with:
-      #     name: libHMDecoder-${{ matrix.os }}.dylib
-      #     path: bin/umake/clang-21.0/x86_64/release/libHMDecoder.dylib
+          path: ${{ contains(matrix.os, 'vs2026') && 'bin/vs18/msvc-19.51/x86_64/release/libHMDecoder.dll' || 'bin/vs17/msvc-19.44/x86_64/release/libHMDecoder.dll' }}
+      - name: Upload Artifact (MacOS)
+        uses: actions/upload-artifact@v7
+        if: runner.os	== 'macOS'
+        with:
+          name: libHMDecoder-${{ matrix.os }}.dylib
+          path: lib/umake/clang-21.0/x86_64/release/libHMDecoder.dylib
