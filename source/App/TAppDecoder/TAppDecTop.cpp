@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -69,6 +69,12 @@ Void TAppDecTop::destroy()
 {
   m_bitstreamFileName.clear();
   m_reconFileName.clear();
+#if JVET_X0048_X0103_FILM_GRAIN
+  m_SEIFGSFileName.clear();
+#endif
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+  m_shutterIntervalPostFileName.clear();
+#endif
 }
 
 // ====================================================================================================================
@@ -123,9 +129,28 @@ Void TAppDecTop::decode()
     }
   }
 
+  // clear contents of annotated-Regions-SEI output file
+  if (!m_annotatedRegionsSEIFileName.empty())
+  {
+    std::ofstream ofile(m_annotatedRegionsSEIFileName.c_str());
+    if (!ofile.good() || !ofile.is_open())
+    {
+      fprintf(stderr, "\nUnable to open file '%s' for writing annotated-Regions-SEI\n", m_annotatedRegionsSEIFileName.c_str());
+      exit(EXIT_FAILURE);
+    }
+  }
+
   // main decoder loop
   Bool openedReconFile = false; // reconstruction file not yet opened. (must be performed after SPS is seen)
-  Bool loopFiltered = false;
+#if JVET_X0048_X0103_FILM_GRAIN
+  Bool openedSEIFGSFile = false; // reconstruction file (with FGS) not yet opened. (must be performed after SPS is seen)
+#endif
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+  Bool openedPostFile = false;
+  setShutterFilterFlag(!m_shutterIntervalPostFileName.empty());   // not apply shutter interval SEI processing if filename is not specified.
+  m_cTDecTop.setShutterFilterFlag(getShutterFilterFlag());
+#endif
+  bool eosBefore = false;
 
   while (!!bitstreamFile)
   {
@@ -187,11 +212,7 @@ Void TAppDecTop::decode()
     if ( (bNewPicture || !bitstreamFile || nalu.m_nalUnitType == NAL_UNIT_EOS) &&
         !m_cTDecTop.getFirstSliceInSequence () )
     {
-      if (!loopFiltered || bitstreamFile)
-      {
-        m_cTDecTop.executeLoopFilters(poc, pcListPic);
-      }
-      loopFiltered = (nalu.m_nalUnitType == NAL_UNIT_EOS);
+      m_cTDecTop.executeLoopFilters(poc, pcListPic);
       if (nalu.m_nalUnitType == NAL_UNIT_EOS)
       {
         m_cTDecTop.setFirstSliceInSequence(true);
@@ -219,10 +240,86 @@ Void TAppDecTop::decode()
         m_cTVideoIOYuvReconFile.open( m_reconFileName, true, m_outputBitDepth, m_outputBitDepth, bitDepths.recon ); // write mode
         openedReconFile = true;
       }
+#if JVET_X0048_X0103_FILM_GRAIN
+      // Initialize file handle to write output with film grain
+      if ((!m_SEIFGSFileName.empty()) && (!openedSEIFGSFile))
+      {
+        const BitDepths &bitDepths = pcListPic->front()->getPicSym()->getSPS().getBitDepths(); // use bit depths of first reconstructed picture.
+        for (UInt channelType = 0; channelType < MAX_NUM_CHANNEL_TYPE; channelType++)
+        {
+          if (m_outputBitDepth[channelType] == 0)
+          {
+            m_outputBitDepth[channelType] = bitDepths.recon[channelType];
+          }
+        }
+
+        m_cTVideoIOYuvSEIFGSFile.open(m_SEIFGSFileName, true, m_outputBitDepth, m_outputBitDepth, bitDepths.recon); // write mode
+        openedSEIFGSFile = true;
+      }
+#endif
+
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+      TComList<TComPic*>::iterator iterPic = pcListPic->begin();
+      TComPic* pcPic = *(iterPic);
+      SEIMessages shutterIntervalInfo = getSeisByType(pcPic->getSEIs(), SEI::SHUTTER_INTERVAL_INFO);
+      if (!m_shutterIntervalPostFileName.empty())
+      {
+        if (shutterIntervalInfo.size() > 0)
+        {
+          SEIShutterIntervalInfo *seiShutterIntervalInfo = (SEIShutterIntervalInfo*) *(shutterIntervalInfo.begin());
+          if (!seiShutterIntervalInfo->m_siiFixedSIwithinCLVS)
+          {
+            UInt arraySize = seiShutterIntervalInfo->m_siiMaxSubLayersMinus1 + 1;
+            UInt numUnitsLFR = seiShutterIntervalInfo->m_siiSubLayerNumUnitsInSI[0];
+            UInt numUnitsHFR = seiShutterIntervalInfo->m_siiSubLayerNumUnitsInSI[arraySize - 1];
+            setShutterFilterFlag(numUnitsLFR == 2 * numUnitsHFR);
+
+            const TComSPS* activeSPS = &(pcListPic->front()->getPicSym()->getSPS());
+            if (numUnitsLFR == 2 * numUnitsHFR && activeSPS->getMaxTLayers() == 1 && activeSPS->getMaxDecPicBuffering(0) == 1)
+            {
+              fprintf(stderr, "Warning: Shutter Interval SEI message processing is disabled for single TempLayer and single frame in DPB\n");
+              setShutterFilterFlag(false);
+            }
+          }
+          else
+          {
+            fprintf(stderr, "Warning: Shutter Interval SEI message processing is disabled for fixed shutter interval case\n");
+            setShutterFilterFlag(false);
+          }
+        }
+        else
+        {
+          fprintf(stderr, "Warning: Shutter Interval information should be specified in SII-SEI message\n");
+          setShutterFilterFlag(false);
+        }
+      }
+
+      if ((!m_shutterIntervalPostFileName.empty()) && (!openedPostFile) && getShutterFilterFlag())
+      {
+        const BitDepths &bitDepths = pcListPic->front()->getPicSym()->getSPS().getBitDepths();
+        for (UInt channelType = 0; channelType < MAX_NUM_CHANNEL_TYPE; channelType++)
+        {
+          if (m_outputBitDepth[channelType] == 0)
+          {
+            m_outputBitDepth[channelType] = bitDepths.recon[channelType];
+          }
+        }
+
+        std::ofstream ofile(m_shutterIntervalPostFileName.c_str());
+        if (!ofile.good() || !ofile.is_open())
+        {
+          fprintf(stderr, "\nUnable to open file '%s' for writing shutter-interval-SEI video\n", m_shutterIntervalPostFileName.c_str());
+          exit(EXIT_FAILURE);
+        }
+
+        m_cTVideoIOYuvSIIPostFile.open(m_shutterIntervalPostFileName, true, m_outputBitDepth, m_outputBitDepth, bitDepths.recon); // write mode
+        openedPostFile = true;
+      }
+#endif
       // write reconstruction to file
       if( bNewPicture )
       {
-        xWriteOutput( pcListPic, nalu.m_temporalId );
+        xWriteOutput( pcListPic, nalu.m_temporalId, poc );
       }
       if ( (bNewPicture || nalu.m_nalUnitType == NAL_UNIT_CODED_SLICE_CRA) && m_cTDecTop.getNoOutputPriorPicsFlag() )
       {
@@ -234,19 +331,16 @@ Void TAppDecTop::decode()
             || nalu.m_nalUnitType == NAL_UNIT_CODED_SLICE_IDR_N_LP
             || nalu.m_nalUnitType == NAL_UNIT_CODED_SLICE_BLA_N_LP
             || nalu.m_nalUnitType == NAL_UNIT_CODED_SLICE_BLA_W_RADL
-            || nalu.m_nalUnitType == NAL_UNIT_CODED_SLICE_BLA_W_LP ) )
+            || nalu.m_nalUnitType == NAL_UNIT_CODED_SLICE_BLA_W_LP
+            || (nalu.m_nalUnitType == NAL_UNIT_CODED_SLICE_CRA && eosBefore) ) )
       {
         xFlushOutput( pcListPic );
+        eosBefore = false;
       }
       if (nalu.m_nalUnitType == NAL_UNIT_EOS)
       {
-        xWriteOutput( pcListPic, nalu.m_temporalId );
         m_cTDecTop.setFirstSliceInPicture (false);
-      }
-      // write reconstruction to file -- for additional bumping as defined in C.5.2.3
-      if(!bNewPicture && nalu.m_nalUnitType >= NAL_UNIT_CODED_SLICE_TRAIL_N && nalu.m_nalUnitType <= NAL_UNIT_RESERVED_VCL31)
-      {
-        xWriteOutput( pcListPic, nalu.m_temporalId );
+        eosBefore = true;
       }
     }
   }
@@ -275,6 +369,18 @@ Void TAppDecTop::xDestroyDecLib()
   {
     m_cTVideoIOYuvReconFile.close();
   }
+#if JVET_X0048_X0103_FILM_GRAIN
+  if (!m_SEIFGSFileName.empty())
+  {
+    m_cTVideoIOYuvSEIFGSFile.close();
+  }
+#endif
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+  if (!m_shutterIntervalPostFileName.empty() && getShutterFilterFlag())
+  {
+    m_cTVideoIOYuvSIIPostFile.close();
+  }
+#endif
 
   // destroy decoder class
   m_cTDecTop.destroy();
@@ -284,6 +390,8 @@ Void TAppDecTop::xDestroyDecLib()
     delete m_pcSeiColourRemappingInfoPrevious;
     m_pcSeiColourRemappingInfoPrevious = NULL;
   }
+  m_arObjects.clear();
+  m_arLabels.clear();
 }
 
 Void TAppDecTop::xInitDecLib()
@@ -291,8 +399,14 @@ Void TAppDecTop::xInitDecLib()
   // initialize decoder class
   m_cTDecTop.init();
   m_cTDecTop.setDecodedPictureHashSEIEnabled(m_decodedPictureHashSEIEnabled);
+#if MCTS_ENC_CHECK
+  m_cTDecTop.setTMctsCheckEnabled(m_tmctsCheck);
+#endif
 #if O0043_BEST_EFFORT_DECODING
   m_cTDecTop.setForceDecodeBitDepth(m_forceDecodeBitDepth);
+#endif
+#if JVET_AK0194_DSC_SEI
+  m_cTDecTop.setKeyStoreParameters(m_keyStoreDir, m_trustStoreDir);
 #endif
   if (!m_outputDecodedSEIMessagesFilename.empty())
   {
@@ -304,17 +418,23 @@ Void TAppDecTop::xInitDecLib()
     delete m_pcSeiColourRemappingInfoPrevious;
     m_pcSeiColourRemappingInfoPrevious = NULL;
   }
+  m_arObjects.clear();
+  m_arLabels.clear();
 }
 
 /** \param pcListPic list of pictures to be written to file
     \param tId       temporal sub-layer ID
  */
-Void TAppDecTop::xWriteOutput( TComList<TComPic*>* pcListPic, UInt tId )
+Void TAppDecTop::xWriteOutput( TComList<TComPic*>* pcListPic, UInt tId, Int poc )
 {
   if (pcListPic->empty())
   {
     return;
   }
+
+  auto const currPic = std::find_if(pcListPic->begin(), pcListPic->end(),
+      [poc](const TComPic* p) { return p->getPOC() == poc; });
+  assert(currPic != pcListPic->end());
 
   TComList<TComPic*>::iterator iterPic   = pcListPic->begin();
   Int numPicsNotYetDisplayed = 0;
@@ -322,18 +442,35 @@ Void TAppDecTop::xWriteOutput( TComList<TComPic*>* pcListPic, UInt tId )
   const TComSPS* activeSPS = &(pcListPic->front()->getPicSym()->getSPS());
   UInt numReorderPicsHighestTid;
   UInt maxDecPicBufferingHighestTid;
+  UInt maxLatencyIncreasePlus1HighestTId;
   UInt maxNrSublayers = activeSPS->getMaxTLayers();
 
   if(m_iMaxTemporalLayer == -1 || m_iMaxTemporalLayer >= maxNrSublayers)
   {
     numReorderPicsHighestTid = activeSPS->getNumReorderPics(maxNrSublayers-1);
     maxDecPicBufferingHighestTid =  activeSPS->getMaxDecPicBuffering(maxNrSublayers-1); 
+    maxLatencyIncreasePlus1HighestTId = activeSPS->getMaxLatencyIncreasePlus1(maxNrSublayers-1);
   }
   else
   {
     numReorderPicsHighestTid = activeSPS->getNumReorderPics(m_iMaxTemporalLayer);
     maxDecPicBufferingHighestTid = activeSPS->getMaxDecPicBuffering(m_iMaxTemporalLayer); 
+    maxLatencyIncreasePlus1HighestTId = activeSPS->getMaxLatencyIncreasePlus1(m_iMaxTemporalLayer);
   }
+
+  // Add condition on picLatencyCount to output picture
+  auto const maxLatencyPictures = maxLatencyIncreasePlus1HighestTId -
+    (maxLatencyIncreasePlus1HighestTId ? 1 : 0) + numReorderPicsHighestTid;
+
+  auto isTherePicAboveMaxLatencyCount = [&]() -> bool
+  {
+    auto isLatencyAboveMax = [maxLatencyPictures](const TComPic* p) -> bool
+    {
+      return p->getOutputMark() && p->getPicLatencyCount() >= maxLatencyPictures;
+    };
+
+    return std::find_if(pcListPic->begin(), pcListPic->end(), isLatencyAboveMax) != pcListPic->end();
+  };
 
   while (iterPic != pcListPic->end())
   {
@@ -342,6 +479,11 @@ Void TAppDecTop::xWriteOutput( TComList<TComPic*>* pcListPic, UInt tId )
     {
        numPicsNotYetDisplayed++;
       dpbFullness++;
+      if((*currPic)->getOutputMark())
+      {
+        pcPic->setPicLatencyCount(pcPic->getPOC() > poc ?
+            pcPic->getPicLatencyCount() + 1 : 0);
+      }
     }
     else if(pcPic->getSlice( 0 )->isReferenced())
     {
@@ -370,7 +512,10 @@ Void TAppDecTop::xWriteOutput( TComList<TComPic*>* pcListPic, UInt tId )
       TComPic* pcPicBottom = *(iterPic);
 
       if ( pcPicTop->getOutputMark() && pcPicBottom->getOutputMark() &&
-          (numPicsNotYetDisplayed >  numReorderPicsHighestTid || dpbFullness > maxDecPicBufferingHighestTid) &&
+          (numPicsNotYetDisplayed >  numReorderPicsHighestTid ||
+           dpbFullness > maxDecPicBufferingHighestTid ||
+           (maxLatencyIncreasePlus1HighestTId > 0 &&
+            isTherePicAboveMaxLatencyCount())) &&
           (!(pcPicTop->getPOC()%2) && pcPicBottom->getPOC() == pcPicTop->getPOC()+1) &&
           (pcPicTop->getPOC() == m_iPOCLastDisplay+1 || m_iPOCLastDisplay < 0))
       {
@@ -395,6 +540,7 @@ Void TAppDecTop::xWriteOutput( TComList<TComPic*>* pcListPic, UInt tId )
 
           if (display)
           {
+            m_cTVideoIOYuvReconFile.setBitdepth(pcPicTop->getBitDepths().recon);
             m_cTVideoIOYuvReconFile.write( pcPicTop->getPicYuvRec(), pcPicBottom->getPicYuvRec(),
                                            m_outputColourSpaceConvert,
                                            conf.getWindowLeftOffset() + defDisp.getWindowLeftOffset(),
@@ -436,7 +582,10 @@ Void TAppDecTop::xWriteOutput( TComList<TComPic*>* pcListPic, UInt tId )
       pcPic = *(iterPic);
 
       if(pcPic->getOutputMark() && pcPic->getPOC() > m_iPOCLastDisplay &&
-        (numPicsNotYetDisplayed >  numReorderPicsHighestTid || dpbFullness > maxDecPicBufferingHighestTid))
+        (numPicsNotYetDisplayed >  numReorderPicsHighestTid ||
+         dpbFullness > maxDecPicBufferingHighestTid ||
+         (maxLatencyIncreasePlus1HighestTId > 0 &&
+          isTherePicAboveMaxLatencyCount())))
       {
         // write to file
          numPicsNotYetDisplayed--;
@@ -450,6 +599,7 @@ Void TAppDecTop::xWriteOutput( TComList<TComPic*>* pcListPic, UInt tId )
           const Window &conf    = pcPic->getConformanceWindow();
           const Window  defDisp = m_respectDefDispWindow ? pcPic->getDefDisplayWindow() : Window();
 
+          m_cTVideoIOYuvReconFile.setBitdepth(pcPic->getBitDepths().recon);
           m_cTVideoIOYuvReconFile.write( pcPic->getPicYuvRec(),
                                          m_outputColourSpaceConvert,
                                          conf.getWindowLeftOffset() + defDisp.getWindowLeftOffset(),
@@ -459,10 +609,48 @@ Void TAppDecTop::xWriteOutput( TComList<TComPic*>* pcListPic, UInt tId )
                                          NUM_CHROMA_FORMAT, m_bClipOutputVideoToRec709Range  );
         }
 
+#if JVET_X0048_X0103_FILM_GRAIN
+        // Perform FGS on decoded frame and write to output FGS file
+        if (!m_SEIFGSFileName.empty())
+        {
+          const Window &conf = pcPic->getConformanceWindow();
+          const Window  defDisp = m_respectDefDispWindow ? pcPic->getDefDisplayWindow() : Window();
+          m_cTVideoIOYuvSEIFGSFile.write(pcPic->getPicYuvDisp(),
+                                          m_outputColourSpaceConvert,
+                                          conf.getWindowLeftOffset() + defDisp.getWindowLeftOffset(),
+                                          conf.getWindowRightOffset() + defDisp.getWindowRightOffset(),
+                                          conf.getWindowTopOffset() + defDisp.getWindowTopOffset(),
+                                          conf.getWindowBottomOffset() + defDisp.getWindowBottomOffset(),
+                                          NUM_CHROMA_FORMAT, m_bClipOutputVideoToRec709Range);
+        }
+#endif
+        if (!m_annotatedRegionsSEIFileName.empty())
+        {
+          xOutputAnnotatedRegions(pcPic);
+        }
+
         if (!m_colourRemapSEIFileName.empty())
         {
           xOutputColourRemapPic(pcPic);
         }
+
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+        if (!m_shutterIntervalPostFileName.empty() && getShutterFilterFlag())
+        {
+          pcPic->xOutputPostFilteredPic(pcPic, pcListPic);
+
+          const Window &conf = pcPic->getConformanceWindow();
+          const Window  defDisp = m_respectDefDispWindow ? pcPic->getDefDisplayWindow() : Window();
+
+          m_cTVideoIOYuvSIIPostFile.write( pcPic->getPicYuvPostRec(),
+                                        m_outputColourSpaceConvert,
+                                        conf.getWindowLeftOffset() + defDisp.getWindowLeftOffset(),
+                                        conf.getWindowRightOffset() + defDisp.getWindowRightOffset(),
+                                        conf.getWindowTopOffset() + defDisp.getWindowTopOffset(),
+                                        conf.getWindowBottomOffset() + defDisp.getWindowBottomOffset(),
+                                        NUM_CHROMA_FORMAT, m_bClipOutputVideoToRec709Range  );
+        }
+#endif
 
         // update POC of display order
         m_iPOCLastDisplay = pcPic->getPOC();
@@ -515,6 +703,7 @@ Void TAppDecTop::xFlushOutput( TComList<TComPic*>* pcListPic )
           const Window &conf = pcPicTop->getConformanceWindow();
           const Window  defDisp = m_respectDefDispWindow ? pcPicTop->getDefDisplayWindow() : Window();
           const Bool isTff = pcPicTop->isTopField();
+          m_cTVideoIOYuvReconFile.setBitdepth(pcPicTop->getBitDepths().recon);
           m_cTVideoIOYuvReconFile.write( pcPicTop->getPicYuvRec(), pcPicBottom->getPicYuvRec(),
                                          m_outputColourSpaceConvert,
                                          conf.getWindowLeftOffset() + defDisp.getWindowLeftOffset(),
@@ -573,6 +762,7 @@ Void TAppDecTop::xFlushOutput( TComList<TComPic*>* pcListPic )
           const Window &conf    = pcPic->getConformanceWindow();
           const Window  defDisp = m_respectDefDispWindow ? pcPic->getDefDisplayWindow() : Window();
 
+          m_cTVideoIOYuvReconFile.setBitdepth(pcPic->getBitDepths().recon);
           m_cTVideoIOYuvReconFile.write( pcPic->getPicYuvRec(),
                                          m_outputColourSpaceConvert,
                                          conf.getWindowLeftOffset() + defDisp.getWindowLeftOffset(),
@@ -582,9 +772,47 @@ Void TAppDecTop::xFlushOutput( TComList<TComPic*>* pcListPic )
                                          NUM_CHROMA_FORMAT, m_bClipOutputVideoToRec709Range );
         }
 
+#if JVET_X0048_X0103_FILM_GRAIN
+        // Perform FGS on decoded frame and write to output FGS file
+        if (!m_SEIFGSFileName.empty())
+        {
+          const Window &conf = pcPic->getConformanceWindow();
+          const Window  defDisp = m_respectDefDispWindow ? pcPic->getDefDisplayWindow() : Window();
+          m_cTVideoIOYuvSEIFGSFile.write(pcPic->getPicYuvDisp(),
+                                          m_outputColourSpaceConvert,
+                                          conf.getWindowLeftOffset() + defDisp.getWindowLeftOffset(),
+                                          conf.getWindowRightOffset() + defDisp.getWindowRightOffset(),
+                                          conf.getWindowTopOffset() + defDisp.getWindowTopOffset(),
+                                          conf.getWindowBottomOffset() + defDisp.getWindowBottomOffset(),
+                                          NUM_CHROMA_FORMAT, m_bClipOutputVideoToRec709Range);
+        }
+#endif
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+        if (!m_shutterIntervalPostFileName.empty() && getShutterFilterFlag())
+        {
+          pcPic->xOutputPostFilteredPic(pcPic, pcListPic);
+
+          const Window &conf = pcPic->getConformanceWindow();
+          const Window  defDisp = m_respectDefDispWindow ? pcPic->getDefDisplayWindow() : Window();
+
+          m_cTVideoIOYuvSIIPostFile.write( pcPic->getPicYuvPostRec(),
+                                        m_outputColourSpaceConvert,
+                                        conf.getWindowLeftOffset() + defDisp.getWindowLeftOffset(),
+                                        conf.getWindowRightOffset() + defDisp.getWindowRightOffset(),
+                                        conf.getWindowTopOffset() + defDisp.getWindowTopOffset(),
+                                        conf.getWindowBottomOffset() + defDisp.getWindowBottomOffset(),
+                                        NUM_CHROMA_FORMAT, m_bClipOutputVideoToRec709Range  );
+        }
+#endif
+
         if (!m_colourRemapSEIFileName.empty())
         {
           xOutputColourRemapPic(pcPic);
+        }
+
+        if (!m_annotatedRegionsSEIFileName.empty())
+        {
+          xOutputAnnotatedRegions(pcPic);
         }
 
         // update POC of display order
@@ -600,7 +828,11 @@ Void TAppDecTop::xFlushOutput( TComList<TComPic*>* pcListPic )
         }
         pcPic->setOutputMark(false);
       }
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+      if (pcPic != NULL && (m_shutterIntervalPostFileName.empty() || !getShutterFilterFlag()))
+#else
       if(pcPic != NULL)
+#endif
       {
         pcPic->destroy();
         delete pcPic;
@@ -608,6 +840,23 @@ Void TAppDecTop::xFlushOutput( TComList<TComPic*>* pcListPic )
       }
       iterPic++;
     }
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+    if (!m_shutterIntervalPostFileName.empty() && getShutterFilterFlag())
+    {
+      iterPic = pcListPic->begin();
+      while (iterPic != pcListPic->end())
+      {
+        pcPic = *(iterPic);
+        if (pcPic != NULL)
+        {
+          pcPic->destroy();
+          delete pcPic;
+          pcPic = NULL;
+        }
+        iterPic++;
+      }
+    }
+#endif
   }
   pcListPic->clear();
   m_iPOCLastDisplay = -MAX_INT;
@@ -665,6 +914,139 @@ Void TAppDecTop::xOutputColourRemapPic(TComPic* pcPic)
     }
   }
 }
+
+Void TAppDecTop::xOutputAnnotatedRegions(TComPic* pcPic)
+{
+
+  // Check if any annotated region SEI has arrived
+  SEIMessages annotatedRegionSEIs = getSeisByType(pcPic->getSEIs(), SEI::ANNOTATED_REGIONS);
+  for(auto it=annotatedRegionSEIs.begin(); it!=annotatedRegionSEIs.end(); it++)
+  {
+    const SEIAnnotatedRegions &seiAnnotatedRegions = *(SEIAnnotatedRegions*)(*it);
+    
+    if (seiAnnotatedRegions.m_hdr.m_cancelFlag)
+    {
+      m_arObjects.clear();
+      m_arLabels.clear();
+    }
+    else
+    {
+      if (m_arHeader.m_receivedSettingsOnce)
+      {
+        // validate those settings that must stay constant are constant.
+        assert(m_arHeader.m_occludedObjectFlag              == seiAnnotatedRegions.m_hdr.m_occludedObjectFlag);
+        assert(m_arHeader.m_partialObjectFlagPresentFlag    == seiAnnotatedRegions.m_hdr.m_partialObjectFlagPresentFlag);
+        assert(m_arHeader.m_objectConfidenceInfoPresentFlag == seiAnnotatedRegions.m_hdr.m_objectConfidenceInfoPresentFlag);
+        assert((!m_arHeader.m_objectConfidenceInfoPresentFlag) || m_arHeader.m_objectConfidenceLength == seiAnnotatedRegions.m_hdr.m_objectConfidenceLength);
+      }
+      else
+      {
+        m_arHeader.m_receivedSettingsOnce=true;
+        m_arHeader=seiAnnotatedRegions.m_hdr; // copy the settings.
+      }
+      // Process label updates
+      if (seiAnnotatedRegions.m_hdr.m_objectLabelPresentFlag)
+      {
+        for(auto srcIt=seiAnnotatedRegions.m_annotatedLabels.begin(); srcIt!=seiAnnotatedRegions.m_annotatedLabels.end(); srcIt++)
+        {
+          const UInt labIdx = srcIt->first;
+          if (srcIt->second.labelValid)
+          {
+            m_arLabels[labIdx] = srcIt->second.label;
+          }
+          else
+          {
+            m_arLabels.erase(labIdx);
+          }
+        }
+      }
+
+      // Process object updates
+      for(auto srcIt=seiAnnotatedRegions.m_annotatedRegions.begin(); srcIt!=seiAnnotatedRegions.m_annotatedRegions.end(); srcIt++)
+      {
+        UInt objIdx = srcIt->first;
+        const SEIAnnotatedRegions::AnnotatedRegionObject &src =srcIt->second;
+
+        if (src.objectCancelFlag)
+        {
+          m_arObjects.erase(objIdx);
+        }
+        else
+        {
+          auto destIt = m_arObjects.find(objIdx);
+
+          if (destIt == m_arObjects.end())
+          {
+            //New object arrived, needs to be appended to the map of tracked objects
+            m_arObjects[objIdx] = src;
+          }
+          else //Existing object, modifications to be done
+          {
+            SEIAnnotatedRegions::AnnotatedRegionObject &dst=destIt->second;
+
+            if (seiAnnotatedRegions.m_hdr.m_objectLabelPresentFlag && src.objectLabelValid)
+            {
+              dst.objectLabelValid=true;
+              dst.objLabelIdx = src.objLabelIdx;
+            }
+            if (src.boundingBoxValid)
+            {
+              dst.boundingBoxTop    = src.boundingBoxTop   ;
+              dst.boundingBoxLeft   = src.boundingBoxLeft  ;
+              dst.boundingBoxWidth  = src.boundingBoxWidth ;
+              dst.boundingBoxHeight = src.boundingBoxHeight;
+              if (seiAnnotatedRegions.m_hdr.m_partialObjectFlagPresentFlag)
+              {
+                dst.partialObjectFlag = src.partialObjectFlag;
+              }
+              if (seiAnnotatedRegions.m_hdr.m_objectConfidenceInfoPresentFlag)
+              {
+                dst.objectConfidence = src.objectConfidence;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (!m_arObjects.empty())
+  {
+    FILE *fp_persist = fopen(m_annotatedRegionsSEIFileName.c_str(), "ab");
+    if (fp_persist == NULL)
+    {
+      std::cout << "Not able to open file for writing persist SEI messages" << std::endl;
+    }
+    else
+    {
+      fprintf(fp_persist, "\n");
+      fprintf(fp_persist, "Number of objects = %d\n", (Int)m_arObjects.size());
+      for (auto it = m_arObjects.begin(); it != m_arObjects.end(); ++it)
+      {
+        fprintf(fp_persist, "Object Idx = %d\n",    it->first);
+        fprintf(fp_persist, "Object Top = %d\n",    it->second.boundingBoxTop);
+        fprintf(fp_persist, "Object Left = %d\n",   it->second.boundingBoxLeft);
+        fprintf(fp_persist, "Object Width = %d\n",  it->second.boundingBoxWidth);
+        fprintf(fp_persist, "Object Height = %d\n", it->second.boundingBoxHeight);
+        if (it->second.objectLabelValid)
+        {
+          auto labelIt=m_arLabels.find(it->second.objLabelIdx);
+          fprintf(fp_persist, "Object Label = %s\n", labelIt!=m_arLabels.end() ? (labelIt->second.c_str()) : "<UNKNOWN>");
+        }
+        if (m_arHeader.m_partialObjectFlagPresentFlag)
+        {
+          fprintf(fp_persist, "Object Partial = %d\n", it->second.partialObjectFlag?1:0);
+        }
+        if (m_arHeader.m_objectConfidenceInfoPresentFlag)
+        {
+          fprintf(fp_persist, "Object Conf = %d\n", it->second.objectConfidence);
+        }
+      }
+      fclose(fp_persist);
+    }
+  }
+}
+
 
 // compute lut from SEI
 // use at lutPoints points aligned on a power of 2 value

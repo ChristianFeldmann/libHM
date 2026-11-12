@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -511,44 +511,6 @@ public:
   TimingInfo*       getTimingInfo()                                      { return &m_timingInfo;                                            }
   const TimingInfo* getTimingInfo() const                                { return &m_timingInfo;                                            }
 };
-
-class Window
-{
-private:
-  Bool m_enabledFlag;
-  Int  m_winLeftOffset;
-  Int  m_winRightOffset;
-  Int  m_winTopOffset;
-  Int  m_winBottomOffset;
-public:
-  Window()
-  : m_enabledFlag    (false)
-  , m_winLeftOffset  (0)
-  , m_winRightOffset (0)
-  , m_winTopOffset   (0)
-  , m_winBottomOffset(0)
-  { }
-
-  Bool getWindowEnabledFlag() const   { return m_enabledFlag;                          }
-  Int  getWindowLeftOffset() const    { return m_enabledFlag ? m_winLeftOffset : 0;    }
-  Void setWindowLeftOffset(Int val)   { m_winLeftOffset = val; m_enabledFlag = true;   }
-  Int  getWindowRightOffset() const   { return m_enabledFlag ? m_winRightOffset : 0;   }
-  Void setWindowRightOffset(Int val)  { m_winRightOffset = val; m_enabledFlag = true;  }
-  Int  getWindowTopOffset() const     { return m_enabledFlag ? m_winTopOffset : 0;     }
-  Void setWindowTopOffset(Int val)    { m_winTopOffset = val; m_enabledFlag = true;    }
-  Int  getWindowBottomOffset() const  { return m_enabledFlag ? m_winBottomOffset: 0;   }
-  Void setWindowBottomOffset(Int val) { m_winBottomOffset = val; m_enabledFlag = true; }
-
-  Void setWindow(Int offsetLeft, Int offsetLRight, Int offsetLTop, Int offsetLBottom)
-  {
-    m_enabledFlag     = true;
-    m_winLeftOffset   = offsetLeft;
-    m_winRightOffset  = offsetLRight;
-    m_winTopOffset    = offsetLTop;
-    m_winBottomOffset = offsetLBottom;
-  }
-};
-
 
 class TComVUI
 {

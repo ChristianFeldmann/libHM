@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -66,6 +66,13 @@ protected:
   Int           m_decodedPictureHashSEIEnabled;       ///< Checksum(3)/CRC(2)/MD5(1)/disable(0) acting on decoded picture hash SEI message
   Bool          m_decodedNoDisplaySEIEnabled;         ///< Enable(true)/disable(false) writing only pictures that get displayed based on the no display SEI message
   std::string   m_colourRemapSEIFileName;             ///< output Colour Remapping file name
+#if JVET_X0048_X0103_FILM_GRAIN
+  std::string   m_SEIFGSFileName;                     ///< output reconstruction file name
+#endif
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+  std::string   m_shutterIntervalPostFileName;        ///< output Post Filtering file name
+#endif
+  std::string   m_annotatedRegionsSEIFileName;        ///< annotated regions file name
   std::vector<Int> m_targetDecLayerIdSet;             ///< set of LayerIds to be included in the sub-bitstream extraction process.
   Int           m_respectDefDispWindow;               ///< Only output content inside the default display window
 #if O0043_BEST_EFFORT_DECODING
@@ -73,6 +80,13 @@ protected:
 #endif
   std::string   m_outputDecodedSEIMessagesFilename;   ///< filename to output decoded SEI messages to. If '-', then use stdout. If empty, do not output details.
   Bool          m_bClipOutputVideoToRec709Range;      ///< If true, clip the output video to the Rec 709 range on saving.
+#if MCTS_ENC_CHECK
+  Bool          m_tmctsCheck;
+#endif
+#if JVET_AK0194_DSC_SEI
+  std::string   m_keyStoreDir;
+  std::string   m_trustStoreDir;
+#endif
 
 public:
   TAppDecCfg()
@@ -85,6 +99,13 @@ public:
   , m_decodedPictureHashSEIEnabled(0)
   , m_decodedNoDisplaySEIEnabled(false)
   , m_colourRemapSEIFileName()
+#if JVET_X0048_X0103_FILM_GRAIN
+  , m_SEIFGSFileName()
+#endif
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+  , m_shutterIntervalPostFileName()
+#endif
+  , m_annotatedRegionsSEIFileName()
   , m_targetDecLayerIdSet()
   , m_respectDefDispWindow(0)
 #if O0043_BEST_EFFORT_DECODING
@@ -92,6 +113,9 @@ public:
 #endif
   , m_outputDecodedSEIMessagesFilename()
   , m_bClipOutputVideoToRec709Range(false)
+#if MCTS_ENC_CHECK
+  , m_tmctsCheck(false)
+#endif
   {
     for (UInt channelTypeIndex = 0; channelTypeIndex < MAX_NUM_CHANNEL_TYPE; channelTypeIndex++)
     {

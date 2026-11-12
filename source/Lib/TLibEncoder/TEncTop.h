@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "TLibCommon/TComLoopFilter.h"
 #include "TLibCommon/AccessUnit.h"
 
-#include "TLibVideoIO/TVideoIOYuv.h"
+#include "Utilities/TVideoIOYuv.h"
 
 #include "TEncCfg.h"
 #include "TEncGOP.h"
@@ -156,9 +156,7 @@ public:
   Void selectReferencePictureSet(TComSlice* slice, Int POCCurr, Int GOPid );
   Int getReferencePictureSetIdxForSOP(Int POCCurr, Int GOPid );
 
-#if JCTVC_Y0038_PARAMS
   Void                   setParamSetChanged(Int spsId, Int ppsId);
-#endif
   Bool                   PPSNeedsWriting(Int ppsId);
   Bool                   SPSNeedsWriting(Int spsId);
 
@@ -167,19 +165,46 @@ public:
   // -------------------------------------------------------------------------------------------------------------------
 
   /// encode several number of pictures until end-of-sequence
+#if JVET_X0048_X0103_FILM_GRAIN
+  Void encode(Bool bEos,
+    TComPicYuv* pcPicYuvOrg,
+    TComPicYuv* pcPicYuvTrueOrg,
+    TComPicYuv* pcfilteredOrgPicForFG,
+    const InputColourSpaceConversion ipCSC, const InputColourSpaceConversion snrCSC, // used for SNR calculations. Picture in original colour space.
+    TComList<TComPicYuv*>& rcListPicYuvRecOut,
+    std::list<AccessUnit>& accessUnitsOut, Int& iNumEncoded);
+#else
   Void encode( Bool bEos,
                TComPicYuv* pcPicYuvOrg,
-               TComPicYuv* pcPicYuvTrueOrg, const InputColourSpaceConversion snrCSC, // used for SNR calculations. Picture in original colour space.
+               TComPicYuv* pcPicYuvTrueOrg,
+               const InputColourSpaceConversion ipCSC, const InputColourSpaceConversion snrCSC, // used for SNR calculations. Picture in original colour space.
                TComList<TComPicYuv*>& rcListPicYuvRecOut,
                std::list<AccessUnit>& accessUnitsOut, Int& iNumEncoded );
+#endif
 
   /// encode several number of pictures until end-of-sequence
   Void encode( Bool bEos, TComPicYuv* pcPicYuvOrg,
-               TComPicYuv* pcPicYuvTrueOrg, const InputColourSpaceConversion snrCSC, // used for SNR calculations. Picture in original colour space.
+               TComPicYuv* pcPicYuvTrueOrg,
+               const InputColourSpaceConversion ipCSC, const InputColourSpaceConversion snrCSC, // used for SNR calculations. Picture in original colour space.
                TComList<TComPicYuv*>& rcListPicYuvRecOut,
                std::list<AccessUnit>& accessUnitsOut, Int& iNumEncoded, Bool isTff);
 
-  Void printSummary(Bool isField) { m_cGOPEncoder.printOutSummary (m_uiNumAllPicCoded, isField, m_printMSEBasedSequencePSNR, m_printSequenceMSE, m_spsMap.getFirstPS()->getBitDepths()); }
+  TEncAnalyze::OutputLogControl getOutputLogControl() const
+  {
+    TEncAnalyze::OutputLogControl outputLogCtrl;
+    outputLogCtrl.printFrameMSE=m_printFrameMSE;
+    outputLogCtrl.printMSEBasedSNR=m_printMSEBasedSequencePSNR;
+    outputLogCtrl.printMSSSIM=m_printMSSSIM;
+    outputLogCtrl.printSequenceMSE=m_printSequenceMSE;
+    outputLogCtrl.printXPSNR=m_bXPSNREnableFlag;
+    outputLogCtrl.printHexPerPOCPSNRs=m_printHexPsnr;
+    return outputLogCtrl;
+  }
+
+  Void printSummary(Bool isField)
+  {
+    m_cGOPEncoder.printOutSummary (m_uiNumAllPicCoded, isField, getOutputLogControl(), m_spsMap.getFirstPS()->getBitDepths());
+  }
 
 };
 

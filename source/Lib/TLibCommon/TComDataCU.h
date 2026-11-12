@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -137,6 +137,9 @@ private:
   SChar*        m_apiMVPIdx[NUM_REF_PIC_LIST_01];       ///< array of motion vector predictor candidates
   SChar*        m_apiMVPNum[NUM_REF_PIC_LIST_01];       ///< array of number of possible motion vectors predictors
   Bool*         m_pbIPCMFlag;                           ///< array of intra_pcm flags
+#if MCTS_ENC_CHECK
+  Bool          m_tMctsMvpIsValid;
+#endif
 
   // -------------------------------------------------------------------------------------------------------------------
   // misc. variables
@@ -209,6 +212,12 @@ public:
   Void          setDepth                      ( UInt uiIdx, UChar uh )                                     { m_puhDepth[uiIdx] = uh;                    }
 
   Void          setDepthSubParts              ( UInt uiDepth, UInt uiAbsPartIdx );
+
+#if MCTS_ENC_CHECK
+  Void          setTMctsMvpIsValid(Bool b)    { m_tMctsMvpIsValid = b; }
+  Bool          getTMctsMvpIsValid()          { return m_tMctsMvpIsValid; }
+  Bool          isLastColumnCTUInTile() const;
+#endif
 
   // -------------------------------------------------------------------------------------------------------------------
   // member functions for CU data
@@ -425,7 +434,11 @@ public:
   Void          deriveLeftBottomIdx           ( UInt uiPartIdx, UInt& ruiPartIdxLB ) const;
 
   Bool          hasEqualMotion                ( UInt uiAbsPartIdx, const TComDataCU* pcCandCU, UInt uiCandAbsPartIdx ) const;
+#if MCTS_ENC_CHECK
+  Void          getInterMergeCandidates       ( UInt uiAbsPartIdx, UInt uiPUIdx, TComMvField* pcMFieldNeighbours, UChar* puhInterDirNeighbours, Int& numValidMergeCand, UInt& numSpatialMergeCandidates , Int mrgCandIdx = -1) const;
+#else
   Void          getInterMergeCandidates       ( UInt uiAbsPartIdx, UInt uiPUIdx, TComMvField* pcMFieldNeighbours, UChar* puhInterDirNeighbours, Int& numValidMergeCand, Int mrgCandIdx = -1 ) const;
+#endif
 
   Void          deriveLeftRightTopIdxGeneral  ( UInt uiAbsPartIdx, UInt uiPartIdx, UInt& ruiPartIdxLT, UInt& ruiPartIdxRT ) const;
   Void          deriveLeftBottomIdxGeneral    ( UInt uiAbsPartIdx, UInt uiPartIdx, UInt& ruiPartIdxLB ) const;

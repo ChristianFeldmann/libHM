@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,6 +44,7 @@
 #include "TLibCommon/TComPic.h"
 #include "TLibCommon/TComSampleAdaptiveOffset.h"
 #include "TLibCommon/TComRectangle.h"
+#include "TDecConformance.h"
 
 class TDecSbac;
 class TDecCavlc;
@@ -118,12 +119,19 @@ class TDecEntropy
 private:
   TDecEntropyIf*  m_pcEntropyDecoderIf;
   TComPrediction* m_pcPrediction;
+#if MCTS_ENC_CHECK
+  TDecConformanceCheck* m_pConformanceCheck;
+#endif
   //UInt    m_uiBakAbsPartIdx;
   //UInt    m_uiBakChromaOffset;
   //UInt    m_bakAbsPartIdxCU;
 
 public:
+#if MCTS_ENC_CHECK
+    Void init (TComPrediction* p, TDecConformanceCheck* pConformanceCheck) {m_pcPrediction = p; m_pConformanceCheck=pConformanceCheck;}
+#else
   Void init (TComPrediction* p) {m_pcPrediction = p;}
+#endif
   Void decodePUWise       ( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, TComDataCU* pcSubCU );
   Void decodeInterDirPU   ( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, UInt uiPartIdx );
   Void decodeRefFrmIdxPU  ( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, UInt uiPartIdx, RefPicList eRefList );

@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -167,6 +167,10 @@ protected:
   std::vector<uint8_t> m_fifo; /// FIFO for storage of complete bytes
   std::vector<UInt>    m_emulationPreventionByteLocation;
 
+#if JVET_AK0194_DSC_SEI
+  std::vector<uint8_t> m_origFifo; /// for calculation of hash
+#endif
+
   UInt m_fifo_idx; /// Read index into m_fifo
 
   UInt m_num_held_bits;
@@ -224,6 +228,12 @@ public:
 
   const std::vector<uint8_t> &getFifo() const { return m_fifo; }
         std::vector<uint8_t> &getFifo()       { return m_fifo; }
+
+#if JVET_AK0194_DSC_SEI
+  const std::vector<uint8_t> &getOrigFifo() const { return m_origFifo; }
+  void clearOrigFifo() { m_origFifo.clear(); }
+  void copyToOrigFifo() { m_origFifo = m_fifo; }
+#endif
 };
 
 //! \}

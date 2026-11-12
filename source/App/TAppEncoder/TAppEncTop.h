@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
 #include <ostream>
 
 #include "TLibEncoder/TEncTop.h"
-#include "TLibVideoIO/TVideoIOYuv.h"
+#include "Utilities/TVideoIOYuv.h"
 #include "TLibCommon/AccessUnit.h"
 #include "TAppEncCfg.h"
 
@@ -61,6 +61,9 @@ private:
   TEncTop                    m_cTEncTop;                    ///< encoder class
   TVideoIOYuv                m_cTVideoIOYuvInputFile;       ///< input YUV file
   TVideoIOYuv                m_cTVideoIOYuvReconFile;       ///< output reconstruction file
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+  TVideoIOYuv                m_cTVideoIOYuvSIIPreFile;      ///< output pre-filtered file
+#endif
 
   TComList<TComPicYuv*>      m_cListPicYuvRec;              ///< list of reconstruction YUV files
 

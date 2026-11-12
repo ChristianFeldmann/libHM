@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -33,7 +33,7 @@
 
 /**
  \file     SEIread.h
- \brief    reading funtionality for SEI messages
+ \brief    reading functionality for SEI messages
  */
 
 #ifndef __SEIREAD__
@@ -46,48 +46,176 @@
 //! \ingroup TLibDecoder
 //! \{
 
+#include "SyntaxElementParser.h"
 #include "TLibCommon/SEI.h"
+#if NNPFC_SEI_MESSAGE
+#include <fstream>
+#endif
 class TComInputBitstream;
 
+#if JVET_AK0194_DSC_SEI_DECODER_SYNTAX
+#include "TLibCommon/SEIDigitallySignedContent.h"
+#endif
 
 class SEIReader: public SyntaxElementParser
 {
 public:
   SEIReader() {};
   virtual ~SEIReader() {};
-  Void parseSEImessage(TComInputBitstream* bs, SEIMessages& seis, const NalUnitType nalUnitType, const TComSPS *sps, std::ostream *pDecodedMessageOutputStream);
+  SEIMessages::iterator parseSEImessage(TComInputBitstream* bs, SEIMessages& seis, const NalUnitType nalUnitType, const TComSPS *sps, std::ostream *pDecodedMessageOutputStream);
+
+#if NNPFC_SEI_MESSAGE
+  Bool nnpfcProcessed;
+  std::vector<Int> nnpfcValues;
+#endif
 
 protected:
-  Void xReadSEImessage                        (SEIMessages& seis, const NalUnitType nalUnitType, const TComSPS *sps, std::ostream *pDecodedMessageOutputStream);
-  Void xParseSEIuserDataUnregistered          (SEIuserDataUnregistered &sei,          UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
-  Void xParseSEIActiveParameterSets           (SEIActiveParameterSets  &sei,          UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
-  Void xParseSEIDecodingUnitInfo              (SEIDecodingUnitInfo& sei,              UInt payloadSize, const TComSPS *sps, std::ostream *pDecodedMessageOutputStream);
-  Void xParseSEIDecodedPictureHash            (SEIDecodedPictureHash& sei,            UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+#if NNPFC_SEI_MESSAGE
+  Bool xCheckNnpfcSeiMsg                      (UInt seiId,                            Bool baseFlag,                        const std::vector<Int> nnpfcValueList);
+  Bool xCheckNnpfcUpdatePresentSeiMsg         (UInt seiId,                            const std::vector<Int> nnpfcValueList);
+#endif
+  Bool xReadSEImessage                        (SEIMessages& seis, const NalUnitType nalUnitType, const TComSPS *sps, std::ostream *pDecodedMessageOutputStream, const vector<SEI::PayloadType>& allowedSeiTypes, std::string const &typeName);
+  Void xReadSEIPayloadData                    (Int const payloadType, Int const payloadSize, SEI *&sei, const NalUnitType nalUnitType, const TComSPS *sps, std::ostream *pDecodedMessageOutputStream, std::string const &typeName);
   Void xParseSEIBufferingPeriod               (SEIBufferingPeriod& sei,               UInt payloadSize, const TComSPS *sps, std::ostream *pDecodedMessageOutputStream);
   Void xParseSEIPictureTiming                 (SEIPictureTiming& sei,                 UInt payloadSize, const TComSPS *sps, std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIPanScanRect                   (SEIPanScanRect& sei,                   UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIFillerPayload                 (SEIFillerPayload& sei,                 UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIUserDataRegistered            (SEIUserDataRegistered& sei,            UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIUserDataUnregistered          (SEIUserDataUnregistered &sei,          UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
   Void xParseSEIRecoveryPoint                 (SEIRecoveryPoint& sei,                 UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
-  Void xParseSEIFramePacking                  (SEIFramePacking& sei,                  UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
-  Void xParseSEISegmentedRectFramePacking     (SEISegmentedRectFramePacking& sei,     UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
-  Void xParseSEIDisplayOrientation            (SEIDisplayOrientation &sei,            UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
-  Void xParseSEITemporalLevel0Index           (SEITemporalLevel0Index &sei,           UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
-  Void xParseSEIRegionRefreshInfo             (SEIGradualDecodingRefreshInfo &sei,    UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
-  Void xParseSEINoDisplay                     (SEINoDisplay &sei,                     UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEISceneInfo                     (SEISceneInfo& sei,                     UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIPictureSnapshot               (SEIPictureSnapshot& sei,               UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIProgressiveRefinementSegmentStart(SEIProgressiveRefinementSegmentStart& sei, UInt payloadSize,              std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIProgressiveRefinementSegmentEnd(SEIProgressiveRefinementSegmentEnd& sei, UInt payloadSize,                  std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIFilmGrainCharacteristics      (SEIFilmGrainCharacteristics& sei,      UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIPostFilterHint                (SEIPostFilterHint& sei,                UInt payloadSize, const TComSPS *sps, std::ostream *pDecodedMessageOutputStream);
   Void xParseSEIToneMappingInfo               (SEIToneMappingInfo& sei,               UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIFramePacking                  (SEIFramePacking& sei,                  UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIDisplayOrientation            (SEIDisplayOrientation &sei,            UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIGreenMetadataInfo             (SEIGreenMetadataInfo& sei,             UInt payLoadSize,                     std::ostream *pDecodedMessageOutputStream);
   Void xParseSEISOPDescription                (SEISOPDescription &sei,                UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIActiveParameterSets           (SEIActiveParameterSets  &sei,          UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIDecodingUnitInfo              (SEIDecodingUnitInfo& sei,              UInt payloadSize, const TComSPS *sps, std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEITemporalLevel0Index           (SEITemporalLevel0Index &sei,           UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIDecodedPictureHash            (SEIDecodedPictureHash& sei,            UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
   Void xParseSEIScalableNesting               (SEIScalableNesting& sei, const NalUnitType nalUnitType, UInt payloadSize, const TComSPS *sps, std::ostream *pDecodedMessageOutputStream);
-  Void xParseSEITempMotionConstraintsTileSets (SEITempMotionConstrainedTileSets& sei, UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIRegionRefreshInfo             (SEIRegionRefreshInfo &sei,             UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEINoDisplay                     (SEINoDisplay &sei,                     UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
   Void xParseSEITimeCode                      (SEITimeCode& sei,                      UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIMasteringDisplayColourVolume  (SEIMasteringDisplayColourVolume& sei,  UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEISegmentedRectFramePacking     (SEISegmentedRectFramePacking& sei,     UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEITempMotionConstraintsTileSets (SEITempMotionConstrainedTileSets& sei, UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+#if MCTS_EXTRACTION
+  Void xParseSEIMCTSExtractionInfoSet         (SEIMCTSExtractionInfoSet& sei,         UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+#endif
   Void xParseSEIChromaResamplingFilterHint    (SEIChromaResamplingFilterHint& sei,    UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
   Void xParseSEIKneeFunctionInfo              (SEIKneeFunctionInfo& sei,              UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
-  Void xParseSEIMasteringDisplayColourVolume  (SEIMasteringDisplayColourVolume& sei,  UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIContentColourVolume           (SEIContentColourVolume& sei,             UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIEquirectangularProjection     (SEIEquirectangularProjection &sei,     UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEISphereRotation                (SEISphereRotation &sei,                UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIOmniViewport                  (SEIOmniViewport& sei,                  UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEICubemapProjection             (SEICubemapProjection& sei,             UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIAnnotatedRegions              (SEIAnnotatedRegions& sei,              UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIRegionWisePacking             (SEIRegionWisePacking& sei,             UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIFisheyeVideoInfo(SEIFisheyeVideoInfo& sei, UInt payloadSize, std::ostream *pDecodedMessageOutputStream);
   Void xParseSEIColourRemappingInfo           (SEIColourRemappingInfo& sei,           UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIDeinterlaceFieldIdentification(SEIDeinterlaceFieldIdentification& sei,UInt payLoadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIContentLightLevelInfo         (SEIContentLightLevelInfo& sei,         UInt payLoadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIDependentRAPIndication        (SEIDependentRAPIndication& sei,        UInt payLoadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEICodedRegionCompletion         (SEICodedRegionCompletion& sei,         UInt payLoadSize,                     std::ostream *pDecodedMessageOutputStream);
   Void xParseSEIAlternativeTransferCharacteristics(SEIAlternativeTransferCharacteristics& sei, UInt payLoadSize,            std::ostream *pDecodedMessageOutputStream);
-  Void xParseSEIGreenMetadataInfo             (SEIGreenMetadataInfo& sei,             UInt payLoadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIAmbientViewingEnvironment     (SEIAmbientViewingEnvironment& sei,     UInt payLoadSize,                     std::ostream *pDecodedMessageOutputStream);
+  Void xParseSEIRegionalNesting               ( SEIRegionalNesting& sei,              UInt payloadSize, const TComSPS* sps, std::ostream *pDecodedMessageOutputStream );
+#if SHUTTER_INTERVAL_SEI_MESSAGE
+  Void xParseSEIShutterInterval               (SEIShutterIntervalInfo& sei,           UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+#endif
+#if NNPFC_SEI_MESSAGE
+  Void xParseSEINNPostFilterCharacteristics   (SEINeuralNetworkPostFilterCharacteristics& sei, UInt payloadSize, const TComSPS* sps, std::ostream *pDecodedMessageOutputStream);
+#endif
+#if NNPFA_SEI_MESSAGE
+  Void xParseSEINNPostFilterActivation        (SEINeuralNetworkPostFilterActivation& sei, UInt payloadSize, std::ostream *pDecodedMessageOutputStream);
+#endif
+#if JVET_AL0062_AI_USAGE_RESTRICTIONS_SEI
+  void xParseSEIAIUsageRestrictions(SEIAIUsageRestrictions& sei, uint32_t payloadSize, std::ostream* pDecodedMessageOutputStream);
+#endif
+#if JVET_AL0061_ENCODER_OPTIMIZATION_INFORMATION_SEI
+  void xParseSEIEncoderOptimizationInfo(SEIEncoderOptimizationInfo& sei, uint32_t payloadSize, std::ostream* pDecodedMessageOutputStream);
+#endif
+#if JVET_AE0101_PHASE_INDICATION_SEI_MESSAGE
+  void xParseSEIPhaseIndication(SEIPhaseIndication& sei, uint32_t payloadSize, std::ostream* pDecodedMessageOutputStream);
+#endif
+#if JCTVC_AD0021_SEI_MANIFEST
+  Void xParseSEISEIManifest(SEIManifest & sei, UInt payloadSize, std::ostream * pDecodedMessageOutputStream);
+#endif
+#if JCTVC_AD0021_SEI_PREFIX_INDICATION
+  Void xParseSEISEIPrefixIndication(SEIPrefixIndication & sei, UInt payloadSize, std::ostream * pDecodedMessageOutputStream);
+#endif
+#if JVET_AK0107_MODALITY_INFORMATION
+  Void xParseSEIModalityInfo                  (SEIModalityInfo& sei,                  UInt payloadSize,                     std::ostream *pDecodedMessageOutputStream);
+#endif 
+#if JVET_AK0194_DSC_SEI_DECODER_SYNTAX
+  void xParseSEIDigitallySignedContentInitialization(SEIDigitallySignedContentInitialization &sei, uint32_t payloadSize, std::ostream *pDecodedMessageOutputStream);
+  void xParseSEIDigitallySignedContentSelection     (SEIDigitallySignedContentSelection &sei, uint32_t payloadSize, std::ostream *pDecodedMessageOutputStream);
+  void xParseSEIDigitallySignedContentVerification  (SEIDigitallySignedContentVerification &sei, uint32_t payloadSize, std::ostream *pDecodedMessageOutputStream);
+#endif
+#if JVET_AJ0207_GFV
+  void xParseSEIGenerativeFaceVideo(SEIGenerativeFaceVideo& sei, uint32_t payloadSize, std::ostream* pDecodedMessageOutputStream);
+  uint32_t                         baseCoordinateQuantizationFactor;
+  uint32_t                                                   basdCoordinatePointNum;
+  bool                                                       base3DCoordinateFlag;
+  uint32_t                                                   baseCoordinateZMaxValue;
+  std::vector<double>                                        prevCoordinateX;
+  std::vector<double>                                        prevCoordinateY;
+  std::vector<double>                                        prevCoordinateZ;
+  std::vector<double>                                        baseCoordinateX;
+  std::vector<double>                                        baseCoordinateY;
+  std::vector<double>                                        baseCoordinateZ;
+  uint32_t                                                   baseMatrixElementPrecisionFactor;
+  uint32_t                                                   baseNumMatrixType;
+  std::vector<uint32_t>                                      baseNumMatrices;
+  std::vector<uint32_t>                                      baseMatrixWidth;
+  std::vector<uint32_t>                                      baseMatrixHeight;
+  std::vector<std::vector<std::vector<std::vector<double>>>> baseMatrix;
+  std::vector<std::vector<std::vector<std::vector<double>>>> prevMatrix;
+#endif
+#if JVET_AK0239_GEFV
+  void xParseSEIGenerativeFaceVideoEnhancement(SEIGenerativeFaceVideoEnhancement &sei, uint32_t payloadSize, std::ostream* pDecodedMessageOutputStream);
+  double xParseSEIPupilCoordinate(std::ostream *pOS, double refCoordinate, int precisionFactor, const char* eye, const char* axis);
+  uint32_t                                                   gfveBaseMatrixElementPrecisionFactor;
+  uint32_t                                                   gfveBaseNumMatrices;
+  std::vector<uint32_t>                                      gfveBaseMatrixWidth;
+  std::vector<uint32_t>                                      gfveBaseMatrixHeight;
+  std::vector<std::vector<std::vector<double>>>              gfveBaseMatrix;
+  std::vector<std::vector<std::vector<double>>>              gfvePrevMatrix;
+  uint32_t                                                   gfveBasePupilCoordinatePrecisionFactor;
+  double                                                     prevGfveLeftPupilCoordinateX;
+  double                                                     prevGfveLeftPupilCoordinateY;
+  double                                                     prevGfveRightPupilCoordinateX;
+  double                                                     prevGfveRightPupilCoordinateY;
+  double                                                     baseGfveLeftPupilCoordinateX;
+  double                                                     baseGfveLeftPupilCoordinateY;
+  double                                                     baseGfveRightPupilCoordinateX;
+  double                                                     baseGfveRightPupilCoordinateY;
+  bool                                                       checkBasePicPupilPresentIdx = false;
+#endif
+#if JVET_AK0140_PACKED_REGIONS_INFORMATION_SEI
+  void xParsePackedRegionsInfo(SEIPackedRegionsInfo &sei, uint32_t payLoadSize, std::ostream *pDecodedMessageOutputStream);
+#endif
+#if JVET_AK2006_SPTI_SEI_MESSAGE
+  void xParseSEISourcePictureTimingInfo(SEISourcePictureTimingInfo &sei, uint32_t payloadSize, std::ostream *pDecodedMessageOutputStream);
+#endif
 
+  Void xTraceSEIHeader();
+  Void xTraceSEIMessageType(SEI::PayloadType payloadType);
+
+  Void sei_read_scode(std::ostream *pOS, UInt uiLength, Int& ruiCode, const TChar *pSymbolName);
   Void sei_read_code(std::ostream *pOS, UInt uiLength, UInt& ruiCode, const TChar *pSymbolName);
   Void sei_read_uvlc(std::ostream *pOS,                UInt& ruiCode, const TChar *pSymbolName);
   Void sei_read_svlc(std::ostream *pOS,                Int&  ruiCode, const TChar *pSymbolName);
   Void sei_read_flag(std::ostream *pOS,                UInt& ruiCode, const TChar *pSymbolName);
+  void sei_read_string(std::ostream* os,           std::string& code, const TChar* symbolName);
+  bool xPayloadExtensionPresent();
+
 };
 
 

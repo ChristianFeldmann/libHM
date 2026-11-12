@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -111,6 +111,7 @@ public:
   Void    create              ( Int iWidth, Int iHeight, ChromaFormat chromaFormat, UInt iMaxCUWidth, UInt iMaxCUHeight, UChar uhTotalDepth );
   Void    destroy             ();
   Void    init                ( TEncTop* pcEncTop );
+  Void    resetEncoderDecisions() { m_encCABACTableIdx = I_SLICE; }
 
   /// preparation of slice encoding (reference marking, QP and lambda)
   Void    initEncSlice        ( TComPic*  pcPic, const Int pocLast, const Int pocCurr,

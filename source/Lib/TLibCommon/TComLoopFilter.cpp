@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -211,7 +211,7 @@ Void TComLoopFilter::xDeblockCU( TComDataCU* pcCU, UInt uiAbsZorderIdx, UInt uiD
       uiBSCheck = 1;
     }
 
-    if ( m_aapbEdgeFilter[edgeDir][uiPartIdx] && uiBSCheck )
+    if ( m_aapbEdgeFilter[edgeDir==EDGE_VER?EDGE_VER:EDGE_HOR][uiPartIdx] && uiBSCheck )
     {
       xGetBoundaryStrengthSingle ( pcCU, edgeDir, uiPartIdx );
     }

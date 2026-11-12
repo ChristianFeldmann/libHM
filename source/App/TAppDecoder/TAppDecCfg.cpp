@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -39,7 +39,7 @@
 #include <cstring>
 #include <string>
 #include "TAppDecCfg.h"
-#include "TAppCommon/program_options_lite.h"
+#include "Utilities/program_options_lite.h"
 #include "TLibCommon/TComChromaFormat.h"
 #ifdef WIN32
 #define strdup _strdup
@@ -86,11 +86,25 @@ Bool TAppDecCfg::parseCfg( Int argc, TChar* argv[] )
   ("TarDecLayerIdSetFile,l",    cfg_TargetDecLayerIdSetFile,           string(""), "targetDecLayerIdSet file name. The file should include white space separated LayerId values to be decoded. Omitting the option or a value of -1 in the file decodes all layers.")
   ("RespectDefDispWindow,w",    m_respectDefDispWindow,                0,          "Only output content inside the default display window\n")
   ("SEIColourRemappingInfoFilename",  m_colourRemapSEIFileName,        string(""), "Colour Remapping YUV output file name. If empty, no remapping is applied (ignore SEI message)\n")
+#if JVET_X0048_X0103_FILM_GRAIN
+  ("SEIFGSFilename",            m_SEIFGSFileName,                      string(""), "FGS YUV output file name. If empty, no film grain is applied (ignore SEI message)\n")
+#endif
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+  ("SEIShutterIntervalPostFilename,-sii", m_shutterIntervalPostFileName,  string(""), "Post Filtering with Shutter Interval SEI. If empty, no filtering is applied (ignore SEI message)\n")
+#endif
+  ("SEIAnnotatedRegionsInfoFilename",  m_annotatedRegionsSEIFileName,   string(""), "Annotated regions output file name. If empty, no object information will be saved (ignore SEI message)\n")
 #if O0043_BEST_EFFORT_DECODING
   ("ForceDecodeBitDepth",       m_forceDecodeBitDepth,                 0U,         "Force the decoder to operate at a particular bit-depth (best effort decoding)")
 #endif
   ("OutputDecodedSEIMessagesFilename",  m_outputDecodedSEIMessagesFilename,    string(""), "When non empty, output decoded SEI messages to the indicated file. If file is '-', then output to stdout\n")
   ("ClipOutputVideoToRec709Range",      m_bClipOutputVideoToRec709Range,  false, "If true then clip output video to the Rec. 709 Range on saving")
+#if MCTS_ENC_CHECK
+  ("TMCTSCheck",                  m_tmctsCheck,                          false,    "If enabled, the decoder checks for violations of mc_exact_sample_value_match_flag in Temporal MCTS ")
+#endif
+#if JVET_AK0194_DSC_SEI
+  ("KeyStoreDir",              m_keyStoreDir,            std::string("keystore/pub"),    "Directory for locally stored public keys for verifying digitally signed content")
+  ("TrustStoreDir",            m_trustStoreDir,          std::string("keystore/ca"),     "Directory for locally stored trusted CA certificates")
+#endif
   ;
 
   po::setDefaults(opts);

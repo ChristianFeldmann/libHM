@@ -3,7 +3,7 @@
 * and contributor rights, including patent rights, and no such rights are
 * granted under this license.
 *
-* Copyright (c) 2010-2017, ITU/ISO/IEC
+* Copyright (c) 2010-2026, ITU/ISO/IEC
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
@@ -48,23 +48,38 @@
 //! \{
 
 #if ENC_DEC_TRACE
-
-Void  xTraceVPSHeader ()
+#if MCTS_EXTRACTION
+Void  xTraceVPSHeaderDec ()
+#else
+Void  xTraceVPSHeader()
+#endif
 {
   fprintf( g_hTrace, "=========== Video Parameter Set     ===========\n" );
 }
 
-Void  xTraceSPSHeader ()
+#if MCTS_EXTRACTION
+Void  xTraceSPSHeaderDec()
+#else
+Void  xTraceSPSHeader()
+#endif
 {
   fprintf( g_hTrace, "=========== Sequence Parameter Set  ===========\n" );
 }
 
-Void  xTracePPSHeader ()
+#if MCTS_EXTRACTION
+Void  xTracePPSHeaderDec()
+#else
+Void  xTracePPSHeader()
+#endif
 {
   fprintf( g_hTrace, "=========== Picture Parameter Set  ===========\n");
 }
 
-Void  xTraceSliceHeader ()
+#if MCTS_EXTRACTION
+Void  xTraceSliceHeaderDec()
+#else
+Void  xTraceSliceHeader()
+#endif
 {
   fprintf( g_hTrace, "=========== Slice ===========\n");
 }
@@ -113,6 +128,9 @@ Void TDecCavlc::parseShortTermRefPicSet( TComSPS* sps, TComReferencePictureSet* 
     {
       code = 0;
     }
+#if MCTS_EXTRACTION 
+    rps->setDeltaRIdxMinus1(code); // when -1, reference picture set explicitly signalled in slice header, otherwise identify the PPS RPS; added for MCTS extraction
+#endif
     assert(code <= idx-1); // delta_idx_minus1 shall not be larger than idx-1, otherwise we will predict from a negative row position that does not exist. When idx equals 0 there is no legal value and interRPSPred must be zero. See J0185-r2
     Int rIdx =  idx - 1 - code;
     assert (rIdx <= idx-1 && rIdx >= 0); // Made assert tighter; if rIdx = idx then prediction is done from itself. rIdx must belong to range 0, idx-1, inclusive, see J0185-r2
@@ -121,6 +139,9 @@ Void TDecCavlc::parseShortTermRefPicSet( TComSPS* sps, TComReferencePictureSet* 
     READ_CODE(1, bit, "delta_rps_sign"); // delta_RPS_sign
     READ_UVLC(code, "abs_delta_rps_minus1");  // absolute delta RPS minus 1
     Int deltaRPS = (1 - 2 * bit) * (code + 1); // delta_RPS
+#if MCTS_EXTRACTION
+    rps->setDeltaRPS(deltaRPS); // when -1, reference picture set explicitly signalled in slice header, otherwise identify the PPS RPS; added for MCTS extraction
+#endif
     for(Int j=0 ; j <= rpsRef->getNumberOfPictures(); j++)
     {
       READ_CODE(1, bit, "used_by_curr_pic_flag" ); //first bit is "1" if Idc is 1
@@ -187,7 +208,11 @@ Void TDecCavlc::parseShortTermRefPicSet( TComSPS* sps, TComReferencePictureSet* 
 Void TDecCavlc::parsePPS(TComPPS* pcPPS)
 {
 #if ENC_DEC_TRACE
-  xTracePPSHeader ();
+#if MCTS_EXTRACTION
+  xTracePPSHeaderDec ();
+#else
+  xTracePPSHeader();
+#endif
 #endif
   UInt  uiCode;
 
@@ -207,9 +232,9 @@ Void TDecCavlc::parsePPS(TComPPS* pcPPS)
 
   READ_CODE(3, uiCode, "num_extra_slice_header_bits");                pcPPS->setNumExtraSliceHeaderBits(uiCode);
 
-  READ_FLAG ( uiCode, "sign_data_hiding_enabled_flag" );              pcPPS->setSignDataHidingEnabledFlag( uiCode );
+  READ_FLAG( uiCode, "sign_data_hiding_enabled_flag" );               pcPPS->setSignDataHidingEnabledFlag( uiCode );
 
-  READ_FLAG( uiCode,   "cabac_init_present_flag" );            pcPPS->setCabacInitPresentFlag( uiCode ? true : false );
+  READ_FLAG( uiCode,   "cabac_init_present_flag" );                   pcPPS->setCabacInitPresentFlag( uiCode ? true : false );
 
   READ_UVLC_CHK(uiCode, "num_ref_idx_l0_default_active_minus1", 0, 14);
   assert(uiCode <= 14);
@@ -590,7 +615,11 @@ Void TDecCavlc::parseHrdParameters(TComHRD *hrd, Bool commonInfPresentFlag, UInt
 Void TDecCavlc::parseSPS(TComSPS* pcSPS)
 {
 #if ENC_DEC_TRACE
+#if MCTS_EXTRACTION
+  xTraceSPSHeaderDec ();
+#else
   xTraceSPSHeader ();
+#endif
 #endif
 
   UInt  uiCode;
@@ -862,7 +891,11 @@ Void TDecCavlc::parseSPS(TComSPS* pcSPS)
 Void TDecCavlc::parseVPS(TComVPS* pcVPS)
 {
 #if ENC_DEC_TRACE
-  xTraceVPSHeader ();
+#if MCTS_EXTRACTION
+  xTraceVPSHeaderDec ();
+#else
+  xTraceVPSHeader();
+#endif
 #endif
   UInt  uiCode;
 
@@ -960,7 +993,11 @@ Void TDecCavlc::parseSliceHeader (TComSlice* pcSlice, ParameterSetManager *param
   Int   iCode;
 
 #if ENC_DEC_TRACE
+#if MCTS_EXTRACTION
+  xTraceSliceHeaderDec();
+#else
   xTraceSliceHeader();
+#endif
 #endif
   TComPPS* pps = NULL;
   TComSPS* sps = NULL;
@@ -1063,11 +1100,11 @@ Void TDecCavlc::parseSliceHeader (TComSlice* pcSlice, ParameterSetManager *param
       {
         iPOCmsb = iPrevPOCmsb;
       }
-      if ( pcSlice->getNalUnitType() == NAL_UNIT_CODED_SLICE_BLA_W_LP
-        || pcSlice->getNalUnitType() == NAL_UNIT_CODED_SLICE_BLA_W_RADL
-        || pcSlice->getNalUnitType() == NAL_UNIT_CODED_SLICE_BLA_N_LP )
+
+      if ( pcSlice->isIRAP() && pcSlice->getNoRaslOutputFlag() )
       {
-        // For BLA picture types, POCmsb is set to 0.
+        // For IRAP picture types, when NoRaslOutputFlag is equal to 1,
+        // POCmsb is set to 0.
         iPOCmsb = 0;
       }
       pcSlice->setPOC              (iPOCmsb+iPOClsb);
@@ -1081,6 +1118,9 @@ Void TDecCavlc::parseSliceHeader (TComSlice* pcSlice, ParameterSetManager *param
       if(uiCode == 0) // use short-term reference picture set explicitly signalled in slice header
       {
         parseShortTermRefPicSet(sps,rps, sps->getRPSList()->getNumberOfReferencePictureSets());
+#if MCTS_EXTRACTION
+        pcSlice->setRPSidx(-1); // when -1, reference picture set explicitly signalled in slice header, otherwise identify the PPS RPS; added for MCTS extraction
+#endif
       }
       else // use reference to short-term reference picture set in PPS
       {
@@ -1092,6 +1132,9 @@ Void TDecCavlc::parseSliceHeader (TComSlice* pcSlice, ParameterSetManager *param
         if (numBits > 0)
         {
           READ_CODE( numBits, uiCode, "short_term_ref_pic_set_idx");
+#if MCTS_EXTRACTION
+          pcSlice->setRPSidx(uiCode); // when -1, reference picture set explicitly signalled in slice header, otherwise identify the PPS RPS; added for MCTS extraction
+#endif
         }
         else
         {
@@ -1494,8 +1537,8 @@ Void TDecCavlc::parseSliceHeader (TComSlice* pcSlice, ParameterSetManager *param
     READ_UVLC(uiCode,"slice_segment_header_extension_length");
     for(Int i=0; i<uiCode; i++)
     {
-      UInt ignore;
-      READ_CODE(8,ignore,"slice_segment_header_extension_data_byte");
+      UInt ignored;
+      READ_CODE(8,ignored,"slice_segment_header_extension_data_byte");
     }
   }
 #if RExt__DECODER_DEBUG_BIT_STATISTICS
@@ -1771,26 +1814,9 @@ Void TDecCavlc::parseCrossComponentPrediction( class TComTU& /*rTu*/, ComponentI
   assert(0);
 }
 
-Void TDecCavlc::parseDeltaQP( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth )
+Void TDecCavlc::parseDeltaQP( TComDataCU* /*pcCU*/, UInt /*uiAbsPartIdx*/, UInt /*uiDepth*/ )
 {
-  Int  iDQp;
-
-#if RExt__DECODER_DEBUG_BIT_STATISTICS
-  READ_SVLC(iDQp, "delta_qp");
-#else
-  xReadSvlc( iDQp );
-#endif
-
-  Int qpBdOffsetY = pcCU->getSlice()->getSPS()->getQpBDOffset(CHANNEL_TYPE_LUMA);
-  const Int qp = (((Int) pcCU->getRefQP( uiAbsPartIdx ) + iDQp + 52 + 2*qpBdOffsetY )%(52+ qpBdOffsetY)) -  qpBdOffsetY;
-
-  const UInt maxCUDepth        = pcCU->getSlice()->getSPS()->getMaxTotalCUDepth();
-  const UInt maxCuDQPDepth     = pcCU->getSlice()->getPPS()->getMaxCuDQPDepth();
-  const UInt doubleDepthDifference = ((maxCUDepth - maxCuDQPDepth)<<1);
-  const UInt uiAbsQpCUPartIdx = (uiAbsPartIdx>>doubleDepthDifference)<<doubleDepthDifference ;
-  const UInt uiQpCUDepth =   min(uiDepth,pcCU->getSlice()->getPPS()->getMaxCuDQPDepth()) ;
-
-  pcCU->setQPSubParts( qp, uiAbsQpCUPartIdx, uiQpCUDepth );
+  assert(0);
 }
 
 Void TDecCavlc::parseChromaQpAdjustment( TComDataCU* /*pcCU*/, UInt /*uiAbsPartIdx*/, UInt /*uiDepth*/ )

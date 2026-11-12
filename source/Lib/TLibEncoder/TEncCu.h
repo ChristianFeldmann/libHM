@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -86,6 +86,12 @@ private:
   Int                     m_lumaLevelToDeltaQPLUT[LUMA_LEVEL_TO_DQP_LUT_MAXSIZE];
   Int                     m_lumaQPOffset;
   TEncSlice*              m_pcSliceEncoder;
+#if JVET_V0078
+  Int                     m_smoothQPoffset;
+#endif
+#if JVET_Y0077_BIM
+  Int                     m_BimQPoffset;
+#endif
 
   //  Access channel
   TEncCfg*                m_pcEncCfg;
@@ -109,6 +115,9 @@ public:
   TEncSlice* getSliceEncoder() { return m_pcSliceEncoder; }
   Void       initLumaDeltaQpLUT();
   Int        calculateLumaDQP( TComDataCU *pCU, const UInt absPartIdx, const TComYuv * pOrgYuv );
+#if JVET_V0078
+  Int        calculateLumaDQPsmooth(TComDataCU *pCU, const UInt absPartIdx, const TComYuv * pOrgYuv, Int iBaseQP);
+#endif
 
   /// create internal buffers
   Void  create              ( UChar uhTotalDepth, UInt iMaxWidth, UInt iMaxHeight, ChromaFormat chromaFormat );

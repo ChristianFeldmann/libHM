@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -837,7 +837,32 @@ Distortion TEncSearch::xPatternRefinement( TComPattern* pcPatternKey,
 
   const TComMv* pcMvRefine = (iFrac == 2 ? s_acMvRefineH : s_acMvRefineQ);
 
+#if MCTS_ENC_CHECK
+  UInt maxRefinements = 9;
+  Int mvShift = 2;
+
+  // filter length of sub-sample generation filter to be considered
+  const UInt LumaLTSampleOffset = 3;
+  const UInt LumaRBSampleOffset = 4;
+
+  if (m_pcEncCfg->getTMCTSSEITileConstraint())
+  {
+    // if close to tile borders
+    if ( pcPatternKey->getROIYPosX() + (baseRefMv.getHor() >> mvShift ) < pcPatternKey->getTileLeftTopPelPosX() +  LumaLTSampleOffset ||
+         pcPatternKey->getROIYPosY() + (baseRefMv.getVer() >> mvShift ) < pcPatternKey->getTileLeftTopPelPosY() +  LumaLTSampleOffset ||
+         pcPatternKey->getROIYPosX() + (baseRefMv.getHor() >> mvShift)  > pcPatternKey->getTileRightBottomPelPosX() - pcPatternKey->getROIYWidth() - LumaRBSampleOffset ||
+         pcPatternKey->getROIYPosY() + (baseRefMv.getVer() >> mvShift)  > pcPatternKey->getTileRightBottomPelPosY() - pcPatternKey->getROIYHeight() - LumaRBSampleOffset  
+       )
+    {
+      // only allow full pel positions to avoid filter dependency
+      maxRefinements = 1;
+    }
+  }  
+
+  for (UInt i = 0; i < maxRefinements; i++)
+#else
   for (UInt i = 0; i < 9; i++)
+#endif
   {
     TComMv cMvTest = pcMvRefine[i];
     cMvTest += baseRefMv;
@@ -2293,6 +2318,7 @@ TEncSearch::estIntraPredLumaQT(TComDataCU* pcCU,
 
         CandNum += xUpdateCandList( uiMode, cost, numModesForFullRD, uiRdModeList, CandCostList );
       }
+      (Void)CandNum; // Avoid compiler warning: CandNum is never used
 
       if (m_pcEncCfg->getFastUDIUseMPMEnabled())
       {
@@ -2843,13 +2869,31 @@ Void TEncSearch::xMergeEstimation( TComDataCU* pcCU, TComYuv* pcYuvOrg, Int iPUI
     if ( iPUIdx == 0 )
     {
       pcCU->setPartSizeSubParts( SIZE_2Nx2N, 0, uiDepth ); // temporarily set
+#if MCTS_ENC_CHECK
+      UInt numSpatialMergeCandidates = 0;
+      pcCU->getInterMergeCandidates( 0, 0, cMvFieldNeighbours, uhInterDirNeighbours, numValidMergeCand, numSpatialMergeCandidates );
+      if (m_pcEncCfg->getTMCTSSEITileConstraint() && pcCU->isLastColumnCTUInTile())
+      {
+        numValidMergeCand = numSpatialMergeCandidates;
+      }
+#else
       pcCU->getInterMergeCandidates( 0, 0, cMvFieldNeighbours,uhInterDirNeighbours, numValidMergeCand );
+#endif
       pcCU->setPartSizeSubParts( partSize, 0, uiDepth ); // restore
     }
   }
   else
   {
+#if MCTS_ENC_CHECK
+    UInt numSpatialMergeCandidates = 0;
+    pcCU->getInterMergeCandidates( uiAbsPartIdx, iPUIdx, cMvFieldNeighbours, uhInterDirNeighbours, numValidMergeCand, numSpatialMergeCandidates );
+    if (m_pcEncCfg->getTMCTSSEITileConstraint() && pcCU->isLastColumnCTUInTile())
+    {
+      numValidMergeCand = numSpatialMergeCandidates;
+    }
+#else
     pcCU->getInterMergeCandidates( uiAbsPartIdx, iPUIdx, cMvFieldNeighbours, uhInterDirNeighbours, numValidMergeCand );
+#endif
   }
 
   xRestrictBipredMergeCand( pcCU, iPUIdx, cMvFieldNeighbours, uhInterDirNeighbours, numValidMergeCand );
@@ -3397,6 +3441,14 @@ Void TEncSearch::predInterSearch( TComDataCU* pcCU, TComYuv* pcOrgYuv, TComYuv* 
       }
     }
 
+#if MCTS_ENC_CHECK
+    if (m_pcEncCfg->getTMCTSSEITileConstraint() && (!checkTMctsMvp(pcCU, iPartIdx)))
+    {
+      pcCU->setTMctsMvpIsValid(false);
+      return;
+    }
+#endif
+
     //  MC
     motionCompensation ( pcCU, pcPredYuv, REF_PIC_LIST_X, iPartIdx );
 
@@ -3421,6 +3473,8 @@ Void TEncSearch::xEstimateMvPredAMVP( TComDataCU* pcCU, TComYuv* pcOrgYuv, UInt 
   UInt       uiPartAddr = 0;
   Int        iRoiWidth, iRoiHeight;
   Int        i;
+  Int        minMVPCand;
+  Int        maxMVPCand;
 
   pcCU->getPartIndexAndSize( uiPartIdx, uiPartAddr, iRoiWidth, iRoiHeight );
   // Fill the MV Candidates
@@ -3428,10 +3482,28 @@ Void TEncSearch::xEstimateMvPredAMVP( TComDataCU* pcCU, TComYuv* pcOrgYuv, UInt 
   {
     pcCU->fillMvpCand( uiPartIdx, uiPartAddr, eRefPicList, iRefIdx, pcAMVPInfo );
   }
-
   // initialize Mvp index & Mvp
+#if MCTS_ENC_CHECK
+  if (m_pcEncCfg->getTMCTSSEITileConstraint() && pcCU->isLastColumnCTUInTile() && (pcAMVPInfo->numSpatialMVPCandidates < pcAMVPInfo->iN))
+  {
+    iBestIdx    = (pcAMVPInfo->numSpatialMVPCandidates == 0) ? 1 : 0;
+    cBestMv     = pcAMVPInfo->m_acMvCand[(pcAMVPInfo->numSpatialMVPCandidates == 0) ? 1 : 0];
+    minMVPCand  = (pcAMVPInfo->numSpatialMVPCandidates == 0) ? 1 : 0;
+    maxMVPCand  = (pcAMVPInfo->numSpatialMVPCandidates == 0) ? pcAMVPInfo->iN : 1;
+  }
+  else
+  {
+    iBestIdx = 0;
+    cBestMv  = pcAMVPInfo->m_acMvCand[0];
+    minMVPCand  = 0;
+    maxMVPCand  = pcAMVPInfo->iN;
+  }
+#else
   iBestIdx = 0;
   cBestMv  = pcAMVPInfo->m_acMvCand[0];
+  minMVPCand  = 0;
+  maxMVPCand  = pcAMVPInfo->iN;
+#endif
   if (pcAMVPInfo->iN <= 1)
   {
     rcMvPred = cBestMv;
@@ -3455,7 +3527,7 @@ Void TEncSearch::xEstimateMvPredAMVP( TComDataCU* pcCU, TComYuv* pcOrgYuv, UInt 
 
   m_cYuvPredTemp.clear();
   //-- Check Minimum Cost.
-  for ( i = 0 ; i < pcAMVPInfo->iN; i++)
+  for ( i = minMVPCand ; i < maxMVPCand; i++)
   {
     Distortion uiTmpCost;
     uiTmpCost = xGetTemplateCost( pcCU, uiPartAddr, pcOrgYuv, &m_cYuvPredTemp, pcAMVPInfo->m_acMvCand[i], i, AMVP_MAX_NUM_CANDS, eRefPicList, iRefIdx, iRoiWidth, iRoiHeight);
@@ -3584,7 +3656,19 @@ Void TEncSearch::xCheckBestMVP ( TComDataCU* pcCU, RefPicList eRefPicList, TComM
   iOrgMvBits += m_auiMVPIdxCost[riMVPIdx][AMVP_MAX_NUM_CANDS];
   Int iBestMvBits = iOrgMvBits;
 
+#if MCTS_ENC_CHECK
+  Int minMVPCand = 0;
+  Int maxMVPCand = pcAMVPInfo->iN;
+
+  if (m_pcEncCfg->getTMCTSSEITileConstraint() && pcCU->isLastColumnCTUInTile())
+  {
+    minMVPCand = (pcAMVPInfo->numSpatialMVPCandidates == 0) ? 1 : 0;
+    maxMVPCand = (pcAMVPInfo->numSpatialMVPCandidates == 0) ? pcAMVPInfo->iN : 1;
+  }
+  for (Int iMVPIdx = minMVPCand; iMVPIdx < maxMVPCand; iMVPIdx++)
+#else
   for (Int iMVPIdx = 0; iMVPIdx < pcAMVPInfo->iN; iMVPIdx++)
+#endif
   {
     if (iMVPIdx == riMVPIdx)
     {
@@ -3673,8 +3757,7 @@ Void TEncSearch::xMotionEstimation( TComDataCU* pcCU, TComYuv* pcYuvOrg, Int iPa
   m_iSearchRange = m_aaiAdaptSR[eRefPicList][iRefIdxPred];
 
   Int           iSrchRng      = ( bBi ? m_bipredSearchRange : m_iSearchRange );
-  TComPattern   tmpPattern;
-  TComPattern*  pcPatternKey  = &tmpPattern;
+  TComPattern   cPattern;
 
   Double        fWeight       = 1.0;
 
@@ -3694,11 +3777,27 @@ Void TEncSearch::xMotionEstimation( TComDataCU* pcCU, TComYuv* pcYuvOrg, Int iPa
   m_cDistParam.bIsBiPred = bBi;
 
   //  Search key pattern initialization
-  pcPatternKey->initPattern( pcYuv->getAddr  ( COMPONENT_Y, uiPartAddr ),
-                             iRoiWidth,
-                             iRoiHeight,
-                             pcYuv->getStride(COMPONENT_Y),
-                             pcCU->getSlice()->getSPS()->getBitDepth(CHANNEL_TYPE_LUMA) );
+#if MCTS_ENC_CHECK
+  Int roiPosX, roiPosY; 
+  Int roiW, roiH;
+  pcCU->getPartPosition(iPartIdx, roiPosX, roiPosY, roiW, roiH);
+  assert(roiW == iRoiWidth);
+  assert(roiH == iRoiHeight);
+  cPattern.initPattern( pcYuv->getAddr(COMPONENT_Y, uiPartAddr),
+                        iRoiWidth,
+                        iRoiHeight,
+                        pcYuv->getStride(COMPONENT_Y),
+                        pcCU->getSlice()->getSPS()->getBitDepth(CHANNEL_TYPE_LUMA),
+                        roiPosX,
+                        roiPosY);
+  xInitTileBorders(pcCU, &cPattern);
+#else
+  cPattern.initPattern( pcYuv->getAddr  ( COMPONENT_Y, uiPartAddr ),
+                        iRoiWidth,
+                        iRoiHeight,
+                        pcYuv->getStride(COMPONENT_Y),
+                        pcCU->getSlice()->getSPS()->getBitDepth(CHANNEL_TYPE_LUMA) );
+#endif
 
   Pel*        piRefY      = pcCU->getSlice()->getRefPic( eRefPicList, iRefIdxPred )->getPicYuvRec()->getAddr( COMPONENT_Y, pcCU->getCtuRsAddr(), pcCU->getZorderIdxInCtu() + uiPartAddr );
   Int         iRefStride  = pcCU->getSlice()->getRefPic( eRefPicList, iRefIdxPred )->getPicYuvRec()->getStride(COMPONENT_Y);
@@ -3707,11 +3806,19 @@ Void TEncSearch::xMotionEstimation( TComDataCU* pcCU, TComYuv* pcYuvOrg, Int iPa
 
   if ( bBi )
   {
-    xSetSearchRange   ( pcCU, rcMv   , iSrchRng, cMvSrchRngLT, cMvSrchRngRB );
+#if MCTS_ENC_CHECK
+    xSetSearchRange(pcCU, rcMv, iSrchRng, cMvSrchRngLT, cMvSrchRngRB, &cPattern);
+#else
+    xSetSearchRange(pcCU, rcMv, iSrchRng, cMvSrchRngLT, cMvSrchRngRB);
+#endif
   }
   else
   {
-    xSetSearchRange   ( pcCU, cMvPred, iSrchRng, cMvSrchRngLT, cMvSrchRngRB );
+#if MCTS_ENC_CHECK
+    xSetSearchRange(pcCU, cMvPred, iSrchRng, cMvSrchRngLT, cMvSrchRngRB, &cPattern);
+#else
+    xSetSearchRange(pcCU, cMvPred, iSrchRng, cMvSrchRngLT, cMvSrchRngRB);
+#endif
   }
 
   m_pcRdCost->selectMotionLambda( true, 0, pcCU->getCUTransquantBypass(uiPartAddr) );
@@ -3723,7 +3830,7 @@ Void TEncSearch::xMotionEstimation( TComDataCU* pcCU, TComYuv* pcYuvOrg, Int iPa
   //  Do integer search
   if ( (m_motionEstimationSearchMethod==MESEARCH_FULL) || bBi )
   {
-    xPatternSearch      ( pcPatternKey, piRefY, iRefStride, &cMvSrchRngLT, &cMvSrchRngRB, rcMv, ruiCost );
+    xPatternSearch      ( &cPattern, piRefY, iRefStride, &cMvSrchRngLT, &cMvSrchRngRB, rcMv, ruiCost );
   }
   else
   {
@@ -3733,7 +3840,7 @@ Void TEncSearch::xMotionEstimation( TComDataCU* pcCU, TComYuv* pcYuvOrg, Int iPa
     {
       pIntegerMv2Nx2NPred = &(m_integerMv2Nx2N[eRefPicList][iRefIdxPred]);
     }
-    xPatternSearchFast  ( pcCU, pcPatternKey, piRefY, iRefStride, &cMvSrchRngLT, &cMvSrchRngRB, rcMv, ruiCost, pIntegerMv2Nx2NPred );
+    xPatternSearchFast  ( pcCU, &cPattern, piRefY, iRefStride, &cMvSrchRngLT, &cMvSrchRngRB, rcMv, ruiCost, pIntegerMv2Nx2NPred );
     if (pcCU->getPartitionSize(0) == SIZE_2Nx2N)
     {
       m_integerMv2Nx2N[eRefPicList][iRefIdxPred] = rcMv;
@@ -3744,7 +3851,7 @@ Void TEncSearch::xMotionEstimation( TComDataCU* pcCU, TComYuv* pcYuvOrg, Int iPa
   m_pcRdCost->setCostScale ( 1 );
 
   const Bool bIsLosslessCoded = pcCU->getCUTransquantBypass(uiPartAddr) != 0;
-  xPatternSearchFracDIF( bIsLosslessCoded, pcPatternKey, piRefY, iRefStride, &rcMv, cMvHalf, cMvQter, ruiCost );
+  xPatternSearchFracDIF( bIsLosslessCoded, &cPattern, piRefY, iRefStride, &rcMv, cMvHalf, cMvQter, ruiCost );
 
   m_pcRdCost->setCostScale( 0 );
   rcMv <<= 2;
@@ -3757,19 +3864,73 @@ Void TEncSearch::xMotionEstimation( TComDataCU* pcCU, TComYuv* pcYuvOrg, Int iPa
   ruiCost       = (Distortion)( floor( fWeight * ( (Double)ruiCost - (Double)m_pcRdCost->getCost( uiMvBits ) ) ) + (Double)m_pcRdCost->getCost( ruiBits ) );
 }
 
+#if MCTS_ENC_CHECK
+Void TEncSearch::xInitTileBorders(const TComDataCU* const pcCU, TComPattern* pcPatternKey)
+{
+  if (m_pcEncCfg->getTMCTSSEITileConstraint())
+  {
+    UInt  tileXPosInCtus = 0;
+    UInt  tileYPosInCtus = 0;
+    UInt  tileWidthtInCtus = 0;
+    UInt  tileHeightInCtus = 0;
+
+    getTilePosition(pcCU, tileXPosInCtus, tileYPosInCtus, tileWidthtInCtus, tileHeightInCtus);
+
+    const Int  ctuLength = pcCU->getPic()->getPicSym()->getSPS().getMaxCUWidth();
+
+    // tile position in full pels
+    const Int tileLeftTopPelPosX = ctuLength * tileXPosInCtus;
+    const Int tileLeftTopPelPosY = ctuLength * tileYPosInCtus;
+    const Int tileRightBottomPelPosX = ((tileWidthtInCtus + tileXPosInCtus) * ctuLength) - 1;
+    const Int tileRightBottomPelPosY = ((tileHeightInCtus + tileYPosInCtus) * ctuLength) - 1;
+
+    pcPatternKey->setTileBorders (tileLeftTopPelPosX,tileLeftTopPelPosY,tileRightBottomPelPosX,tileRightBottomPelPosY);
+  }
+}
+#endif
+
 
 Void TEncSearch::xSetSearchRange ( const TComDataCU* const pcCU, const TComMv& cMvPred, const Int iSrchRng,
+#if MCTS_ENC_CHECK
+                                   TComMv& rcMvSrchRngLT, TComMv& rcMvSrchRngRB, const TComPattern* const pcPatternKey )
+#else
                                    TComMv& rcMvSrchRngLT, TComMv& rcMvSrchRngRB )
+#endif
 {
   Int  iMvShift = 2;
   TComMv cTmpMvPred = cMvPred;
   pcCU->clipMv( cTmpMvPred );
 
+#if MCTS_ENC_CHECK
+  if (m_pcEncCfg->getTMCTSSEITileConstraint())
+  {
+    const Int lRangeXLeft = max(cTmpMvPred.getHor() - (iSrchRng << iMvShift), (pcPatternKey->getTileLeftTopPelPosX() - pcPatternKey->getROIYPosX()) << iMvShift);
+    const Int lRangeYTop = max(cTmpMvPred.getVer() - (iSrchRng << iMvShift), (pcPatternKey->getTileLeftTopPelPosY() - pcPatternKey->getROIYPosY()) << iMvShift);
+    const Int lRangeXRight = min(cTmpMvPred.getHor() + (iSrchRng << iMvShift), (pcPatternKey->getTileRightBottomPelPosX() - (pcPatternKey->getROIYPosX() + pcPatternKey->getROIYWidth())) << iMvShift);
+    const Int lRangeYBottom = min(cTmpMvPred.getVer() + (iSrchRng << iMvShift), (pcPatternKey->getTileRightBottomPelPosY() - (pcPatternKey->getROIYPosY() + pcPatternKey->getROIYHeight())) << iMvShift);
+
+    rcMvSrchRngLT.setHor(lRangeXLeft);
+    rcMvSrchRngLT.setVer(lRangeYTop);
+
+    rcMvSrchRngRB.setHor(lRangeXRight);
+    rcMvSrchRngRB.setVer(lRangeYBottom);
+  }
+  else
+  {
+    rcMvSrchRngLT.setHor(cTmpMvPred.getHor() - (iSrchRng << iMvShift));
+    rcMvSrchRngLT.setVer(cTmpMvPred.getVer() - (iSrchRng << iMvShift));
+
+    rcMvSrchRngRB.setHor( cTmpMvPred.getHor() + (iSrchRng << iMvShift));
+    rcMvSrchRngRB.setVer( cTmpMvPred.getVer() + (iSrchRng << iMvShift) );
+  }
+#else
   rcMvSrchRngLT.setHor( cTmpMvPred.getHor() - (iSrchRng << iMvShift) );
   rcMvSrchRngLT.setVer( cTmpMvPred.getVer() - (iSrchRng << iMvShift) );
 
-  rcMvSrchRngRB.setHor( cTmpMvPred.getHor() + (iSrchRng << iMvShift) );
+  rcMvSrchRngRB.setHor( cTmpMvPred.getHor() + (iSrchRng << iMvShift));
   rcMvSrchRngRB.setVer( cTmpMvPred.getVer() + (iSrchRng << iMvShift) );
+#endif
+
   pcCU->clipMv        ( rcMvSrchRngLT );
   pcCU->clipMv        ( rcMvSrchRngRB );
 
@@ -3927,6 +4088,8 @@ Void TEncSearch::xTZSearch( const TComDataCU* const pcCU,
 #endif
   // init TZSearchStruct
   IntTZSearchStruct cStruct;
+  cStruct.iBestX      = 0;
+  cStruct.iBestY      = 0;
   cStruct.iYStride    = iRefStride;
   cStruct.piRefY      = piRefY;
   cStruct.uiBestSad   = MAX_UINT;
@@ -3993,7 +4156,11 @@ Void TEncSearch::xTZSearch( const TComDataCU* const pcCU,
     Int iSrchRng = m_iSearchRange;
     TComMv currBestMv(cStruct.iBestX, cStruct.iBestY );
     currBestMv <<= 2;
-    xSetSearchRange( pcCU, currBestMv, iSrchRng, cMvSrchRngLT, cMvSrchRngRB );
+#if MCTS_ENC_CHECK
+    xSetSearchRange(pcCU, currBestMv, iSrchRng, cMvSrchRngLT, cMvSrchRngRB, pcPatternKey);
+#else
+    xSetSearchRange(pcCU, currBestMv, iSrchRng, cMvSrchRngLT, cMvSrchRngRB);
+#endif
     iSrchRngHorLeft   = cMvSrchRngLT.getHor();
     iSrchRngHorRight  = cMvSrchRngRB.getHor();
     iSrchRngVerTop    = cMvSrchRngLT.getVer();
@@ -4075,7 +4242,7 @@ Void TEncSearch::xTZSearch( const TComDataCU* const pcCU,
   // raster search if distance is too big
   if (bUseAdaptiveRaster)
   {
-    int iWindowSize = iRaster;
+    Int   iWindowSize = iRaster;
     Int   iSrchRngRasterLeft   = iSrchRngHorLeft;
     Int   iSrchRngRasterRight  = iSrchRngHorRight;
     Int   iSrchRngRasterTop    = iSrchRngVerTop;
@@ -4284,7 +4451,11 @@ Void TEncSearch::xTZSearchSelective( const TComDataCU* const   pcCU,
     Int iSrchRng = m_iSearchRange;
     TComMv currBestMv(cStruct.iBestX, cStruct.iBestY );
     currBestMv <<= 2;
-    xSetSearchRange( pcCU, currBestMv, iSrchRng, cMvSrchRngLT, cMvSrchRngRB );
+#if MCTS_ENC_CHECK
+    xSetSearchRange(pcCU, currBestMv, iSrchRng, cMvSrchRngLT, cMvSrchRngRB, pcPatternKey);
+#else
+    xSetSearchRange(pcCU, currBestMv, iSrchRng, cMvSrchRngLT, cMvSrchRngRB);
+#endif
     iSrchRngHorLeft   = cMvSrchRngLT.getHor();
     iSrchRngHorRight  = cMvSrchRngRB.getHor();
     iSrchRngVerTop    = cMvSrchRngLT.getVer();
@@ -4385,7 +4556,16 @@ Void TEncSearch::xPatternSearchFracDIF(
                           pcPatternKey->getROIYWidth(),
                           pcPatternKey->getROIYHeight(),
                           iRefStride,
+#if MCTS_ENC_CHECK
+                          pcPatternKey->getBitDepthY(),
+                          pcPatternKey->getROIYPosX(),
+                          pcPatternKey->getROIYPosY());
+#else
                           pcPatternKey->getBitDepthY());
+#endif
+#if MCTS_ENC_CHECK
+  cPatternRoi.setTileBorders(pcPatternKey->getTileLeftTopPelPosX(), pcPatternKey->getTileLeftTopPelPosY(), pcPatternKey->getTileRightBottomPelPosX(), pcPatternKey->getTileRightBottomPelPosY());
+#endif
 
   //  Half-pel refinement
   xExtDIFUpSamplingH ( &cPatternRoi );

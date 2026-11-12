@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,16 +44,18 @@
 
 #include "TLibCommon/CommonDef.h"
 #include "TLibCommon/TComSlice.h"
+#include "EncCfgParam.h"
+#if JVET_T0050_ANNOTATED_REGIONS_SEI
+#include "TLibCommon/SEI.h"
+#endif
 #include <assert.h>
 
 struct GOPEntry
 {
   Int m_POC;
   Int m_QPOffset;
-#if X0038_LAMBDA_FROM_QP_CAPABILITY
   Double m_QPOffsetModelOffset;
   Double m_QPOffsetModelScale;
-#endif
   Int m_CbQPoffset;
   Int m_CrQPoffset;
   Double m_QPFactor;
@@ -74,10 +76,8 @@ struct GOPEntry
   GOPEntry()
   : m_POC(-1)
   , m_QPOffset(0)
-#if X0038_LAMBDA_FROM_QP_CAPABILITY
   , m_QPOffsetModelOffset(0)
   , m_QPOffsetModelScale(0)
-#endif
   , m_CbQPoffset(0)
   , m_CrQPoffset(0)
   , m_QPFactor(0)
@@ -110,6 +110,30 @@ std::istringstream &operator>>(std::istringstream &in, GOPEntry &entry);     //i
 /// encoder configuration class
 class TEncCfg
 {
+public:
+
+struct TEncSEIKneeFunctionInformation
+{
+  struct KneePointPair
+  {
+    Int inputKneePoint;
+    Int outputKneePoint;
+  };
+
+  Int       m_kneeFunctionId;
+  Bool      m_kneeFunctionCancelFlag;
+  Bool      m_kneeFunctionPersistenceFlag;
+  Int       m_inputDRange;
+  Int       m_inputDispLuminance;
+  Int       m_outputDRange;
+  Int       m_outputDispLuminance;
+  std::vector<KneePointPair> m_kneeSEIKneePointPairs;
+};
+
+#if JVET_T0050_ANNOTATED_REGIONS_SEI
+  std::map<UInt, SEIAnnotatedRegions::AnnotatedRegionObject> m_arObjects;
+#endif
+
 protected:
   //==== File I/O ========
   Int       m_iFrameRate;
@@ -124,9 +148,16 @@ protected:
   Double    m_dIntraQpFactor;                                 ///< Intra Q Factor. If negative, use a default equation: 0.57*(1.0 - Clip3( 0.0, 0.5, 0.05*(Double)(isField ? (GopSize-1)/2 : GopSize-1) ))
 
   Bool      m_printMSEBasedSequencePSNR;
+  Bool      m_printHexPsnr;
   Bool      m_printFrameMSE;
   Bool      m_printSequenceMSE;
+  Bool      m_printMSSSIM;
+  Bool      m_bXPSNREnableFlag;
+  Double    m_dXPSNRWeight[MAX_NUM_COMPONENT];
   Bool      m_cabacZeroWordPaddingEnabled;
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+  Bool      m_ShutterFilterEnable;                          ///< enable Pre-Filtering with Shutter Interval SEI
+#endif
 
   /* profile & level */
   Profile::Name m_profile;
@@ -145,9 +176,7 @@ protected:
   //====== Coding Structure ========
   UInt      m_uiIntraPeriod;                    // TODO: make this an Int - it can be -1!
   UInt      m_uiDecodingRefreshType;            ///< the type of decoding refresh employed for the random access.
-#if JCTVC_Y0038_PARAMS
   Bool      m_bReWriteParamSetsFlag;
-#endif
   Int       m_iGOPSize;
   GOPEntry  m_GOPList[MAX_GOP];
   Int       m_extraRPSs;
@@ -155,11 +184,9 @@ protected:
   Int       m_numReorderPics[MAX_TLAYER];
 
   Int       m_iQP;                              //  if (AdaptiveQP == OFF)
-#if X0038_LAMBDA_FROM_QP_CAPABILITY
   Int       m_intraQPOffset;                    ///< QP offset for intra slice (integer)
   Int       m_lambdaFromQPEnable;               ///< enable lambda derivation from QP
-#endif
-  Int       m_aiPad[2];
+  Int       m_sourcePadding[2];
 
   Bool      m_AccessUnitDelimiter;               ///< add Access Unit Delimiter NAL units
 
@@ -191,7 +218,7 @@ protected:
   Double    m_saoEncodingRateChroma; // The SAO early picture termination rate to use for chroma (when m_SaoEncodingRate is >0). If <=0, use results for luma.
   Int       m_maxNumOffsetsPerPic;
   Bool      m_saoCtuBoundary;
-  Bool      m_saoResetEncoderStateAfterIRAP;
+  Bool      m_resetEncoderStateAfterIRAP;
 
   //====== Motion search ========
   Bool      m_bDisableIntraPUsInInterSlices;
@@ -226,6 +253,9 @@ protected:
 
   //====== Tool list ========
   Int       m_bitDepth[MAX_NUM_CHANNEL_TYPE];
+#if JVET_X0048_X0103_FILM_GRAIN
+  Int       m_bitDepthInput[MAX_NUM_CHANNEL_TYPE];
+#endif
   Bool      m_bUseASR;
   Bool      m_bUseHADME;
   Bool      m_useRDOQ;
@@ -252,6 +282,14 @@ protected:
   Int*      m_aidQP;
   UInt      m_uiDeltaQpRD;
   Bool      m_bFastDeltaQP;
+#if JVET_V0078
+  Bool      m_bSmoothQPReductionEnable;
+  Double    m_dSmoothQPReductionThreshold;
+  Double    m_dSmoothQPReductionModelScale;
+  Double    m_dSmoothQPReductionModelOffset;
+  Int       m_iSmoothQPReductionLimit;
+  Int       m_iSmoothQPReductionPeriodicity;
+#endif
 
   Bool      m_bUseConstrainedIntraPred;
   Bool      m_bFastUDIUseMPMEnabled;
@@ -328,21 +366,127 @@ protected:
   Bool      m_decodingUnitInfoSEIEnabled;
   Bool      m_SOPDescriptionSEIEnabled;
   Bool      m_scalableNestingSEIEnabled;
+#if NNPFC_SEI_MESSAGE
+  Bool                    m_nnPostFilterSEICharacteristicsEnabled;
+  Bool                    m_nnPostFilterSEICharacteristicsUseSuffixSEI;
+  Int                     m_nnPostFilterSEICharacteristicsNumFilters;
+  UInt                    m_nnPostFilterSEICharacteristicsId[MAX_NUM_NN_POST_FILTERS];
+  UInt                    m_nnPostFilterSEICharacteristicsModeIdc[MAX_NUM_NN_POST_FILTERS];
+  Bool                    m_nnPostFilterSEICharacteristicsPropertyPresentFlag[MAX_NUM_NN_POST_FILTERS];
+  Bool                    m_nnPostFilterSEICharacteristicsBaseFlag[MAX_NUM_NN_POST_FILTERS];
+  UInt                    m_nnPostFilterSEICharacteristicsPurpose[MAX_NUM_NN_POST_FILTERS];
+  Bool                    m_nnPostFilterSEICharacteristicsOutSubCFlag[MAX_NUM_NN_POST_FILTERS];
+  ChromaFormat            m_nnPostFilterSEICharacteristicsOutColourFormatIdc[MAX_NUM_NN_POST_FILTERS];
+  Bool                    m_nnPostFilterSEICharacteristicsChromaLocInfoPresentFlag[MAX_NUM_NN_POST_FILTERS];
+  Chroma420LocType        m_nnPostFilterSEICharacteristicsChromaSampleLocTypeFrame[MAX_NUM_NN_POST_FILTERS];
+  UInt                    m_nnPostFilterSEICharacteristicsPicWidthNumeratorMinus1[MAX_NUM_NN_POST_FILTERS];
+  UInt                    m_nnPostFilterSEICharacteristicsPicWidthDenominatorMinus1[MAX_NUM_NN_POST_FILTERS];
+  UInt                    m_nnPostFilterSEICharacteristicsPicHeightNumeratorMinus1[MAX_NUM_NN_POST_FILTERS];
+  UInt                    m_nnPostFilterSEICharacteristicsPicHeightDenominatorMinus1[MAX_NUM_NN_POST_FILTERS];
+  UInt                    m_nnPostFilterSEICharacteristicsInpTensorBitDepthLumaMinus8[MAX_NUM_NN_POST_FILTERS];
+  UInt                    m_nnPostFilterSEICharacteristicsInpTensorBitDepthChromaMinus8[MAX_NUM_NN_POST_FILTERS];
+  UInt                    m_nnPostFilterSEICharacteristicsOutTensorBitDepthLumaMinus8[MAX_NUM_NN_POST_FILTERS];
+  UInt                    m_nnPostFilterSEICharacteristicsOutTensorBitDepthChromaMinus8[MAX_NUM_NN_POST_FILTERS];
+  Bool                    m_nnPostFilterSEICharacteristicsComponentLastFlag[MAX_NUM_NN_POST_FILTERS];
+  UInt                    m_nnPostFilterSEICharacteristicsInpFormatIdc[MAX_NUM_NN_POST_FILTERS];
+  UInt                    m_nnPostFilterSEICharacteristicsAuxInpIdc[MAX_NUM_NN_POST_FILTERS];
+  Bool                    m_nnPostFilterSEICharacteristicsSepColDescriptionFlag[MAX_NUM_NN_POST_FILTERS];
+  Bool                    m_nnPostFilterSEICharacteristicsFullRangeFlag[MAX_NUM_NN_POST_FILTERS];
+  UInt                    m_nnPostFilterSEICharacteristicsColPrimaries[MAX_NUM_NN_POST_FILTERS];
+  UInt                    m_nnPostFilterSEICharacteristicsTransCharacteristics[MAX_NUM_NN_POST_FILTERS];
+  UInt                    m_nnPostFilterSEICharacteristicsMatrixCoeffs[MAX_NUM_NN_POST_FILTERS];
+  UInt                    m_nnPostFilterSEICharacteristicsInpOrderIdc[MAX_NUM_NN_POST_FILTERS];
+  UInt                    m_nnPostFilterSEICharacteristicsOutFormatIdc[MAX_NUM_NN_POST_FILTERS];
+  UInt                    m_nnPostFilterSEICharacteristicsOutOrderIdc[MAX_NUM_NN_POST_FILTERS];
+  Bool                    m_nnPostFilterSEICharacteristicsConstantPatchSizeFlag[MAX_NUM_NN_POST_FILTERS];
+  UInt                    m_nnPostFilterSEICharacteristicsPatchWidthMinus1[MAX_NUM_NN_POST_FILTERS];
+  UInt                    m_nnPostFilterSEICharacteristicsPatchHeightMinus1[MAX_NUM_NN_POST_FILTERS];
+  UInt                    m_nnPostFilterSEICharacteristicsExtendedPatchWidthCdDeltaMinus1[MAX_NUM_NN_POST_FILTERS];
+  UInt                    m_nnPostFilterSEICharacteristicsExtendedPatchHeightCdDeltaMinus1[MAX_NUM_NN_POST_FILTERS];
+  UInt                    m_nnPostFilterSEICharacteristicsOverlap[MAX_NUM_NN_POST_FILTERS];
+  UInt                    m_nnPostFilterSEICharacteristicsPaddingType[MAX_NUM_NN_POST_FILTERS];
+  UInt                    m_nnPostFilterSEICharacteristicsLumaPadding[MAX_NUM_NN_POST_FILTERS];
+  UInt                    m_nnPostFilterSEICharacteristicsCrPadding[MAX_NUM_NN_POST_FILTERS];
+  UInt                    m_nnPostFilterSEICharacteristicsCbPadding[MAX_NUM_NN_POST_FILTERS];
+  std::string             m_nnPostFilterSEICharacteristicsPayloadFilename[MAX_NUM_NN_POST_FILTERS];
+  Bool                    m_nnPostFilterSEICharacteristicsComplexityInfoPresentFlag[MAX_NUM_NN_POST_FILTERS];
+  Bool                    m_nnPostFilterSEICharacteristicsApplicationPurposeTagUriPresentFlag[MAX_NUM_NN_POST_FILTERS];
+  std::string             m_nnPostFilterSEICharacteristicsApplicationPurposeTagUri[MAX_NUM_NN_POST_FILTERS];
+  UInt                    m_nnPostFilterSEICharacteristicsScanTypeIdc[MAX_NUM_NN_POST_FILTERS];
+  UInt                    m_nnPostFilterSEICharacteristicsForHumanViewingIdc[MAX_NUM_NN_POST_FILTERS];
+  UInt                    m_nnPostFilterSEICharacteristicsForMachineAnalysisIdc[MAX_NUM_NN_POST_FILTERS];
+  std::string             m_nnPostFilterSEICharacteristicsUriTag[MAX_NUM_NN_POST_FILTERS];
+  std::string             m_nnPostFilterSEICharacteristicsUri[MAX_NUM_NN_POST_FILTERS];
+  UInt                    m_nnPostFilterSEICharacteristicsParameterTypeIdc[MAX_NUM_NN_POST_FILTERS];
+  UInt                    m_nnPostFilterSEICharacteristicsLog2ParameterBitLengthMinus3[MAX_NUM_NN_POST_FILTERS];
+  UInt                    m_nnPostFilterSEICharacteristicsNumParametersIdc[MAX_NUM_NN_POST_FILTERS];
+  UInt                    m_nnPostFilterSEICharacteristicsNumKmacOperationsIdc[MAX_NUM_NN_POST_FILTERS];
+  UInt                    m_nnPostFilterSEICharacteristicsTotalKilobyteSize[MAX_NUM_NN_POST_FILTERS];
+  UInt                    m_nnPostFilterSEICharacteristicsNumberInputDecodedPicturesMinus1[MAX_NUM_NN_POST_FILTERS];
+  std::vector<UInt>       m_nnPostFilterSEICharacteristicsNumberInterpolatedPictures[MAX_NUM_NN_POST_FILTERS];
+  UInt                    m_nnPostFilterSEICharacteristicsNumberExtrapolatedPicturesMinus1[MAX_NUM_NN_POST_FILTERS];
+  Int                     m_nnPostFilterSEICharacteristicsSpatialExtrapolationLeftOffset[MAX_NUM_NN_POST_FILTERS];
+  Int                     m_nnPostFilterSEICharacteristicsSpatialExtrapolationRightOffset[MAX_NUM_NN_POST_FILTERS];
+  Int                     m_nnPostFilterSEICharacteristicsSpatialExtrapolationTopOffset[MAX_NUM_NN_POST_FILTERS];
+  Int                     m_nnPostFilterSEICharacteristicsSpatialExtrapolationBottomOffset[MAX_NUM_NN_POST_FILTERS];
+  Bool                    m_nnPostFilterSEICharacteristicsInbandPromptFlag[MAX_NUM_NN_POST_FILTERS];
+  std::string             m_nnPostFilterSEICharacteristicsPrompt[MAX_NUM_NN_POST_FILTERS];
+  std::vector<Bool>       m_nnPostFilterSEICharacteristicsInputPicOutputFlag[MAX_NUM_NN_POST_FILTERS];
+  Bool                    m_nnPostFilterSEICharacteristicsAbsentInputPicZeroFlag[MAX_NUM_NN_POST_FILTERS];
+  Bool                    m_nnPostFilterSEICharacteristicsInbandSeedFlag[MAX_NUM_NN_POST_FILTERS];
+  UInt                    m_nnPostFilterSEICharacteristicsSeed[MAX_NUM_NN_POST_FILTERS];
+#endif
+#if NNPFA_SEI_MESSAGE
+  Bool      m_nnPostFilterSEIActivationEnabled;
+  Bool      m_nnPostFilterSEIActivationUseSuffixSEI;
+  UInt      m_nnPostFilterSEIActivationTargetId;
+  Bool      m_nnPostFilterSEIActivationCancelFlag;
+  Bool      m_nnPostFilterSEIActivationTargetBaseFlag;
+  Bool      m_nnPostFilterSEIActivationNoPrevCLVSFlag;
+  Bool      m_nnPostFilterSEIActivationNoFollCLVSFlag;
+  Bool      m_nnPostFilterSEIActivationPersistenceFlag;
+  std::vector<Bool> m_nnPostFilterSEIActivationOutputflag;
+  Bool      m_nnPostFilterSEIActivationPromptUpdateFlag;
+  std::string m_nnPostFilterSEIActivationPrompt;
+  Bool      m_nnPostFilterSEIActivationSeedUpdateFlag;
+  UInt      m_nnPostFilterSEIActivationSeed;
+#endif
+#if JVET_AE0101_PHASE_INDICATION_SEI_MESSAGE
+  bool      m_phaseIndicationSEIEnabledFullResolution;
+  int       m_horPhaseNumFullResolution;
+  int       m_horPhaseDenMinus1FullResolution;
+  int       m_verPhaseNumFullResolution;
+  int       m_verPhaseDenMinus1FullResolution;
+#endif
+#if JVET_AK0107_MODALITY_INFORMATION
+  // Modality Information SEI
+  Bool        m_miSEIEnabled;
+  Bool        m_miCancelFlag;
+  Bool        m_miPersistenceFlag;
+  Int         m_miModalityType; 
+  Bool        m_miSpectrumRangePresentFlag;
+  Int         m_miMinWavelengthMantissa; 
+  Int         m_miMinWavelengthExponentPlus15; 
+  Int         m_miMaxWavelengthMantissa; 
+  Int         m_miMaxWavelengthExponentPlus15; 
+#endif 
+
+#if JVET_AK0194_DSC_SEI
+  EncCfgParam::CfgSEIDigitallySignedContent m_cfgDigitallySignedContentSEI;
+#endif
+
   Bool      m_tmctsSEIEnabled;
+#if MCTS_ENC_CHECK
+  Bool      m_tmctsSEITileConstraint;
+#endif
+#if MCTS_EXTRACTION
+  Bool      m_tmctsExtractionSEIEnabled;
+#endif
   Bool      m_timeCodeSEIEnabled;
   Int       m_timeCodeSEINumTs;
   TComSEITimeSet   m_timeSetArray[MAX_TIMECODE_SEI_SETS];
   Bool      m_kneeSEIEnabled;
-  Int       m_kneeSEIId;
-  Bool      m_kneeSEICancelFlag;
-  Bool      m_kneeSEIPersistenceFlag;
-  Int       m_kneeSEIInputDrange;
-  Int       m_kneeSEIInputDispLuminance;
-  Int       m_kneeSEIOutputDrange;
-  Int       m_kneeSEIOutputDispLuminance;
-  Int       m_kneeSEINumKneePointsMinus1;
-  Int*      m_kneeSEIInputKneePoint;
-  Int*      m_kneeSEIOutputKneePoint;
+  TEncSEIKneeFunctionInformation m_kneeFunctionInformationSEI;
   std::string m_colourRemapSEIFileRoot;          ///< SEI Colour Remapping File (initialized from external file)
   TComSEIMasteringDisplay m_masteringDisplay;
   Bool      m_alternativeTransferCharacteristicsSEIEnabled;
@@ -350,6 +494,159 @@ protected:
   Bool      m_greenMetadataInfoSEIEnabled;
   UChar     m_greenMetadataType;
   UChar     m_xsdMetricType;
+  Bool      m_ccvSEIEnabled;
+  Bool      m_ccvSEICancelFlag;
+  Bool      m_ccvSEIPersistenceFlag;
+  Bool      m_ccvSEIPrimariesPresentFlag;
+  Bool      m_ccvSEIMinLuminanceValuePresentFlag;
+  Bool      m_ccvSEIMaxLuminanceValuePresentFlag;
+  Bool      m_ccvSEIAvgLuminanceValuePresentFlag;
+  Double    m_ccvSEIPrimariesX[MAX_NUM_COMPONENT]; 
+  Double    m_ccvSEIPrimariesY[MAX_NUM_COMPONENT];
+  Double    m_ccvSEIMinLuminanceValue;
+  Double    m_ccvSEIMaxLuminanceValue;
+  Double    m_ccvSEIAvgLuminanceValue;
+  Bool      m_erpSEIEnabled;          
+  Bool      m_erpSEICancelFlag;
+  Bool      m_erpSEIPersistenceFlag;
+  Bool      m_erpSEIGuardBandFlag;
+  UInt      m_erpSEIGuardBandType;
+  UInt      m_erpSEILeftGuardBandWidth;
+  UInt      m_erpSEIRightGuardBandWidth;
+  Bool      m_sphereRotationSEIEnabled;          
+  Bool      m_sphereRotationSEICancelFlag;
+  Bool      m_sphereRotationSEIPersistenceFlag;
+  Int       m_sphereRotationSEIYaw;
+  Int       m_sphereRotationSEIPitch;
+  Int       m_sphereRotationSEIRoll;
+  Bool      m_omniViewportSEIEnabled;          
+  UInt      m_omniViewportSEIId;
+  Bool      m_omniViewportSEICancelFlag;
+  Bool      m_omniViewportSEIPersistenceFlag;
+  UInt      m_omniViewportSEICntMinus1;
+  std::vector<Int>  m_omniViewportSEIAzimuthCentre;
+  std::vector<Int>  m_omniViewportSEIElevationCentre;
+  std::vector<Int>  m_omniViewportSEITiltCentre;
+  std::vector<UInt> m_omniViewportSEIHorRange;
+  std::vector<UInt> m_omniViewportSEIVerRange; 
+  Bool      m_gopBasedTemporalFilterEnabled;
+#if JVET_Y0077_BIM
+  Bool                  m_bimEnabled;
+  std::map<Int, Int*>   m_adaptQPmap;
+#endif
+  Bool                  m_cmpSEIEnabled;
+  Bool                  m_cmpSEICmpCancelFlag;
+  Bool                  m_cmpSEICmpPersistenceFlag;
+  Bool                  m_rwpSEIEnabled;
+  Bool                  m_rwpSEIRwpCancelFlag;
+  Bool                  m_rwpSEIRwpPersistenceFlag;
+  Bool                  m_rwpSEIConstituentPictureMatchingFlag;
+  Int                   m_rwpSEINumPackedRegions;
+  Int                   m_rwpSEIProjPictureWidth;
+  Int                   m_rwpSEIProjPictureHeight;
+  Int                   m_rwpSEIPackedPictureWidth;
+  Int                   m_rwpSEIPackedPictureHeight;
+  std::vector<UChar>    m_rwpSEIRwpTransformType;
+  std::vector<Bool>     m_rwpSEIRwpGuardBandFlag;
+  std::vector<UInt>     m_rwpSEIProjRegionWidth;
+  std::vector<UInt>     m_rwpSEIProjRegionHeight;
+  std::vector<UInt>     m_rwpSEIRwpSEIProjRegionTop;
+  std::vector<UInt>     m_rwpSEIProjRegionLeft;
+  std::vector<UShort>   m_rwpSEIPackedRegionWidth;
+  std::vector<UShort>   m_rwpSEIPackedRegionHeight;
+  std::vector<UShort>   m_rwpSEIPackedRegionTop;
+  std::vector<UShort>   m_rwpSEIPackedRegionLeft;
+  std::vector<UChar>    m_rwpSEIRwpLeftGuardBandWidth;
+  std::vector<UChar>    m_rwpSEIRwpRightGuardBandWidth;
+  std::vector<UChar>    m_rwpSEIRwpTopGuardBandHeight;
+  std::vector<UChar>    m_rwpSEIRwpBottomGuardBandHeight;
+  std::vector<Bool>     m_rwpSEIRwpGuardBandNotUsedForPredFlag;
+  std::vector<UChar>    m_rwpSEIRwpGuardBandType;
+  std::string           m_arSEIFileRoot;  // Annotated region SEI - initialized from external file
+  Bool                    m_fviSEIEnabled;
+  TComSEIFisheyeVideoInfo m_fisheyeVideoInfo;
+  std::string m_regionalNestingSEIFileRoot;  // Regional nesting SEI - initialized from external file
+#if SHUTTER_INTERVAL_SEI_MESSAGE
+  Bool                    m_siiSEIEnabled;
+  UInt                    m_siiSEINumUnitsInShutterInterval;
+  UInt                    m_siiSEITimeScale;
+  std::vector<UInt>       m_siiSEISubLayerNumUnitsInSI;
+#endif
+
+#if  JVET_AL0062_AI_USAGE_RESTRICTIONS_SEI
+  bool  m_aurSEIEnabled;
+  bool  m_aurSEICancelFlag;
+  bool  m_aurSEIPersistenceFlag;
+  uint32_t  m_aurSEINumRestrictionsMinus1;
+  std::vector<uint32_t>  m_aurSEIRestrictions;
+  std::vector<bool>  m_aurSEIContextPresentFlag;
+  std::vector<uint32_t>  m_aurSEIContext;
+#endif
+
+#if JVET_AL0061_ENCODER_OPTIMIZATION_INFORMATION_SEI
+  // Encoder Optimization Information SEI
+  Bool  m_eoiSEIEnabled;
+  Bool  m_eoiSEICancelFlag;
+  Bool  m_eoiSEIPersistenceFlag;
+  uint32_t  m_eoiSEIForHumanViewingIdc;
+  uint32_t  m_eoiSEIForMachineAnalysisIdc;
+  uint32_t m_eoiSEIType;
+  uint32_t m_eoiSEIObjectBasedIdc;
+  uint32_t m_eoiSEIQuantThresholdDelta;
+  Bool     m_eoiSEIPicQuantObjectFlag;
+  Bool m_eoiSEITemporalResamplingTypeFlag;
+  uint32_t m_eoiSEINumIntPics;
+  Bool     m_eoiSEISrcPicFlag; ;
+  Bool     m_eoiSEIOrigPicDimensionsFlag;
+  uint32_t m_eoiSEIOrigPicWidth;
+  uint32_t m_eoiSEIOrigPicHeight;
+  Bool m_eoiSEISpatialResamplingTypeFlag;
+  uint32_t m_eoiSEIPrivacyProtectionTypeIdc;
+  uint32_t m_eoiSEIPrivacyProtectedInfoType;
+#endif
+#if JVET_AK2006_SPTI_SEI_MESSAGE
+  bool m_sptiSEIEnabled;
+  bool m_sptiSourceTimingEqualsOutputTimingFlag;
+  uint32_t m_sptiSourceType;
+  uint32_t m_sptiTimeScale;
+  uint32_t m_sptiNumUnitsInElementalInterval;
+  bool m_sptiDirectionFlag;
+#endif
+#if SEI_ENCODER_CONTROL
+  // film grain characterstics sei
+  Bool      m_fgcSEIEnabled;
+  Bool      m_fgcSEICancelFlag;
+  Bool      m_fgcSEIPersistenceFlag;
+  UChar     m_fgcSEIModelID;
+  Bool      m_fgcSEISepColourDescPresentFlag;
+  UChar     m_fgcSEIBlendingModeID;
+  UChar     m_fgcSEILog2ScaleFactor;
+  Bool      m_fgcSEICompModelPresent[MAX_NUM_COMPONENT];
+#if JVET_AL0339_SPATIAL_RESOLUTION_FOR_FGC_SEI
+  UInt      m_fgcSEIPicWidthInLumaSamples;
+  UInt      m_fgcSEIPicHeightInLumaSamples;
+#endif
+#if JVET_X0048_X0103_FILM_GRAIN
+  Bool      m_fgcSEIAnalysisEnabled;
+  std::string m_fgcSEIExternalMask;
+  std::string m_fgcSEIExternalDenoised;
+  Bool      m_fgcSEIPerPictureSEI;
+  UChar     m_fgcSEINumIntensityIntervalMinus1[MAX_NUM_COMPONENT];
+  UChar     m_fgcSEINumModelValuesMinus1[MAX_NUM_COMPONENT];
+  UChar     m_fgcSEIIntensityIntervalLowerBound[MAX_NUM_COMPONENT][FG_MAX_NUM_INTENSITIES];
+  UChar     m_fgcSEIIntensityIntervalUpperBound[MAX_NUM_COMPONENT][FG_MAX_NUM_INTENSITIES];
+  UInt      m_fgcSEICompModelValue[MAX_NUM_COMPONENT][FG_MAX_NUM_INTENSITIES][FG_MAX_NUM_MODEL_VALUES];
+#endif
+  // content light level SEI
+  Bool      m_cllSEIEnabled;
+  UShort    m_cllSEIMaxContentLevel;
+  UShort    m_cllSEIMaxPicAvgLevel;
+  // ambient viewing environment sei
+  Bool      m_aveSEIEnabled;
+  UInt      m_aveSEIAmbientIlluminance;
+  UShort    m_aveSEIAmbientLightX;
+  UShort    m_aveSEIAmbientLightY;
+  #endif
   //====== Weighted Prediction ========
   Bool      m_useWeightedPred;       //< Use of Weighting Prediction (P_SLICE)
   Bool      m_useWeightedBiPred;    //< Use of Bi-directional Weighting Prediction (B_SLICE)
@@ -420,6 +717,109 @@ protected:
   std::string m_summaryPicFilenameBase;                       ///< Base filename to use for producing summary picture output files. The actual filenames used will have I.txt, P.txt and B.txt appended.
   UInt        m_summaryVerboseness;                           ///< Specifies the level of the verboseness of the text output.
 
+#if JCTVC_AD0021_SEI_MANIFEST
+  Bool        m_SEIManifestSEIEnabled;
+#endif
+#if JCTVC_AD0021_SEI_PREFIX_INDICATION
+  Bool        m_SEIPrefixIndicationSEIEnabled;
+#endif
+#if JVET_AJ0207_GFV
+  bool                                 m_generativeFaceVideoEnabled;
+  uint32_t                             m_generativeFaceVideoSEINumber;
+  bool                                 m_generativeFaceVideoSEIBasePicFlag;
+  bool                                 m_generativeFaceVideoSEINNPresentFlag;
+  uint32_t                             m_generativeFaceVideoSEINNModeIdc;
+  std::string                          m_generativeFaceVideoSEINNTagURI;
+  std::string                          m_generativeFaceVideoSEINNURI;
+  bool                                 m_generativeFaceVideoSEIChromaKeyInfoPresentFlag;
+  std::vector<bool>                    m_generativeFaceVideoSEIChromaKeyValuePresentFlag;
+  std::vector<uint32_t>                m_generativeFaceVideoSEIChromaKeyValue;
+  std::vector<bool>                    m_generativeFaceVideoSEIChromaKeyThrPresentFlag;
+  std::vector<uint32_t>                m_generativeFaceVideoSEIChromaKeyThrValue;
+  std::vector<bool>                    m_generativeFaceVideoSEIDrivePicFusionFlag;
+  std::vector<uint32_t>                m_generativeFaceVideoSEIId;
+  std::vector<uint32_t>                m_generativeFaceVideoSEICnt;
+  std::vector<bool>                    m_generativeFaceVideoSEILowConfidenceFaceParameterFlag;
+  std::vector<bool>                    m_generativeFaceVideoSEICoordinatePresentFlag;
+  std::vector<uint32_t>                m_generativeFaceVideoSEICoordinateQuantizationFactor;
+  std::vector<bool>                    m_generativeFaceVideoSEICoordinatePredFlag;
+  std::vector<bool>                    m_generativeFaceVideoSEI3DCoordinateFlag;
+  std::vector<uint32_t>                m_generativeFaceVideoSEICoordinatePointNum;
+  std::vector<std::vector<double>>     m_generativeFaceVideoSEICoordinateXTesonr;
+  std::vector<std::vector<double>>     m_generativeFaceVideoSEICoordinateYTesonr;
+  std::vector<std::vector<uint32_t>>   m_generativeFaceVideoSEIZCoordinateMaxValue;
+  std::vector<std::vector<double>>     m_generativeFaceVideoSEICoordinateZTesonr;
+  std::vector<bool>                    m_generativeFaceVideoSEIMatrixPresentFlag;
+  std::vector<uint32_t>                m_generativeFaceVideoSEIMatrixElementPrecisionFactor;
+  std::vector<bool>                    m_generativeFaceVideoSEIMatrixPredFlag;
+  std::vector<uint32_t>                m_generativeFaceVideoSEINumMatrixType;
+  std::vector<std::vector<uint32_t>>   m_generativeFaceVideoSEIMatrixTypeIdx;
+  std::vector<std::vector<uint32_t>>   m_generativeFaceVideoSEIMatrix3DSpaceFlag;
+  std::vector<std::vector<uint32_t>>   m_generativeFaceVideoSEINumMatricestoNumKpsFlag;
+  std::vector<std::vector<uint32_t>>   m_generativeFaceVideoSEINumMatricesInfo;
+  std::vector<std::vector<uint32_t>>   m_generativeFaceVideoSEINumMatrices;
+  std::vector<std::vector<uint32_t>>   m_generativeFaceVideoSEIMatrixWidth;
+  std::vector<std::vector<uint32_t>>   m_generativeFaceVideoSEIMatrixHeight;
+  std::vector<std::vector<std::vector<std::vector<std::vector<double>>>>>   m_generativeFaceVideoSEIMatrixElement;
+  std::string                          m_generativeFaceVideoSEIPayloadFilename;
+#endif
+#if JVET_AK0239_GEFV
+  bool                                 m_generativeFaceVideoEnhancementEnabled;
+  uint32_t                             m_generativeFaceVideoEnhancementSEINumber;
+  bool                                 m_generativeFaceVideoEnhancementSEIBasePicFlag;
+  bool                                 m_generativeFaceVideoEnhancementSEINNPresentFlag;
+  uint32_t                             m_generativeFaceVideoEnhancementSEINNModeIdc;
+  std::string                          m_generativeFaceVideoEnhancementSEINNTagURI;
+  std::string                          m_generativeFaceVideoEnhancementSEINNURI;
+  std::vector<uint32_t>                m_generativeFaceVideoEnhancementSEIId;
+  std::vector<uint32_t>                m_generativeFaceVideoEnhancementSEIGFVId;
+  std::vector<uint32_t>                m_generativeFaceVideoEnhancementSEIGFVCnt;
+  std::vector<uint32_t>                m_generativeFaceVideoEnhancementSEIMatrixElementPrecisionFactor;
+  std::vector<bool>                    m_generativeFaceVideoEnhancementSEIMatrixPresentFlag;
+  std::vector<bool>                    m_generativeFaceVideoEnhancementSEIMatrixPredFlag;
+  std::vector<uint32_t>                m_generativeFaceVideoEnhancementSEINumMatrices;
+  std::vector<std::vector<uint32_t>>   m_generativeFaceVideoEnhancementSEIMatrixWidth;
+  std::vector<std::vector<uint32_t>>   m_generativeFaceVideoEnhancementSEIMatrixHeight;
+  std::vector<std::vector<std::vector<std::vector<double>>>>   m_generativeFaceVideoEnhancementSEIMatrixElement;
+  std::vector<uint32_t>                m_generativeFaceVideoEnhancementSEIPupilPresentIdx;
+  std::vector<uint32_t>                m_generativeFaceVideoEnhancementSEIPupilCoordinatePrecisionFactor;
+  std::vector<double>                  m_generativeFaceVideoEnhancementSEIPupilLeftEyeCoordinateX;
+  std::vector<double>                  m_generativeFaceVideoEnhancementSEIPupilLeftEyeCoordinateY;
+  std::vector<double>                  m_generativeFaceVideoEnhancementSEIPupilRightEyeCoordinateX;
+  std::vector<double>                  m_generativeFaceVideoEnhancementSEIPupilRightEyeCoordinateY;
+  std::string                          m_generativeFaceVideoEnhancementSEIPayloadFilename;
+#endif
+#if JVET_AK0140_PACKED_REGIONS_INFORMATION_SEI
+  bool     m_priSEIEnabled;
+  bool     m_priSEICancelFlag;
+  bool     m_priSEIPersistenceFlag;
+  uint32_t m_priSEINumRegionsMinus1;
+  bool     m_priSEIMultilayerFlag;
+  bool     m_priSEIUseMaxDimensionsFlag;
+  uint32_t m_priSEILog2UnitSize;
+  uint32_t m_priSEIRegionSizeLenMinus1;
+  bool     m_priSEIRegionIdPresentFlag;
+  bool     m_priSEITargetPicParamsPresentFlag;
+  uint32_t m_priSEITargetPicWidthMinus1;
+  uint32_t m_priSEITargetPicHeightMinus1;
+  uint32_t m_priSEINumResamplingRatiosMinus1;
+  std::vector<uint32_t> m_priSEIResamplingWidthNumMinus1;
+  std::vector<uint32_t> m_priSEIResamplingWidthDenomMinus1;
+  std::vector<bool>     m_priSEIFixedAspectRatioFlag;
+  std::vector<uint32_t> m_priSEIResamplingHeightNumMinus1;
+  std::vector<uint32_t> m_priSEIResamplingHeightDenomMinus1;
+  std::vector<uint32_t> m_priSEIRegionId;
+  std::vector<uint32_t> m_priSEIRegionLayerId;
+  std::vector<bool>     m_priSEIRegionIsALayerFlag;
+  std::vector<uint32_t> m_priSEIRegionTopLeftInUnitsX;
+  std::vector<uint32_t> m_priSEIRegionTopLeftInUnitsY;
+  std::vector<uint32_t> m_priSEIRegionWidthInUnitsMinus1;
+  std::vector<uint32_t> m_priSEIRegionHeightInUnitsMinus1;
+  std::vector<uint32_t> m_priSEIResamplingRatioIdx;
+  std::vector<uint32_t> m_priSEITargetRegionTopLeftInUnitsX;
+  std::vector<uint32_t> m_priSEITargetRegionTopLeftInUnitsY;
+#endif
+
 public:
   TEncCfg()
   : m_tileColumnWidth()
@@ -449,21 +849,36 @@ public:
   Bool      getPrintMSEBasedSequencePSNR    ()         const { return m_printMSEBasedSequencePSNR;  }
   Void      setPrintMSEBasedSequencePSNR    (Bool value)     { m_printMSEBasedSequencePSNR = value; }
 
+  Bool      getPrintHexPsnr                 ()         const { return m_printHexPsnr;               }
+  Void      setPrintHexPsnr                 (Bool value)     { m_printHexPsnr = value;              }
+
   Bool      getPrintFrameMSE                ()         const { return m_printFrameMSE;              }
   Void      setPrintFrameMSE                (Bool value)     { m_printFrameMSE = value;             }
 
   Bool      getPrintSequenceMSE             ()         const { return m_printSequenceMSE;           }
   Void      setPrintSequenceMSE             (Bool value)     { m_printSequenceMSE = value;          }
 
+  Bool      getPrintMSSSIM                  ()         const { return m_printMSSSIM;               }
+  Void      setPrintMSSSIM                  (Bool value)     { m_printMSSSIM = value;              }
+
+  Bool      getXPSNREnableFlag              () const                     { return m_bXPSNREnableFlag;}
+  Double    getXPSNRWeight                  (const ComponentID id) const { return m_dXPSNRWeight[id];}
+
+  Void      setXPSNREnableFlag              ( Bool  i )      { m_bXPSNREnableFlag = i; }
+  Void      setXPSNRWeight                  ( Double dValue, ComponentID id) { m_dXPSNRWeight[id] = dValue;}
+
   Bool      getCabacZeroWordPaddingEnabled()           const { return m_cabacZeroWordPaddingEnabled;  }
   Void      setCabacZeroWordPaddingEnabled(Bool value)       { m_cabacZeroWordPaddingEnabled = value; }
+
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+  Bool      getShutterFilterFlag()              const { return m_ShutterFilterEnable; }
+  Void      setShutterFilterFlag(Bool value)    { m_ShutterFilterEnable = value; }
+#endif
 
   //====== Coding Structure ========
   Void      setIntraPeriod                  ( Int   i )      { m_uiIntraPeriod = (UInt)i; }
   Void      setDecodingRefreshType          ( Int   i )      { m_uiDecodingRefreshType = (UInt)i; }
-#if JCTVC_Y0038_PARAMS
   Void      setReWriteParamSetsFlag         ( Bool  b )      { m_bReWriteParamSetsFlag = b; }
-#endif
   Void      setGOPSize                      ( Int   i )      { m_iGOPSize = i; }
   Void      setGopList                      ( const GOPEntry GOPList[MAX_GOP] ) {  for ( Int i = 0; i < MAX_GOP; i++ ) m_GOPList[i] = GOPList[i]; }
   Void      setExtraRPSs                    ( Int   i )      { m_extraRPSs = i; }
@@ -473,11 +888,9 @@ public:
   Void      setNumReorderPics               ( Int  i, UInt tlayer ) { m_numReorderPics[tlayer] = i;    }
 
   Void      setQP                           ( Int   i )      { m_iQP = i; }
-#if X0038_LAMBDA_FROM_QP_CAPABILITY
   Void      setIntraQPOffset                ( Int   i )         { m_intraQPOffset = i; }
   Void      setLambdaFromQPEnable           ( Bool  b )         { m_lambdaFromQPEnable = b; }
-#endif
-  Void      setPad                          ( Int*  iPad                   )      { for ( Int i = 0; i < 2; i++ ) m_aiPad[i] = iPad[i]; }
+  Void      setSourcePadding                ( Int*  padding )   { for ( Int i = 0; i < 2; i++ ) m_sourcePadding[i] = padding[i]; }
 
   Int       getMaxRefPicNum                 ()                              { return m_iMaxRefPicNum;           }
   Void      setMaxRefPicNum                 ( Int iMaxRefPicNum )           { m_iMaxRefPicNum = iMaxRefPicNum;  }
@@ -540,6 +953,21 @@ public:
   Bool      getUseAdaptQpSelect             ()           { return   m_bUseAdaptQpSelect; }
 #endif
 
+#if JVET_V0078
+  Bool      getSmoothQPReductionEnable       () const        { return m_bSmoothQPReductionEnable; }
+  void      setSmoothQPReductionEnable       (Bool value)    { m_bSmoothQPReductionEnable = value; }
+  Double    getSmoothQPReductionThreshold    () const        { return m_dSmoothQPReductionThreshold; }
+  void      setSmoothQPReductionThreshold    (Double value)  { m_dSmoothQPReductionThreshold = value; }
+  Double    getSmoothQPReductionModelScale   () const        { return m_dSmoothQPReductionModelScale; }
+  void      setSmoothQPReductionModelScale   (Double value)  { m_dSmoothQPReductionModelScale = value; }
+  Double    getSmoothQPReductionModelOffset  () const        { return m_dSmoothQPReductionModelOffset; }
+  void      setSmoothQPReductionModelOffset  (Double value)  { m_dSmoothQPReductionModelOffset = value; }
+  Int       getSmoothQPReductionLimit        ()              const { return m_iSmoothQPReductionLimit; }
+  void      setSmoothQPReductionLimit        (Int value)     { m_iSmoothQPReductionLimit = value; }
+  Int       getSmoothQPReductionPeriodicity  ()  const       { return m_iSmoothQPReductionPeriodicity; }
+  void      setSmoothQPReductionPeriodicity  (Int value)     { m_iSmoothQPReductionPeriodicity = value; }
+#endif
+
   Bool      getExtendedPrecisionProcessingFlag         ()         const { return m_extendedPrecisionProcessingFlag;  }
   Void      setExtendedPrecisionProcessingFlag         (Bool value)     { m_extendedPrecisionProcessingFlag = value; }
 
@@ -568,23 +996,17 @@ public:
   //==== Coding Structure ========
   UInt      getIntraPeriod                  ()      { return  m_uiIntraPeriod; }
   UInt      getDecodingRefreshType          ()      { return  m_uiDecodingRefreshType; }
-#if JCTVC_Y0038_PARAMS
   Bool      getReWriteParamSetsFlag         ()      { return m_bReWriteParamSetsFlag; }
-#endif
   Int       getGOPSize                      ()      { return  m_iGOPSize; }
   Int       getMaxDecPicBuffering           (UInt tlayer) { return m_maxDecPicBuffering[tlayer]; }
   Int       getNumReorderPics               (UInt tlayer) { return m_numReorderPics[tlayer]; }
-#if X0038_LAMBDA_FROM_QP_CAPABILITY
   Int       getIntraQPOffset                () const    { return  m_intraQPOffset; }
   Int       getLambdaFromQPEnable           () const    { return  m_lambdaFromQPEnable; }
 protected:
   Int       getBaseQP                       () const { return  m_iQP; } // public should use getQPForPicture.
 public:
   Int       getQPForPicture                 (const UInt gopIndex, const TComSlice *pSlice) const; // Function actually defined in TEncTop.cpp
-#else
-  Int       getQP                           ()      { return  m_iQP; }
-#endif
-  Int       getPad                          ( Int i )      { assert (i < 2 );                      return  m_aiPad[i]; }
+  Int       getSourcePadding                ( Int i )  const  { assert (i < 2 ); return  m_sourcePadding[i]; }
 
   Bool      getAccessUnitDelimiter() const  { return m_AccessUnitDelimiter; }
   Void      setAccessUnitDelimiter(Bool val){ m_AccessUnitDelimiter = val; }
@@ -616,6 +1038,13 @@ public:
   Int       getMaxCuDQPDepth                () const { return  m_iMaxCuDQPDepth; }
   Bool      getUseAdaptiveQP                () const { return  m_bUseAdaptiveQP; }
   Int       getQPAdaptationRange            () const { return  m_iQPAdaptationRange; }
+#if JVET_X0048_X0103_FILM_GRAIN
+  int       getBitDepth(const ChannelType chType) const { return m_bitDepth[chType]; }
+  int*      getBitDepth() { return m_bitDepth; }
+  int       getBitDepthInput(const ChannelType chType) const { return m_bitDepthInput[chType]; }
+  int*      getBitDepthInput() { return m_bitDepthInput; }
+  Void      setBitDepthInput(const ChannelType chType, Int internalBitDepthForChannel) { m_bitDepthInput[chType] = internalBitDepthForChannel; }
+#endif
 
   //==== Tool list ========
   Void      setBitDepth( const ChannelType chType, Int internalBitDepthForChannel ) { m_bitDepth[chType] = internalBitDepthForChannel; }
@@ -720,8 +1149,8 @@ public:
   Int   getMaxNumOffsetsPerPic                   ()                  { return m_maxNumOffsetsPerPic; }
   Void  setSaoCtuBoundary              (Bool val)                    { m_saoCtuBoundary = val; }
   Bool  getSaoCtuBoundary              ()                            { return m_saoCtuBoundary; }
-  Void  setSaoResetEncoderStateAfterIRAP(Bool b)                     { m_saoResetEncoderStateAfterIRAP = b; }
-  Bool  getSaoResetEncoderStateAfterIRAP() const                     { return m_saoResetEncoderStateAfterIRAP; }
+  Void  setResetEncoderStateAfterIRAP(Bool b)                        { m_resetEncoderStateAfterIRAP = b; }
+  Bool  getResetEncoderStateAfterIRAP() const                        { return m_resetEncoderStateAfterIRAP; }
   Void  setLFCrossTileBoundaryFlag               ( Bool   val  )     { m_loopFilterAcrossTilesEnabledFlag = val; }
   Bool  getLFCrossTileBoundaryFlag               ()                  { return m_loopFilterAcrossTilesEnabledFlag;   }
   Void  setTileUniformSpacingFlag      ( Bool b )                    { m_tileUniformSpacingFlag = b; }
@@ -831,8 +1260,233 @@ public:
   Bool  getSOPDescriptionSEIEnabled() const                          { return m_SOPDescriptionSEIEnabled; }
   Void  setScalableNestingSEIEnabled(Bool b)                         { m_scalableNestingSEIEnabled = b; }
   Bool  getScalableNestingSEIEnabled() const                         { return m_scalableNestingSEIEnabled; }
+#if NNPFC_SEI_MESSAGE
+  Void  setNNPostFilterSEICharacteristicsEnabled(Bool enabledFlag)                                            { m_nnPostFilterSEICharacteristicsEnabled = enabledFlag; }
+  Bool  getNNPostFilterSEICharacteristicsEnabled() const                                                      { return m_nnPostFilterSEICharacteristicsEnabled; }
+  Void  setNNPostFilterSEICharacteristicsUseSuffixSEI(Bool suffixFlag)                                        { m_nnPostFilterSEICharacteristicsUseSuffixSEI = suffixFlag; }
+  Bool  getNNPostFilterSEICharacteristicsUseSuffixSEI() const                                                 { return m_nnPostFilterSEICharacteristicsUseSuffixSEI; }
+  Void  setNNPostFilterSEICharacteristicsNumFilters(Int numFilters)                                           { m_nnPostFilterSEICharacteristicsNumFilters = numFilters; }
+  Int   getNNPostFilterSEICharacteristicsNumFilters() const                                                   { return m_nnPostFilterSEICharacteristicsNumFilters; }
+  Void  setNNPostFilterSEICharacteristicsId(UInt id, Int filterIdx)                                           { m_nnPostFilterSEICharacteristicsId[filterIdx] = id; }
+  UInt  getNNPostFilterSEICharacteristicsId(Int filterIdx) const                                              { return m_nnPostFilterSEICharacteristicsId[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsModeIdc(UInt idc, Int filterIdx)                                     { m_nnPostFilterSEICharacteristicsModeIdc[filterIdx] = idc; }
+  UInt  getNNPostFilterSEICharacteristicsModeIdc(Int filterIdx) const                                         { return m_nnPostFilterSEICharacteristicsModeIdc[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsPropertyPresentFlag(Bool propertyPresentFlag, Int filterIdx)         { m_nnPostFilterSEICharacteristicsPropertyPresentFlag[filterIdx] = propertyPresentFlag; }
+  Bool  getNNPostFilterSEICharacteristicsPropertyPresentFlag(Int filterIdx) const                             { return m_nnPostFilterSEICharacteristicsPropertyPresentFlag[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsBaseFlag(Bool baseFlag, Int filterIdx)                               { m_nnPostFilterSEICharacteristicsBaseFlag[filterIdx] = baseFlag; }
+  Bool  getNNPostFilterSEICharacteristicsBaseFlag(Int filterIdx) const                                        { return m_nnPostFilterSEICharacteristicsBaseFlag[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsPurpose(UInt purpose, Int filterIdx)                                 { m_nnPostFilterSEICharacteristicsPurpose[filterIdx] = purpose; }
+  UInt  getNNPostFilterSEICharacteristicsPurpose(Int filterIdx) const                                         { return m_nnPostFilterSEICharacteristicsPurpose[filterIdx]; }
+
+  Void  setNNPostFilterSEICharacteristicsOutSubCFlag(Bool SubCFlag, Int filterIdx)                            { m_nnPostFilterSEICharacteristicsOutSubCFlag[filterIdx] = SubCFlag; }
+  Bool  getNNPostFilterSEICharacteristicsOutSubCFlag(Int filterIdx) const                                     { return m_nnPostFilterSEICharacteristicsOutSubCFlag[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsOutColourFormatIdc(ChromaFormat outColourFormatIdc, Int filterIdx)   { m_nnPostFilterSEICharacteristicsOutColourFormatIdc[filterIdx] = outColourFormatIdc; }
+  ChromaFormat getNNPostFilterSEICharacteristicsOutColourFormatIdc(Int filterIdx) const                       { return m_nnPostFilterSEICharacteristicsOutColourFormatIdc[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsPicWidthNumeratorMinus1(UInt widthNumMinus1, Int filterIdx)          { m_nnPostFilterSEICharacteristicsPicWidthNumeratorMinus1[filterIdx] = widthNumMinus1; }
+  UInt  getNNPostFilterSEICharacteristicsPicWidthNumeratorMinus1(Int filterIdx) const                         { return m_nnPostFilterSEICharacteristicsPicWidthNumeratorMinus1[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsPicWidthDenominatorMinus1(UInt widthDenomMinus1, Int filterIdx)      { m_nnPostFilterSEICharacteristicsPicWidthDenominatorMinus1[filterIdx] = widthDenomMinus1; }
+  UInt  getNNPostFilterSEICharacteristicsPicWidthDenominatorMinus1(Int filterIdx) const                       { return m_nnPostFilterSEICharacteristicsPicWidthDenominatorMinus1[filterIdx]; }
+
+  Void  setNNPostFilterSEICharacteristicsPicHeightNumeratorMinus1(UInt heightNumMinus1, Int filterIdx)        { m_nnPostFilterSEICharacteristicsPicHeightNumeratorMinus1[filterIdx] = heightNumMinus1; }
+  UInt  getNNPostFilterSEICharacteristicsPicHeightNumeratorMinus1(Int filterIdx) const                        { return m_nnPostFilterSEICharacteristicsPicHeightNumeratorMinus1[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsPicHeightDenominatorMinus1(UInt heightDenomMinus1, Int filterIdx)    { m_nnPostFilterSEICharacteristicsPicHeightDenominatorMinus1[filterIdx] = heightDenomMinus1; }
+  UInt  getNNPostFilterSEICharacteristicsPicHeightDenominatorMinus1(Int filterIdx) const                      { return m_nnPostFilterSEICharacteristicsPicHeightDenominatorMinus1[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsInpTensorBitDepthLumaMinus8(UInt inpTensorBitDepthLumaMinus8, Int filterIdx) { m_nnPostFilterSEICharacteristicsInpTensorBitDepthLumaMinus8[filterIdx] = inpTensorBitDepthLumaMinus8; }
+  UInt  getNNPostFilterSEICharacteristicsInpTensorBitDepthLumaMinus8(Int filterIdx) const                     { return m_nnPostFilterSEICharacteristicsInpTensorBitDepthLumaMinus8[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsInpTensorBitDepthChromaMinus8(UInt inpTensorBitDepthChromaMinus8, Int filterIdx) { m_nnPostFilterSEICharacteristicsInpTensorBitDepthChromaMinus8[filterIdx] = inpTensorBitDepthChromaMinus8; }
+  UInt  getNNPostFilterSEICharacteristicsInpTensorBitDepthChromaMinus8(Int filterIdx) const                   { return m_nnPostFilterSEICharacteristicsInpTensorBitDepthChromaMinus8[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsOutTensorBitDepthLumaMinus8(UInt outTensorBitDepthLumaMinus8, Int filterIdx) { m_nnPostFilterSEICharacteristicsOutTensorBitDepthLumaMinus8[filterIdx] = outTensorBitDepthLumaMinus8; }
+  UInt  getNNPostFilterSEICharacteristicsOutTensorBitDepthLumaMinus8(Int filterIdx) const                     { return m_nnPostFilterSEICharacteristicsOutTensorBitDepthLumaMinus8[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsOutTensorBitDepthChromaMinus8(UInt outTensorBitDepthChromaMinus8, Int filterIdx) { m_nnPostFilterSEICharacteristicsOutTensorBitDepthChromaMinus8[filterIdx] = outTensorBitDepthChromaMinus8; }
+  UInt  getNNPostFilterSEICharacteristicsOutTensorBitDepthChromaMinus8(Int filterIdx) const                   { return m_nnPostFilterSEICharacteristicsOutTensorBitDepthChromaMinus8[filterIdx]; }
+  Void setNNPostFilterSEICharacteristicsAuxInpIdc(UInt auxInpIdc, Int filterIdx)                              { m_nnPostFilterSEICharacteristicsAuxInpIdc[filterIdx] = auxInpIdc; }
+  UInt getNNPostFilterSEICharacteristicsAuxInpIdc(Int filterIdx) const                                        { return m_nnPostFilterSEICharacteristicsAuxInpIdc[filterIdx]; }
+  Void setNNPostFilterSEICharacteristicsSepColDescriptionFlag(Bool sepColDescriptionFlag, Int filterIdx)      { m_nnPostFilterSEICharacteristicsSepColDescriptionFlag[filterIdx] = sepColDescriptionFlag; }
+  Bool getNNPostFilterSEICharacteristicsSepColDescriptionFlag(Int filterIdx) const                            { return m_nnPostFilterSEICharacteristicsSepColDescriptionFlag[filterIdx]; }
+  Void setNNPostFilterSEICharacteristicsFullRangeFlag(Bool fullRangeFlag, Int filterIdx)                      { m_nnPostFilterSEICharacteristicsFullRangeFlag[filterIdx] = fullRangeFlag; }
+  Bool getNNPostFilterSEICharacteristicsFullRangeFlag(Int filterIdx) const                                    { return m_nnPostFilterSEICharacteristicsFullRangeFlag[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsColPrimaries(UInt colPrimaries, Int filterIdx)                       { m_nnPostFilterSEICharacteristicsColPrimaries[filterIdx] = colPrimaries; }
+  UInt  getNNPostFilterSEICharacteristicsColPrimaries(Int filterIdx) const                                    { return m_nnPostFilterSEICharacteristicsColPrimaries[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsTransCharacteristics(UInt transCharacteristics, Int filterIdx)       { m_nnPostFilterSEICharacteristicsTransCharacteristics[filterIdx] = transCharacteristics; }
+  UInt  getNNPostFilterSEICharacteristicsTransCharacteristics(Int filterIdx) const                            { return m_nnPostFilterSEICharacteristicsTransCharacteristics[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsMatrixCoeffs(UInt matrixCoeffs, Int filterIdx)                       { m_nnPostFilterSEICharacteristicsMatrixCoeffs[filterIdx] = matrixCoeffs; }
+  UInt  getNNPostFilterSEICharacteristicsMatrixCoeffs(Int filterIdx) const                                    { return m_nnPostFilterSEICharacteristicsMatrixCoeffs[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsComponentLastFlag(Bool componentLastFlag, Int filterIdx)             { m_nnPostFilterSEICharacteristicsComponentLastFlag[filterIdx] = componentLastFlag; }
+  Bool  getNNPostFilterSEICharacteristicsComponentLastFlag(Int filterIdx) const                               { return m_nnPostFilterSEICharacteristicsComponentLastFlag[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsInpFormatIdc(UInt inpFormatIdc, Int filterIdx)                       { m_nnPostFilterSEICharacteristicsInpFormatIdc[filterIdx] = inpFormatIdc; }
+  UInt  getNNPostFilterSEICharacteristicsInpFormatIdc(Int filterIdx) const                                    { return m_nnPostFilterSEICharacteristicsInpFormatIdc[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsInpOrderIdc(UInt inpOrderIdc, Int filterIdx)                         { m_nnPostFilterSEICharacteristicsInpOrderIdc[filterIdx] = inpOrderIdc; }
+  UInt  getNNPostFilterSEICharacteristicsInpOrderIdc(Int filterIdx) const                                     { return m_nnPostFilterSEICharacteristicsInpOrderIdc[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsOutFormatIdc(UInt outFormatIdc, Int filterIdx)                       { m_nnPostFilterSEICharacteristicsOutFormatIdc[filterIdx] = outFormatIdc; }
+  UInt  getNNPostFilterSEICharacteristicsOutFormatIdc(Int filterIdx) const                                    { return m_nnPostFilterSEICharacteristicsOutFormatIdc[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsOutOrderIdc(UInt outOrderIdc, Int filterIdx)                         { m_nnPostFilterSEICharacteristicsOutOrderIdc[filterIdx] = outOrderIdc; }
+  UInt  getNNPostFilterSEICharacteristicsOutOrderIdc(Int filterIdx) const                                     { return m_nnPostFilterSEICharacteristicsOutOrderIdc[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsChromaLocInfoPresentFlag(Bool chromaLocInfoPresentFlag, Int filterIdx) { m_nnPostFilterSEICharacteristicsChromaLocInfoPresentFlag[filterIdx] = chromaLocInfoPresentFlag; }
+  Bool  getNNPostFilterSEICharacteristicsChromaLocInfoPresentFlag(Int filterIdx) const                        { return m_nnPostFilterSEICharacteristicsChromaLocInfoPresentFlag[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsChromaSampleLocTypeFrame(Chroma420LocType chromaSampleLocTypeFrame, Int filterIdx) {m_nnPostFilterSEICharacteristicsChromaSampleLocTypeFrame[filterIdx] = chromaSampleLocTypeFrame;}
+  Chroma420LocType getNNPostFilterSEICharacteristicsChromaSampleLocTypeFrame(Int filterIdx) const             { return  m_nnPostFilterSEICharacteristicsChromaSampleLocTypeFrame[filterIdx];}
+  Void  setNNPostFilterSEICharacteristicsConstantPatchSizeFlag(Bool constantPatchSizeFlag, Int filterIdx)     { m_nnPostFilterSEICharacteristicsConstantPatchSizeFlag[filterIdx] = constantPatchSizeFlag; }
+  Bool  getNNPostFilterSEICharacteristicsConstantPatchSizeFlag(Int filterIdx) const                           { return m_nnPostFilterSEICharacteristicsConstantPatchSizeFlag[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsPatchWidthMinus1(UInt patchWidthMinus1, Int filterIdx)               { m_nnPostFilterSEICharacteristicsPatchWidthMinus1[filterIdx] = patchWidthMinus1; }
+  UInt  getNNPostFilterSEICharacteristicsPatchWidthMinus1(Int filterIdx) const                                { return m_nnPostFilterSEICharacteristicsPatchWidthMinus1[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsPatchHeightMinus1(UInt patchHeightMinus1, Int filterIdx)             { m_nnPostFilterSEICharacteristicsPatchHeightMinus1[filterIdx] = patchHeightMinus1; }
+  Void  setNNPostFilterSEICharacteristicsExtendedPatchWidthCdDeltaMinus1(UInt extendedPatchWidthCdDeltaMinus1, Int filterIdx) { m_nnPostFilterSEICharacteristicsExtendedPatchWidthCdDeltaMinus1[filterIdx] = extendedPatchWidthCdDeltaMinus1; }
+  UInt  getNNPostFilterSEICharacteristicsExtendedPatchWidthCdDeltaMinus1(Int filterIdx) const                 { return m_nnPostFilterSEICharacteristicsExtendedPatchWidthCdDeltaMinus1[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsExtendedPatchHeightCdDeltaMinus1(UInt extendedPatchHeightCdDeltaMinus1, Int filterIdx) { m_nnPostFilterSEICharacteristicsExtendedPatchHeightCdDeltaMinus1[filterIdx] = extendedPatchHeightCdDeltaMinus1; }
+  UInt  getNNPostFilterSEICharacteristicsExtendedPatchHeightCdDeltaMinus1(Int filterIdx) const                { return m_nnPostFilterSEICharacteristicsExtendedPatchHeightCdDeltaMinus1[filterIdx]; }
+  UInt  getNNPostFilterSEICharacteristicsPatchHeightMinus1(Int filterIdx) const                               { return m_nnPostFilterSEICharacteristicsPatchHeightMinus1[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsOverlap(UInt overlap, Int filterIdx)                                 { m_nnPostFilterSEICharacteristicsOverlap[filterIdx] = overlap; }
+  UInt  getNNPostFilterSEICharacteristicsOverlap(Int filterIdx) const                                         { return m_nnPostFilterSEICharacteristicsOverlap[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsPaddingType(UInt paddingType, Int filterIdx)                         { m_nnPostFilterSEICharacteristicsPaddingType[filterIdx] = paddingType; }
+  UInt  getNNPostFilterSEICharacteristicsPaddingType(Int filterIdx) const                                     { return m_nnPostFilterSEICharacteristicsPaddingType[filterIdx]; }
+
+  Void  setNNPostFilterSEICharacteristicsLumaPadding(UInt lumaPadding, Int filterIdx)                         { m_nnPostFilterSEICharacteristicsLumaPadding[filterIdx] = lumaPadding; }
+  UInt  getNNPostFilterSEICharacteristicsLumaPadding(Int filterIdx) const                                     { return m_nnPostFilterSEICharacteristicsLumaPadding[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsCbPadding(UInt cbPadding, Int filterIdx)                             { m_nnPostFilterSEICharacteristicsCbPadding[filterIdx] = cbPadding; }
+  UInt  getNNPostFilterSEICharacteristicsCbPadding(Int filterIdx) const                                       { return m_nnPostFilterSEICharacteristicsCbPadding[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsCrPadding(UInt crPadding, Int filterIdx)                             { m_nnPostFilterSEICharacteristicsCrPadding[filterIdx] = crPadding; }
+  UInt  getNNPostFilterSEICharacteristicsCrPadding(Int filterIdx) const                                       { return m_nnPostFilterSEICharacteristicsCrPadding[filterIdx]; }
+
+  Void  setNNPostFilterSEICharacteristicsComplexityInfoPresentFlag(Bool complexityInfoPresentFlag, Int filterIdx) { m_nnPostFilterSEICharacteristicsComplexityInfoPresentFlag[filterIdx] = complexityInfoPresentFlag; }
+  Bool  getNNPostFilterSEICharacteristicsComplexityInfoPresentFlag(Int filterIdx) const                       { return m_nnPostFilterSEICharacteristicsComplexityInfoPresentFlag[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsApplicationPurposeTagUriPresentFlag(Bool applicationPurposeTagUriPresentFlag, Int filterIdx) { m_nnPostFilterSEICharacteristicsApplicationPurposeTagUriPresentFlag[filterIdx] = applicationPurposeTagUriPresentFlag; }
+  Bool  getNNPostFilterSEICharacteristicsApplicationPurposeTagUriPresentFlag(Int filterIdx) const             { return m_nnPostFilterSEICharacteristicsApplicationPurposeTagUriPresentFlag[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsApplicationPurposeTagUri(std::string applicationPurposeTagUri, Int filterIdx) { m_nnPostFilterSEICharacteristicsApplicationPurposeTagUri[filterIdx] = applicationPurposeTagUri; }
+  std::string getNNPostFilterSEICharacteristicsApplicationPurposeTagUri(Int filterIdx) const                  { return m_nnPostFilterSEICharacteristicsApplicationPurposeTagUri[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsScanTypeIdc(UInt scanTypeIdc, Int filterIdx)                         { m_nnPostFilterSEICharacteristicsScanTypeIdc[filterIdx] = scanTypeIdc; }
+  UInt  getNNPostFilterSEICharacteristicsScanTypeIdc(Int filterIdx) const                                     { return m_nnPostFilterSEICharacteristicsScanTypeIdc[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsForHumanViewingIdc(UInt forHumanViewingIdc, Int filterIdx)           { m_nnPostFilterSEICharacteristicsForHumanViewingIdc[filterIdx] = forHumanViewingIdc; }
+  UInt  getNNPostFilterSEICharacteristicsForHumanViewingIdc(Int filterIdx) const                              { return m_nnPostFilterSEICharacteristicsForHumanViewingIdc[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsForMachineAnalysisIdc(UInt forMachineAnalysisIdc, Int filterIdx)     { m_nnPostFilterSEICharacteristicsForMachineAnalysisIdc[filterIdx] = forMachineAnalysisIdc; }
+  UInt  getNNPostFilterSEICharacteristicsForMachineAnalysisIdc(Int filterIdx) const                           { return m_nnPostFilterSEICharacteristicsForMachineAnalysisIdc[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsUriTag(std::string uriTag, Int filterIdx)                            { m_nnPostFilterSEICharacteristicsUriTag[filterIdx] = uriTag; }
+  std::string getNNPostFilterSEICharacteristicsUriTag(Int filterIdx) const                                    { return m_nnPostFilterSEICharacteristicsUriTag[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsUri(std::string uri, Int filterIdx)                                  { m_nnPostFilterSEICharacteristicsUri[filterIdx] = uri; }
+  std::string getNNPostFilterSEICharacteristicsUri(Int filterIdx) const                                       { return m_nnPostFilterSEICharacteristicsUri[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsParameterTypeIdc(UInt parameterTypeIdc, Int filterIdx)               { m_nnPostFilterSEICharacteristicsParameterTypeIdc[filterIdx] = parameterTypeIdc; }
+  UInt  getNNPostFilterSEICharacteristicsParameterTypeIdc(Int filterIdx) const                                { return m_nnPostFilterSEICharacteristicsParameterTypeIdc[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsLog2ParameterBitLengthMinus3 (UInt log2ParameterBitLengthMinus3 , Int filterIdx) { m_nnPostFilterSEICharacteristicsLog2ParameterBitLengthMinus3[filterIdx] = log2ParameterBitLengthMinus3 ; }
+  UInt  getNNPostFilterSEICharacteristicsLog2ParameterBitLengthMinus3 (Int filterIdx) const                   { return m_nnPostFilterSEICharacteristicsLog2ParameterBitLengthMinus3[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsNumParametersIdc  (UInt numParametersIdc  , Int filterIdx)           { m_nnPostFilterSEICharacteristicsNumParametersIdc[filterIdx] = numParametersIdc  ; }
+  UInt  getNNPostFilterSEICharacteristicsNumParametersIdc  (Int filterIdx) const                              { return m_nnPostFilterSEICharacteristicsNumParametersIdc[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsNumKmacOperationsIdc(UInt numKmacOperationsIdc   , Int filterIdx)    { m_nnPostFilterSEICharacteristicsNumKmacOperationsIdc[filterIdx] = numKmacOperationsIdc   ; }
+  UInt  getNNPostFilterSEICharacteristicsNumKmacOperationsIdc(Int filterIdx) const                            { return m_nnPostFilterSEICharacteristicsNumKmacOperationsIdc[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsTotalKilobyteSize(UInt totalKilobyteSize, Int filterIdx)             { m_nnPostFilterSEICharacteristicsTotalKilobyteSize[filterIdx] = totalKilobyteSize; }
+  UInt  getNNPostFilterSEICharacteristicsTotalKilobyteSize(Int filterIdx) const                               { return m_nnPostFilterSEICharacteristicsTotalKilobyteSize[filterIdx]; }
+
+  Void  setNNPostFilterSEICharacteristicsPayloadFilename(std::string payloadFilename, Int filterIdx)          { m_nnPostFilterSEICharacteristicsPayloadFilename[filterIdx] = payloadFilename; }
+  std::string getNNPostFilterSEICharacteristicsPayloadFilename(Int filterIdx) const                           { return m_nnPostFilterSEICharacteristicsPayloadFilename[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsNumberInputDecodedPicturesMinus1(UInt value, Int filterIdx)          { m_nnPostFilterSEICharacteristicsNumberInputDecodedPicturesMinus1[filterIdx] = value; }
+  UInt  getNNPostFilterSEICharacteristicsNumberInputDecodedPicturesMinus1(Int filterIdx) const                { return m_nnPostFilterSEICharacteristicsNumberInputDecodedPicturesMinus1[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsNumberInterpolatedPictures(std::vector<UInt> value, Int filterIdx)   { m_nnPostFilterSEICharacteristicsNumberInterpolatedPictures[filterIdx] = value; }
+  const std::vector<UInt>& getNNPostFilterSEICharacteristicsNumberInterpolatedPictures(Int filterIdx)         { return m_nnPostFilterSEICharacteristicsNumberInterpolatedPictures[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsNumberExtrapolatedPicturesMinus1(UInt value, Int filterIdx)          { m_nnPostFilterSEICharacteristicsNumberExtrapolatedPicturesMinus1[filterIdx] = value; }
+  UInt  getNNPostFilterSEICharacteristicsNumberExtrapolatedPicturesMinus1(Int filterIdx)                      { return m_nnPostFilterSEICharacteristicsNumberExtrapolatedPicturesMinus1[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsSpatialExtrapolationLeftOffset(Int value, Int filterIdx)             { m_nnPostFilterSEICharacteristicsSpatialExtrapolationLeftOffset[filterIdx] = value; }
+  Int   getNNPostFilterSEICharacteristicsSpatialExtrapolationLeftOffset(Int filterIdx)                        { return m_nnPostFilterSEICharacteristicsSpatialExtrapolationLeftOffset[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsSpatialExtrapolationRightOffset(Int value, Int filterIdx)            { m_nnPostFilterSEICharacteristicsSpatialExtrapolationRightOffset[filterIdx] = value; }
+  Int   getNNPostFilterSEICharacteristicsSpatialExtrapolationRightOffset(Int filterIdx)                       { return m_nnPostFilterSEICharacteristicsSpatialExtrapolationRightOffset[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsSpatialExtrapolationTopOffset(Int value, Int filterIdx)              { m_nnPostFilterSEICharacteristicsSpatialExtrapolationTopOffset[filterIdx] = value; }
+  Int   getNNPostFilterSEICharacteristicsSpatialExtrapolationTopOffset(Int filterIdx)                         { return m_nnPostFilterSEICharacteristicsSpatialExtrapolationTopOffset[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsSpatialExtrapolationBottomOffset(Int value, Int filterIdx)           { m_nnPostFilterSEICharacteristicsSpatialExtrapolationBottomOffset[filterIdx] = value; }
+  Int   getNNPostFilterSEICharacteristicsSpatialExtrapolationBottomOffset(Int filterIdx)                      { return m_nnPostFilterSEICharacteristicsSpatialExtrapolationBottomOffset[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsInbandPromptFlag(Bool promptPresentFlag, Int filterIdx)              { m_nnPostFilterSEICharacteristicsInbandPromptFlag[filterIdx] = promptPresentFlag; }
+  Bool  getNNPostFilterSEICharacteristicsInbandPromptFlag(Int filterIdx) const                                { return m_nnPostFilterSEICharacteristicsInbandPromptFlag[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsPrompt(std::string prompt, Int filterIdx)                            { m_nnPostFilterSEICharacteristicsPrompt[filterIdx] = prompt; }
+  std::string getNNPostFilterSEICharacteristicsPrompt(Int filterIdx) const                                    { return m_nnPostFilterSEICharacteristicsPrompt[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsInputPicOutputFlag(std::vector<Bool> value, Int filterIdx)           { m_nnPostFilterSEICharacteristicsInputPicOutputFlag[filterIdx] = value; }
+  const std::vector<Bool>& getNNPostFilterSEICharacteristicsInputPicOutputFlag(Int filterIdx)                 { return m_nnPostFilterSEICharacteristicsInputPicOutputFlag[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsAbsentInputPicZeroFlag(Bool absentInputPicZeroFlag, Int filterIdx)   { m_nnPostFilterSEICharacteristicsAbsentInputPicZeroFlag[filterIdx] = absentInputPicZeroFlag; }
+  Bool  getNNPostFilterSEICharacteristicsAbsentInputPicZeroFlag(Int filterIdx) const                          { return m_nnPostFilterSEICharacteristicsAbsentInputPicZeroFlag[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsInbandSeedFlag(Bool inbandSeedFlag, Int filterIdx)                   { m_nnPostFilterSEICharacteristicsInbandSeedFlag[filterIdx] = inbandSeedFlag; }
+  Bool  getNNPostFilterSEICharacteristicsInbandSeedFlag(Int filterIdx) const                                  { return m_nnPostFilterSEICharacteristicsInbandSeedFlag[filterIdx]; }
+  Void  setNNPostFilterSEICharacteristicsSeed(UInt seed, Int filterIdx)                                       { m_nnPostFilterSEICharacteristicsSeed[filterIdx] = seed; }
+  UInt  getNNPostFilterSEICharacteristicsSeed(Int filterIdx) const                                            { return m_nnPostFilterSEICharacteristicsSeed[filterIdx]; }
+#endif
+#if NNPFA_SEI_MESSAGE
+  Void  setNnPostFilterSEIActivationEnabled(Bool b)                  { m_nnPostFilterSEIActivationEnabled = b; }
+  Bool  getNnPostFilterSEIActivationEnabled() const                  { return m_nnPostFilterSEIActivationEnabled; }
+  Void  setNnPostFilterSEIActivationUseSuffixSEI(Bool b)             { m_nnPostFilterSEIActivationUseSuffixSEI = b; }
+  Bool  getNnPostFilterSEIActivationUseSuffixSEI() const             { return m_nnPostFilterSEIActivationUseSuffixSEI; }
+  Void  setNnPostFilterSEIActivationTargetId(UInt b)                 { m_nnPostFilterSEIActivationTargetId = b; }
+  UInt  getNnPostFilterSEIActivationTargetId() const                 { return m_nnPostFilterSEIActivationTargetId; }
+  Void  setNnPostFilterSEIActivationCancelFlag(Bool b)               { m_nnPostFilterSEIActivationCancelFlag = b; }
+  Bool  getNnPostFilterSEIActivationCancelFlag() const               { return m_nnPostFilterSEIActivationCancelFlag; }
+  Void  setNnPostFilterSEIActivationTargetBaseFlag(Bool b)           { m_nnPostFilterSEIActivationTargetBaseFlag = b; }
+  Bool  getNnPostFilterSEIActivationTargetBaseFlag() const           { return m_nnPostFilterSEIActivationTargetBaseFlag; }
+  Void  setNnPostFilterSEIActivationNoPrevCLVSFlag(Bool b)           { m_nnPostFilterSEIActivationNoPrevCLVSFlag = b; }
+  Bool  getNnPostFilterSEIActivationNoPrevCLVSFlag() const           { return m_nnPostFilterSEIActivationNoPrevCLVSFlag; }
+  Void  setNnPostFilterSEIActivationNoFollCLVSFlag(Bool b)           { m_nnPostFilterSEIActivationNoFollCLVSFlag = b; }
+  Bool  getNnPostFilterSEIActivationNoFollCLVSFlag() const           { return m_nnPostFilterSEIActivationNoFollCLVSFlag; }
+  Void  setNnPostFilterSEIActivationPersistenceFlag(Bool b)          { m_nnPostFilterSEIActivationPersistenceFlag = b; }
+  Bool  getNnPostFilterSEIActivationPersistenceFlag() const          { return m_nnPostFilterSEIActivationPersistenceFlag; }
+  UInt  getNnPostFilterSEIActivationNumOutputEntries() const         { return (UInt)m_nnPostFilterSEIActivationOutputflag.size(); }
+  Void  setNnPostFilterSEIActivationOutputFlag(std::vector<Bool> b)  { m_nnPostFilterSEIActivationOutputflag = b; }
+  const std::vector<Bool>& getNnPostFilterSEIActivationOutputFlag() const { return m_nnPostFilterSEIActivationOutputflag; }
+  Void  setNnPostFilterSEIActivationPromptUpdateFlag(Bool b)         { m_nnPostFilterSEIActivationPromptUpdateFlag = b; }
+  Bool  getNnPostFilterSEIActivationPromptUpdateFlag() const         { return m_nnPostFilterSEIActivationPromptUpdateFlag; }
+  Void  setNnPostFilterSEIActivationPrompt(std::string prompt)       { m_nnPostFilterSEIActivationPrompt = prompt; }
+  std::string getNnPostFilterSEIActivationPrompt() const             { return m_nnPostFilterSEIActivationPrompt; }
+  Void  setNnPostFilterSEIActivationSeedUpdateFlag(Bool b)           { m_nnPostFilterSEIActivationSeedUpdateFlag = b; }
+  Bool  getNnPostFilterSEIActivationSeedUpdateFlag() const           { return m_nnPostFilterSEIActivationSeedUpdateFlag; }
+  Void  setNnPostFilterSEIActivationSeed(UInt b)                     { m_nnPostFilterSEIActivationSeed = b; }
+  UInt  getNnPostFilterSEIActivationSeed() const                     { return m_nnPostFilterSEIActivationSeed; }
+#endif
+#if JVET_AE0101_PHASE_INDICATION_SEI_MESSAGE
+  bool  getPhaseIndicationSEIEnabledFullResolution() const           { return m_phaseIndicationSEIEnabledFullResolution; }
+  void  setPhaseIndicationSEIEnabledFullResolution(const bool val)   { m_phaseIndicationSEIEnabledFullResolution = val; }
+  int   getHorPhaseNumFullResolution() const                         { return m_horPhaseNumFullResolution; }
+  void  setHorPhaseNumFullResolution(const int val)                  { m_horPhaseNumFullResolution = val; }
+  int   getHorPhaseDenMinus1FullResolution() const                   { return m_horPhaseDenMinus1FullResolution; }
+  void  setHorPhaseDenMinus1FullResolution(const int val)            { m_horPhaseDenMinus1FullResolution = val; }
+  int   getVerPhaseNumFullResolution() const                         { return m_verPhaseNumFullResolution; }
+  void  setVerPhaseNumFullResolution(const int   val)                { m_verPhaseNumFullResolution = val; }
+  int   getVerPhaseDenMinus1FullResolution() const                   { return m_verPhaseDenMinus1FullResolution; }
+  void  setVerPhaseDenMinus1FullResolution(const int val)            { m_verPhaseDenMinus1FullResolution = val; }
+#endif
+#if JVET_AK0107_MODALITY_INFORMATION
+  //Modality Information SEI 
+  Void     setMiSEIEnabled(Bool b)                                                                        { m_miSEIEnabled = b; }
+  Bool     getMiSEIEnabled()                                                                              { return m_miSEIEnabled; }
+  Void     setMiCancelFlag(const Bool val)                                                                { m_miCancelFlag = val; }
+  Bool     getMiCancelFlag() const                                                                        { return m_miCancelFlag; }
+  Void     setMiPersistenceFlag(const Bool val)                                                           { m_miPersistenceFlag = val; }
+  Bool     getMiPersistenceFlag() const                                                                   { return m_miPersistenceFlag; }
+  Void     setMiModalityType(const Int val)                                                               { m_miModalityType = val; }
+  Int      getMiModalityType() const                                                                      { return m_miModalityType; }
+  Void     setMiSpectrumRangePresentFlag(const Bool val)                                                  { m_miSpectrumRangePresentFlag = val; }
+  Bool     getMiSpectrumRangePresentFlag() const                                                          { return m_miSpectrumRangePresentFlag; }
+  Void     setMiMinWavelengthMantissa(const Int val)                                                      { m_miMinWavelengthMantissa = val; }
+  Int      getMiMinWavelengthMantissa() const                                                             { return m_miMinWavelengthMantissa; }
+  Void     setMiMinWavelengthExponentPlus15(const Int val)                                                { m_miMinWavelengthExponentPlus15 = val; }
+  Int      getMiMinWavelengthExponentPlus15() const                                                       { return m_miMinWavelengthExponentPlus15; }
+  Void     setMiMaxWavelengthMantissa(const Int val)                                                      { m_miMaxWavelengthMantissa = val; }
+  Int      getMiMaxWavelengthMantissa() const                                                             { return m_miMaxWavelengthMantissa; }
+  Void     setMiMaxWavelengthExponentPlus15(const Int val)                                                { m_miMaxWavelengthExponentPlus15 = val; }
+  Int      getMiMaxWavelengthExponentPlus15() const                                                       { return m_miMaxWavelengthExponentPlus15; }
+#endif
+
+#if JVET_AK0194_DSC_SEI
+  const EncCfgParam::CfgSEIDigitallySignedContent &getDigitallySignedContentSEICfg() const
+  {
+    return m_cfgDigitallySignedContentSEI;
+  }
+  void setDigitallySignedContentSEICfg(const EncCfgParam::CfgSEIDigitallySignedContent &cfg)
+  {
+    m_cfgDigitallySignedContentSEI = cfg;
+  }
+
+#endif
   Void  setTMCTSSEIEnabled(Bool b)                                   { m_tmctsSEIEnabled = b; }
   Bool  getTMCTSSEIEnabled()                                         { return m_tmctsSEIEnabled; }
+#if MCTS_ENC_CHECK
+  Void  setTMCTSSEITileConstraint(Bool b)                            { m_tmctsSEITileConstraint = b; }
+  Bool  getTMCTSSEITileConstraint()                                  { return m_tmctsSEITileConstraint; }
+#endif
+#if MCTS_EXTRACTION
+  Void  setTMCTSExtractionSEIEnabled(Bool b)                         { m_tmctsExtractionSEIEnabled = b; }
+  Bool  getTMCTSExtractionSEIEnabled() const                         { return m_tmctsExtractionSEIEnabled; }
+#endif
   Void  setTimeCodeSEIEnabled(Bool b)                                { m_timeCodeSEIEnabled = b; }
   Bool  getTimeCodeSEIEnabled()                                      { return m_timeCodeSEIEnabled; }
   Void  setNumberOfTimeSets(Int value)                               { m_timeCodeSEINumTs = value; }
@@ -842,26 +1496,276 @@ public:
   const TComSEITimeSet &getTimeSet(Int index) const                  { return m_timeSetArray[index]; }
   Void  setKneeSEIEnabled(Int b)                                     { m_kneeSEIEnabled = b; }
   Bool  getKneeSEIEnabled()                                          { return m_kneeSEIEnabled; }
-  Void  setKneeSEIId(Int b)                                          { m_kneeSEIId = b; }
-  Int   getKneeSEIId()                                               { return m_kneeSEIId; }
-  Void  setKneeSEICancelFlag(Bool b)                                 { m_kneeSEICancelFlag=b; }
-  Bool  getKneeSEICancelFlag()                                       { return m_kneeSEICancelFlag; }
-  Void  setKneeSEIPersistenceFlag(Bool b)                            { m_kneeSEIPersistenceFlag = b; }
-  Bool  getKneeSEIPersistenceFlag()                                  { return m_kneeSEIPersistenceFlag; }
-  Void  setKneeSEIInputDrange(Int b)                                 { m_kneeSEIInputDrange = b; }
-  Int   getKneeSEIInputDrange()                                      { return m_kneeSEIInputDrange; }
-  Void  setKneeSEIInputDispLuminance(Int b)                          { m_kneeSEIInputDispLuminance = b; }
-  Int   getKneeSEIInputDispLuminance()                               { return m_kneeSEIInputDispLuminance; }
-  Void  setKneeSEIOutputDrange(Int b)                                { m_kneeSEIOutputDrange = b; }
-  Int   getKneeSEIOutputDrange()                                     { return m_kneeSEIOutputDrange; }
-  Void  setKneeSEIOutputDispLuminance(Int b)                         { m_kneeSEIOutputDispLuminance = b; }
-  Int   getKneeSEIOutputDispLuminance()                              { return m_kneeSEIOutputDispLuminance; }
-  Void  setKneeSEINumKneePointsMinus1(Int b)                         { m_kneeSEINumKneePointsMinus1 = b; }
-  Int   getKneeSEINumKneePointsMinus1()                              { return m_kneeSEINumKneePointsMinus1; }
-  Void  setKneeSEIInputKneePoint(Int *p)                             { m_kneeSEIInputKneePoint = p; }
-  Int*  getKneeSEIInputKneePoint()                                   { return m_kneeSEIInputKneePoint; }
-  Void  setKneeSEIOutputKneePoint(Int *p)                            { m_kneeSEIOutputKneePoint = p; }
-  Int*  getKneeSEIOutputKneePoint()                                  { return m_kneeSEIOutputKneePoint; }
+  Void  setKneeFunctionInformationSEI(const TEncSEIKneeFunctionInformation &seiknee) { m_kneeFunctionInformationSEI = seiknee; }
+  const TEncSEIKneeFunctionInformation &getKneeFunctionInformationSEI() const        { return m_kneeFunctionInformationSEI; }
+
+  Void     setCcvSEIEnabled(Bool b)                                  { m_ccvSEIEnabled = b; }
+  Bool     getCcvSEIEnabled()                                        { return m_ccvSEIEnabled; }
+  Void     setCcvSEICancelFlag(Bool b)                               { m_ccvSEICancelFlag = b; }
+  Bool     getCcvSEICancelFlag()                                     { return m_ccvSEICancelFlag; }
+  Void     setCcvSEIPersistenceFlag(Bool b)                          { m_ccvSEIPersistenceFlag = b; }
+  Bool     getCcvSEIPersistenceFlag()                                { return m_ccvSEIPersistenceFlag; }
+  Void     setCcvSEIPrimariesPresentFlag(Bool b)                     { m_ccvSEIPrimariesPresentFlag = b; }
+  Bool     getCcvSEIPrimariesPresentFlag()                           { return m_ccvSEIPrimariesPresentFlag; }
+  Void     setCcvSEIMinLuminanceValuePresentFlag(Bool b)             { m_ccvSEIMinLuminanceValuePresentFlag = b; }
+  Bool     getCcvSEIMinLuminanceValuePresentFlag()                   { return m_ccvSEIMinLuminanceValuePresentFlag; }
+  Void     setCcvSEIMaxLuminanceValuePresentFlag(Bool b)             { m_ccvSEIMaxLuminanceValuePresentFlag = b; }
+  Bool     getCcvSEIMaxLuminanceValuePresentFlag()                   { return m_ccvSEIMaxLuminanceValuePresentFlag; }
+  Void     setCcvSEIAvgLuminanceValuePresentFlag(Bool b)             { m_ccvSEIAvgLuminanceValuePresentFlag = b; }
+  Bool     getCcvSEIAvgLuminanceValuePresentFlag()                   { return m_ccvSEIAvgLuminanceValuePresentFlag; }
+  Void     setCcvSEIPrimariesX(Double dValue, Int index)             { m_ccvSEIPrimariesX[index] = dValue; }
+  Double   getCcvSEIPrimariesX(Int index)                            { return m_ccvSEIPrimariesX[index]; }
+  Void     setCcvSEIPrimariesY(Double dValue, Int index)             { m_ccvSEIPrimariesY[index] = dValue; }
+  Double   getCcvSEIPrimariesY(Int index)                            { return m_ccvSEIPrimariesY[index]; }
+  Void     setCcvSEIMinLuminanceValue  (Double dValue)               { m_ccvSEIMinLuminanceValue = dValue; }
+  Double   getCcvSEIMinLuminanceValue  ()                            { return m_ccvSEIMinLuminanceValue;  }
+  Void     setCcvSEIMaxLuminanceValue  (Double dValue)               { m_ccvSEIMaxLuminanceValue = dValue; }
+  Double   getCcvSEIMaxLuminanceValue  ()                            { return m_ccvSEIMaxLuminanceValue;  }
+  Void     setCcvSEIAvgLuminanceValue  (Double dValue)               { m_ccvSEIAvgLuminanceValue = dValue; }
+  Double   getCcvSEIAvgLuminanceValue  ()                            { return m_ccvSEIAvgLuminanceValue;  }
+#if JVET_AL0061_ENCODER_OPTIMIZATION_INFORMATION_SEI
+  Void     setEOISEIEnabled(bool enabledFlag) { m_eoiSEIEnabled = enabledFlag; }
+  Bool     getEOISEIEnabled() const { return m_eoiSEIEnabled; }
+  Void     setEOISEICancelFlag(bool cancelFlag) { m_eoiSEICancelFlag = cancelFlag; }
+  Bool     getEOISEICancelFlag() const { return m_eoiSEICancelFlag; }
+  Void     setEOISEIPersistenceFlag(bool persistenceFlag) { m_eoiSEIPersistenceFlag = persistenceFlag; }
+  Bool     getEOISEIPersistenceFlag() const { return m_eoiSEIPersistenceFlag; }
+  Void     setEOISEIForHumanViewingIdc(uint32_t forHumanViewingIdc) { m_eoiSEIForHumanViewingIdc = forHumanViewingIdc; }
+  uint32_t getEOISEIForHumanViewingIdc() const { return m_eoiSEIForHumanViewingIdc; }
+  Void     setEOISEIForMachineAnalysisIdc(uint32_t forMachineAnalysisIdc) { m_eoiSEIForMachineAnalysisIdc = forMachineAnalysisIdc; }
+  uint32_t getEOISEIForMachineAnalysisIdc() const { return m_eoiSEIForMachineAnalysisIdc; }
+  Void     setEOISEIType(uint32_t eoiType) { m_eoiSEIType = eoiType; }
+  uint32_t getEOISEIType() const { return m_eoiSEIType; }
+  Void     setEOISEIObjectBasedIdc(uint32_t objectBasedIdc) { m_eoiSEIObjectBasedIdc = objectBasedIdc; }
+  uint32_t getEOISEIObjectBasedIdc() const { return m_eoiSEIObjectBasedIdc; }
+  Void     setEOISEIQuantThresholdDelta(uint32_t quantThresholdDelta) { m_eoiSEIQuantThresholdDelta = quantThresholdDelta; }
+  uint32_t getEOISEIQuantThresholdDelta() const { return m_eoiSEIQuantThresholdDelta; }
+  Void     setEOISEIPicQuantObjectFlag(bool picQuantObjectFlag) { m_eoiSEIPicQuantObjectFlag = picQuantObjectFlag; }
+  Bool     getEOISEIPicQuantObjectFlag() const { return m_eoiSEIPicQuantObjectFlag; }
+  Void     setEOISEITemporalResamplingTypeFlag(bool temporalResamplingTypeFlag) { m_eoiSEITemporalResamplingTypeFlag = temporalResamplingTypeFlag; }
+  Bool     getEOISEITemporalResamplingTypeFlag() const { return m_eoiSEITemporalResamplingTypeFlag; }
+  Void     setEOISEISrcPicFlag(bool srcPicFlag) { m_eoiSEISrcPicFlag = srcPicFlag; }
+  Bool     getEOISEISrcPicFlag() const { return m_eoiSEISrcPicFlag; }
+  Void     setEOISEINumIntPics(uint32_t numIntPics) { m_eoiSEINumIntPics = numIntPics; }
+  uint32_t getEOISEINumIntPics() const { return m_eoiSEINumIntPics; }
+  Void     setEOISEIOrigPicDimensionsFlag(bool origPicDimensionsFlag) { m_eoiSEIOrigPicDimensionsFlag = origPicDimensionsFlag; }
+  Bool     getEOISEIOrigPicDimensionsFlag() { return m_eoiSEIOrigPicDimensionsFlag; }
+  Void     setEOISEIOrigPicWidth(uint32_t origPicWidth) { m_eoiSEIOrigPicWidth = origPicWidth; }
+  uint32_t getEOISEIOrigPicWidth() { return m_eoiSEIOrigPicWidth; }
+  Void     setEOISEIOrigPicHeight(uint32_t origPicHeight) { m_eoiSEIOrigPicHeight = origPicHeight; }
+  uint32_t getEOISEIOrigPicHeight() { return m_eoiSEIOrigPicHeight; }
+  Void     setEOISEISpatialResamplingTypeFlag(bool spatialResamplingTypeFlag) { m_eoiSEISpatialResamplingTypeFlag = spatialResamplingTypeFlag; }
+  Bool     getEOISEISpatialResamplingTypeFlag() const { return m_eoiSEISpatialResamplingTypeFlag; }
+  Void     setEOISEIPrivacyProtectionTypeIdc(uint32_t privacyProtectionTypeIdc) { m_eoiSEIPrivacyProtectionTypeIdc = privacyProtectionTypeIdc; }
+  uint32_t getEOISEIPrivacyProtectionTypeIdc() const { return m_eoiSEIPrivacyProtectionTypeIdc; }
+  Void     setEOISEIPrivacyProtectedInfoType(uint32_t privacyProtectedInfoType) { m_eoiSEIPrivacyProtectedInfoType = privacyProtectedInfoType; }
+  uint32_t getEOISEIPrivacyProtectedInfoType() const { return m_eoiSEIPrivacyProtectedInfoType; }
+#endif
+  #if SHUTTER_INTERVAL_SEI_MESSAGE
+  Void     setSiiSEIEnabled(Bool b)                                  { m_siiSEIEnabled = b; }
+  Bool     getSiiSEIEnabled()                                        { return m_siiSEIEnabled; }
+  Void     setSiiSEINumUnitsInShutterInterval(UInt value)            { m_siiSEINumUnitsInShutterInterval = value; }
+  UInt     getSiiSEINumUnitsInShutterInterval()                      { return m_siiSEINumUnitsInShutterInterval; }
+  Void     setSiiSEITimeScale(UInt value)                            { m_siiSEITimeScale = value; }
+  UInt     getSiiSEITimeScale()                                      { return m_siiSEITimeScale; }
+  UInt     getSiiSEIMaxSubLayersMinus1()                             { return UInt(std::max(1u, UInt(m_siiSEISubLayerNumUnitsInSI.size()))-1 ); }
+  Bool     getSiiSEIFixedSIwithinCLVS()                              { return m_siiSEISubLayerNumUnitsInSI.empty(); }
+  Void     setSiiSEISubLayerNumUnitsInSI(const std::vector<UInt>& b) { m_siiSEISubLayerNumUnitsInSI = b; }
+  UInt     getSiiSEISubLayerNumUnitsInSI(UInt idx) const             { return m_siiSEISubLayerNumUnitsInSI[idx]; }
+#endif
+#if  JVET_AL0062_AI_USAGE_RESTRICTIONS_SEI
+  void setAURSEIEnabled(bool b) { m_aurSEIEnabled = b; }
+  bool getAURSEIEnabled() const { return m_aurSEIEnabled; }
+  void setAURSEICancelFlag(bool b) { m_aurSEICancelFlag = b; }
+  bool getAURSEICancelFlag() const { return m_aurSEICancelFlag; }
+  void setAURSEIPersistenceFlag(bool b) { m_aurSEIPersistenceFlag = b; }
+  bool getAURSEIPersistenceFlag() const { return m_aurSEIPersistenceFlag; }
+  void setAURSEINumRestrictionsMinus1(uint32_t b) { m_aurSEINumRestrictionsMinus1 = b; }
+  uint32_t  getAURSEINumRestrictionsMinus1() { return m_aurSEINumRestrictionsMinus1; }
+  void setAURSEIRestrictions(std::vector<uint32_t> b) { m_aurSEIRestrictions = b; }
+  uint32_t getAURSEIRestrictions(uint32_t idx) const { return m_aurSEIRestrictions[idx]; }
+  void setAURSEIContextPresentFlag(std::vector<bool> b) { m_aurSEIContextPresentFlag = b; }
+  bool getAURSEIContextPresentFlag(uint32_t idx) const { return m_aurSEIContextPresentFlag[idx]; }
+  void setAURSEIContext(std::vector<uint32_t> b) { m_aurSEIContext = b; }
+  uint32_t getAURSEIContext(uint32_t idx) const { return m_aurSEIContext[idx]; }
+#endif
+#if SEI_ENCODER_CONTROL
+  // film grain SEI
+  Void  setFilmGrainCharactersticsSEIEnabled (Bool b)                { m_fgcSEIEnabled = b; }
+  Bool  getFilmGrainCharactersticsSEIEnabled()                       { return m_fgcSEIEnabled; }
+  Void  setFilmGrainCharactersticsSEICancelFlag(Bool b)              { m_fgcSEICancelFlag = b; }
+  Bool  getFilmGrainCharactersticsSEICancelFlag()                    { return m_fgcSEICancelFlag; }
+  Void  setFilmGrainCharactersticsSEIPersistenceFlag(Bool b)         { m_fgcSEIPersistenceFlag = b; }
+  Bool  getFilmGrainCharactersticsSEIPersistenceFlag()               { return m_fgcSEIPersistenceFlag; }
+  Void  setFilmGrainCharactersticsSEIModelID(UChar v )               { m_fgcSEIModelID = v; }
+  UChar getFilmGrainCharactersticsSEIModelID()                       { return m_fgcSEIModelID; }
+  Void  setFilmGrainCharactersticsSEISepColourDescPresent(Bool b)    { m_fgcSEISepColourDescPresentFlag = b; }
+  Bool  getFilmGrainCharactersticsSEISepColourDescPresent()          { return m_fgcSEISepColourDescPresentFlag; }
+  Void  setFilmGrainCharactersticsSEIBlendingModeID(UChar v )        { m_fgcSEIBlendingModeID = v; }
+  UChar getFilmGrainCharactersticsSEIBlendingModeID()                { return m_fgcSEIBlendingModeID; }
+  Void  setFilmGrainCharactersticsSEILog2ScaleFactor(UChar v )       { m_fgcSEILog2ScaleFactor = v; }
+  UChar getFilmGrainCharactersticsSEILog2ScaleFactor()               { return m_fgcSEILog2ScaleFactor; }
+  Void  setFGCSEICompModelPresent(Bool b, Int index)                 { m_fgcSEICompModelPresent[index] = b; }
+  Bool  getFGCSEICompModelPresent(Int index)                         { return m_fgcSEICompModelPresent[index]; }
+#if JVET_AL0339_SPATIAL_RESOLUTION_FOR_FGC_SEI
+  Void  setFilmGrainCharactersticsSEIPicWidthInLumaSamples(UInt v )  { m_fgcSEIPicWidthInLumaSamples = v; }
+  UInt  getFilmGrainCharactersticsSEIPicWidthInLumaSamples()         { return m_fgcSEIPicWidthInLumaSamples; }
+  Void  setFilmGrainCharactersticsSEIPicHeightInLumaSamples(UInt v)  { m_fgcSEIPicHeightInLumaSamples = v; }
+  UInt  getFilmGrainCharactersticsSEIPicHeightInLumaSamples()        { return m_fgcSEIPicHeightInLumaSamples; }
+#endif
+#if JVET_X0048_X0103_FILM_GRAIN
+  bool*   getFGCSEICompModelPresent                 ()               { return m_fgcSEICompModelPresent; }
+  void    setFilmGrainAnalysisEnabled               (bool b)         { m_fgcSEIAnalysisEnabled = b; }
+  bool    getFilmGrainAnalysisEnabled               ()               { return m_fgcSEIAnalysisEnabled; }
+  void    setFilmGrainExternalMask(std::string s) { m_fgcSEIExternalMask = s; }
+  void    setFilmGrainExternalDenoised(std::string s) { m_fgcSEIExternalDenoised = s; }
+  std::string getFilmGrainExternalMask() { return m_fgcSEIExternalMask; }
+  std::string getFilmGrainExternalDenoised() { return m_fgcSEIExternalDenoised; }
+  void    setFilmGrainCharactersticsSEIPerPictureSEI(bool b)         { m_fgcSEIPerPictureSEI = b; }
+  bool    getFilmGrainCharactersticsSEIPerPictureSEI()               { return m_fgcSEIPerPictureSEI; }
+  Void    setFGCSEINumIntensityIntervalMinus1(UChar v, Int index) { m_fgcSEINumIntensityIntervalMinus1[index] = v; }
+  UChar   getFGCSEINumIntensityIntervalMinus1(Int index) { return m_fgcSEINumIntensityIntervalMinus1[index]; }
+  Void    setFGCSEINumModelValuesMinus1(UChar v, Int index) { m_fgcSEINumModelValuesMinus1[index] = v; }
+  UChar   getFGCSEINumModelValuesMinus1(Int index) { return m_fgcSEINumModelValuesMinus1[index]; }
+  Void    setFGCSEIIntensityIntervalLowerBound(UChar v, Int index, Int ctr) { m_fgcSEIIntensityIntervalLowerBound[index][ctr] = v; }
+  UChar   getFGCSEIIntensityIntervalLowerBound(Int index, Int ctr) { return m_fgcSEIIntensityIntervalLowerBound[index][ctr]; }
+  Void    setFGCSEIIntensityIntervalUpperBound(UChar v, Int index, Int ctr) { m_fgcSEIIntensityIntervalUpperBound[index][ctr] = v; }
+  UChar   getFGCSEIIntensityIntervalUpperBound(Int index, Int ctr) { return m_fgcSEIIntensityIntervalUpperBound[index][ctr]; }
+  Void    setFGCSEICompModelValue(UInt v, Int index, Int ctr, Int modelCtr) { m_fgcSEICompModelValue[index][ctr][modelCtr] = v; }
+  UInt    getFGCSEICompModelValue(Int index, Int ctr, Int modelCtr) { return m_fgcSEICompModelValue[index][ctr][modelCtr]; }
+#endif
+  // cll SEI
+  Void  setCLLSEIEnabled(Bool b)                                     { m_cllSEIEnabled = b; }
+  Bool  getCLLSEIEnabled()                                           { return m_cllSEIEnabled; }
+  Void  setCLLSEIMaxContentLightLevel (UShort v)                     { m_cllSEIMaxContentLevel = v; }
+  UShort  getCLLSEIMaxContentLightLevel()                            { return m_cllSEIMaxContentLevel; }
+  Void  setCLLSEIMaxPicAvgLightLevel(UShort v)                       { m_cllSEIMaxPicAvgLevel = v; }
+  UShort  getCLLSEIMaxPicAvgLightLevel()                             { return m_cllSEIMaxPicAvgLevel; }
+  // ave SEI
+  Void  setAmbientViewingEnvironmentSEIEnabled (Bool b)              { m_aveSEIEnabled = b; }
+  Bool  getAmbientViewingEnvironmentSEIEnabled ()                    { return m_aveSEIEnabled; }
+  Void  setAmbientViewingEnvironmentSEIIlluminance(UInt v )          { m_aveSEIAmbientIlluminance = v; }
+  UInt  getAmbientViewingEnvironmentSEIIlluminance()                 { return m_aveSEIAmbientIlluminance; }
+  Void  setAmbientViewingEnvironmentSEIAmbientLightX(UShort v )      { m_aveSEIAmbientLightX = v; }
+  UShort getAmbientViewingEnvironmentSEIAmbientLightX()              { return m_aveSEIAmbientLightX; }
+  Void  setAmbientViewingEnvironmentSEIAmbientLightY(UShort v )      { m_aveSEIAmbientLightY = v; }
+  UShort getAmbientViewingEnvironmentSEIAmbientLightY()              { return m_aveSEIAmbientLightY; }
+#endif
+  Void  setErpSEIEnabled(Bool b)                                     { m_erpSEIEnabled = b; }                                                         
+  Bool  getErpSEIEnabled()                                           { return m_erpSEIEnabled; }
+  Void  setErpSEICancelFlag(Bool b)                                  { m_erpSEICancelFlag = b; }                                                         
+  Bool  getErpSEICancelFlag()                                        { return m_erpSEICancelFlag; }
+  Void  setErpSEIPersistenceFlag(Bool b)                             { m_erpSEIPersistenceFlag = b; }                                                         
+  Bool  getErpSEIPersistenceFlag()                                   { return m_erpSEIPersistenceFlag; }
+  Void  setErpSEIGuardBandFlag(Bool b)                               { m_erpSEIGuardBandFlag = b; }                                                         
+  Bool  getErpSEIGuardBandFlag()                                     { return m_erpSEIGuardBandFlag; }
+  Void  setErpSEIGuardBandType(UInt b)                               { m_erpSEIGuardBandType = b; } 
+  UInt  getErpSEIGuardBandType()                                     { return m_erpSEIGuardBandType; }  
+  Void  setErpSEILeftGuardBandWidth(UInt b)                          { m_erpSEILeftGuardBandWidth = b; } 
+  UInt  getErpSEILeftGuardBandWidth()                                { return m_erpSEILeftGuardBandWidth; }  
+  Void  setErpSEIRightGuardBandWidth(UInt b)                         { m_erpSEIRightGuardBandWidth = b; } 
+  UInt  getErpSEIRightGuardBandWidth()                               { return m_erpSEIRightGuardBandWidth; }      
+  Void  setSphereRotationSEIEnabled(Bool b)                          { m_sphereRotationSEIEnabled = b; }                                                         
+  Bool  getSphereRotationSEIEnabled()                                { return m_sphereRotationSEIEnabled; }
+  Void  setSphereRotationSEICancelFlag(Bool b)                       { m_sphereRotationSEICancelFlag = b; }                                                         
+  Bool  getSphereRotationSEICancelFlag()                             { return m_sphereRotationSEICancelFlag; }
+  Void  setSphereRotationSEIPersistenceFlag(Bool b)                  { m_sphereRotationSEIPersistenceFlag = b; }
+  Bool  getSphereRotationSEIPersistenceFlag()                        { return m_sphereRotationSEIPersistenceFlag; }
+  Void  setSphereRotationSEIYaw(Int b)                               { m_sphereRotationSEIYaw = b; }
+  Int   getSphereRotationSEIYaw()                                    { return m_sphereRotationSEIYaw; }
+  Void  setSphereRotationSEIPitch(Int b)                             { m_sphereRotationSEIPitch = b; }
+  Int   getSphereRotationSEIPitch()                                  { return m_sphereRotationSEIPitch; }
+  Void  setSphereRotationSEIRoll(Int b)                              { m_sphereRotationSEIRoll = b; }
+  Int   getSphereRotationSEIRoll()                                   { return m_sphereRotationSEIRoll; }
+  Void  setOmniViewportSEIEnabled(Bool b)                            { m_omniViewportSEIEnabled = b; }
+  Bool  getOmniViewportSEIEnabled()                                  { return m_omniViewportSEIEnabled; }
+  Void  setOmniViewportSEIId(UInt b)                                 { m_omniViewportSEIId = b; }
+  UInt  getOmniViewportSEIId()                                       { return m_omniViewportSEIId; }
+  Void  setOmniViewportSEICancelFlag(Bool b)                         { m_omniViewportSEICancelFlag = b; }
+  Bool  getOmniViewportSEICancelFlag()                               { return m_omniViewportSEICancelFlag; }
+  Void  setOmniViewportSEIPersistenceFlag(Bool b)                    { m_omniViewportSEIPersistenceFlag = b; }
+  Bool  getOmniViewportSEIPersistenceFlag()                          { return m_omniViewportSEIPersistenceFlag; }
+  Void  setOmniViewportSEICntMinus1(UInt b)                          { m_omniViewportSEICntMinus1 = b; }
+  UInt  getOmniViewportSEICntMinus1()                                { return m_omniViewportSEICntMinus1; }
+  Void  setOmniViewportSEIAzimuthCentre(const std::vector<Int>& vi)  { m_omniViewportSEIAzimuthCentre = vi; }
+  Int   getOmniViewportSEIAzimuthCentre(Int idx)                     { return m_omniViewportSEIAzimuthCentre[idx]; }
+  Void  setOmniViewportSEIElevationCentre(const std::vector<Int>& vi){ m_omniViewportSEIElevationCentre = vi; }
+  Int   getOmniViewportSEIElevationCentre(Int idx)                   { return m_omniViewportSEIElevationCentre[idx]; }
+  Void  setOmniViewportSEITiltCentre(const std::vector<Int>& vi)     { m_omniViewportSEITiltCentre = vi; }
+  Int   getOmniViewportSEITiltCentre(Int idx)                        { return m_omniViewportSEITiltCentre[idx]; }
+  Void  setOmniViewportSEIHorRange(const std::vector<UInt>& vi)      { m_omniViewportSEIHorRange = vi; }
+  UInt  getOmniViewportSEIHorRange(Int idx)                          { return m_omniViewportSEIHorRange[idx]; }
+  Void  setOmniViewportSEIVerRange(const std::vector<UInt>& vi)      { m_omniViewportSEIVerRange = vi; } 
+  UInt  getOmniViewportSEIVerRange(Int idx)                          { return m_omniViewportSEIVerRange[idx]; }
+  Void  setGopBasedTemporalFilterEnabled(Bool flag)                  { m_gopBasedTemporalFilterEnabled = flag; }
+  Bool  getGopBasedTemporalFilterEnabled() const                     { return m_gopBasedTemporalFilterEnabled; }
+#if JVET_Y0077_BIM
+  void  setBIM(Bool flag)                                            { m_bimEnabled = flag; }
+  Bool  getBIM() const                                               { return m_bimEnabled; }
+  void  setAdaptQPmap(std::map<Int, Int*> map)                       { m_adaptQPmap = map; }
+  Int*  getAdaptQPmap(Int poc)                                       { return m_adaptQPmap[poc]; }
+  std::map<Int, Int*> *getAdaptQPmap()                               { return &m_adaptQPmap; }
+#endif
+  Void     setCmpSEIEnabled(Bool b)                                  { m_cmpSEIEnabled = b; }
+  Bool     getCmpSEIEnabled()                                        { return m_cmpSEIEnabled; }
+  Void     setCmpSEICmpCancelFlag(Bool b)                            { m_cmpSEICmpCancelFlag = b; }
+  Bool     getCmpSEICmpCancelFlag()                                  { return m_cmpSEICmpCancelFlag; }
+  Void     setCmpSEICmpPersistenceFlag(Bool b)                       { m_cmpSEICmpPersistenceFlag = b; }
+  Bool     getCmpSEICmpPersistenceFlag()                             { return m_cmpSEICmpPersistenceFlag; }
+  Void     setRwpSEIEnabled(Bool b)                                                                     { m_rwpSEIEnabled = b; }
+  Bool     getRwpSEIEnabled()                                                                           { return m_rwpSEIEnabled; }
+  Void     setRwpSEIRwpCancelFlag(Bool b)                                                               { m_rwpSEIRwpCancelFlag = b; }
+  Bool     getRwpSEIRwpCancelFlag()                                                                     { return m_rwpSEIRwpCancelFlag; }
+  Void     setRwpSEIRwpPersistenceFlag (Bool b)                                                         { m_rwpSEIRwpPersistenceFlag = b; }
+  Bool     getRwpSEIRwpPersistenceFlag ()                                                               { return m_rwpSEIRwpPersistenceFlag; }
+  Void     setRwpSEIConstituentPictureMatchingFlag (Bool b)                                             { m_rwpSEIConstituentPictureMatchingFlag = b; }
+  Bool     getRwpSEIConstituentPictureMatchingFlag ()                                                   { return m_rwpSEIConstituentPictureMatchingFlag; }
+  Void     setRwpSEINumPackedRegions (Int value)                                                        { m_rwpSEINumPackedRegions = value; }
+  Int      getRwpSEINumPackedRegions ()                                                                 { return m_rwpSEINumPackedRegions; }
+  Void     setRwpSEIProjPictureWidth (Int value)                                                        { m_rwpSEIProjPictureWidth = value; }
+  Int      getRwpSEIProjPictureWidth ()                                                                 { return m_rwpSEIProjPictureWidth; }
+  Void     setRwpSEIProjPictureHeight (Int value)                                                       { m_rwpSEIProjPictureHeight = value; }
+  Int      getRwpSEIProjPictureHeight ()                                                                { return m_rwpSEIProjPictureHeight; }
+  Void     setRwpSEIPackedPictureWidth (Int value)                                                      { m_rwpSEIPackedPictureWidth = value; }
+  Int      getRwpSEIPackedPictureWidth ()                                                               { return m_rwpSEIPackedPictureWidth; }
+  Void     setRwpSEIPackedPictureHeight (Int value)                                                     { m_rwpSEIPackedPictureHeight = value; }
+  Int      getRwpSEIPackedPictureHeight ()                                                              { return m_rwpSEIPackedPictureHeight; }
+  Void     setRwpSEIRwpTransformType(const std::vector<UChar>& rwpTransformType)                        { m_rwpSEIRwpTransformType =rwpTransformType; }
+  UChar    getRwpSEIRwpTransformType(UInt idx) const                                                    { return m_rwpSEIRwpTransformType[idx]; } 
+  Void     setRwpSEIRwpGuardBandFlag(const std::vector<Bool>& rwpGuardBandFlag)                         { m_rwpSEIRwpGuardBandFlag = rwpGuardBandFlag; }
+  Bool     getRwpSEIRwpGuardBandFlag(UInt idx) const                                                    { return m_rwpSEIRwpGuardBandFlag[idx]; }
+  Void     setRwpSEIProjRegionWidth(const std::vector<UInt>& projRegionWidth)                           { m_rwpSEIProjRegionWidth = projRegionWidth; }
+  UInt     getRwpSEIProjRegionWidth(UInt idx) const                                                     { return m_rwpSEIProjRegionWidth[idx]; } 
+  Void     setRwpSEIProjRegionHeight(const std::vector<UInt>& projRegionHeight)                         { m_rwpSEIProjRegionHeight = projRegionHeight; } 
+  UInt     getRwpSEIProjRegionHeight(UInt idx) const                                                    { return m_rwpSEIProjRegionHeight[idx]; } 
+  Void     setRwpSEIRwpSEIProjRegionTop(const std::vector<UInt>& projRegionTop)                         { m_rwpSEIRwpSEIProjRegionTop = projRegionTop; }
+  UInt     getRwpSEIRwpSEIProjRegionTop(UInt idx) const                                                 { return m_rwpSEIRwpSEIProjRegionTop[idx]; } 
+  Void     setRwpSEIProjRegionLeft(const std::vector<UInt>& projRegionLeft)                             { m_rwpSEIProjRegionLeft = projRegionLeft; } 
+  UInt     getRwpSEIProjRegionLeft(UInt idx) const                                                      { return m_rwpSEIProjRegionLeft[idx]; } 
+  Void    setRwpSEIPackedRegionWidth(const std::vector<UShort>& packedRegionWidth)                      { m_rwpSEIPackedRegionWidth  = packedRegionWidth; }
+  UShort  getRwpSEIPackedRegionWidth(UInt idx) const                                                    { return m_rwpSEIPackedRegionWidth[idx]; } 
+  Void    setRwpSEIPackedRegionHeight(const std::vector<UShort>& packedRegionHeight)                    { m_rwpSEIPackedRegionHeight = packedRegionHeight; }
+  UShort  getRwpSEIPackedRegionHeight(UInt idx) const                                                   { return m_rwpSEIPackedRegionHeight[idx]; } 
+  Void    setRwpSEIPackedRegionTop(const std::vector<UShort>& packedRegionTop)                          { m_rwpSEIPackedRegionTop = packedRegionTop; }
+  UShort  getRwpSEIPackedRegionTop(UInt idx) const                                                      { return m_rwpSEIPackedRegionTop[idx]; } 
+  Void    setRwpSEIPackedRegionLeft(const std::vector<UShort>& packedRegionLeft)                        { m_rwpSEIPackedRegionLeft = packedRegionLeft; } 
+  UShort  getRwpSEIPackedRegionLeft(UInt idx) const                                                     { return m_rwpSEIPackedRegionLeft[idx]; }
+  Void    setRwpSEIRwpLeftGuardBandWidth(const std::vector<UChar>& rwpLeftGuardBandWidth)               { m_rwpSEIRwpLeftGuardBandWidth = rwpLeftGuardBandWidth; } 
+  UChar   getRwpSEIRwpLeftGuardBandWidth(UInt idx) const                                                { return m_rwpSEIRwpLeftGuardBandWidth[idx]; }
+  Void    setRwpSEIRwpRightGuardBandWidth(const std::vector<UChar>& rwpRightGuardBandWidth)             { m_rwpSEIRwpRightGuardBandWidth = rwpRightGuardBandWidth; } 
+  UChar   getRwpSEIRwpRightGuardBandWidth(UInt idx) const                                               { return m_rwpSEIRwpRightGuardBandWidth[idx]; } 
+  Void    setRwpSEIRwpTopGuardBandHeight(const std::vector<UChar>& rwpTopGuardBandHeight)               { m_rwpSEIRwpTopGuardBandHeight = rwpTopGuardBandHeight; } 
+  UChar   getRwpSEIRwpTopGuardBandHeight(UInt idx) const                                                { return m_rwpSEIRwpTopGuardBandHeight[idx]; }
+  Void    setRwpSEIRwpBottomGuardBandHeight(const std::vector<UChar>& rwpBottomGuardBandHeight)         { m_rwpSEIRwpBottomGuardBandHeight = rwpBottomGuardBandHeight; }
+  UChar   getRwpSEIRwpBottomGuardBandHeight(UInt idx) const                                             { return m_rwpSEIRwpBottomGuardBandHeight[idx]; } 
+  Void    setRwpSEIRwpGuardBandNotUsedForPredFlag(const std::vector<Bool>& rwpGuardBandNotUsedForPredFlag){ m_rwpSEIRwpGuardBandNotUsedForPredFlag = rwpGuardBandNotUsedForPredFlag; }
+  Bool    getRwpSEIRwpGuardBandNotUsedForPredFlag(UInt idx) const                                         { return m_rwpSEIRwpGuardBandNotUsedForPredFlag[idx]; }
+  Void    setRwpSEIRwpGuardBandType(const std::vector<UChar>& rwpGuardBandType)                           { m_rwpSEIRwpGuardBandType = rwpGuardBandType; }
+  UChar   getRwpSEIRwpGuardBandType(UInt idx) const                                                       { return m_rwpSEIRwpGuardBandType[idx]; } 
+  Void    setFviSEIDisabled()                                        { m_fviSEIEnabled = false; }
+  Void    setFviSEIEnabled(const TComSEIFisheyeVideoInfo& fvi)       { m_fisheyeVideoInfo=fvi; m_fviSEIEnabled=true; }
+  Bool    getFviSEIEnabled() const                                   { return m_fviSEIEnabled; }
+  const TComSEIFisheyeVideoInfo& getFviSEIData() const               { return m_fisheyeVideoInfo; }
   Void  setColourRemapInfoSEIFileRoot( const std::string &s )        { m_colourRemapSEIFileRoot = s; }
   const std::string &getColourRemapInfoSEIFileRoot() const           { return m_colourRemapSEIFileRoot; }
   Void  setMasteringDisplaySEI(const TComSEIMasteringDisplay &src)   { m_masteringDisplay = src; }
@@ -875,6 +1779,14 @@ public:
   UChar getSEIGreenMetadataType() const                              { return m_greenMetadataType; }
   Void  setSEIXSDMetricType(UChar v)                                 { m_xsdMetricType = v;    }
   UChar getSEIXSDMetricType() const                                  { return m_xsdMetricType; }
+  Void  setRegionalNestingSEIFileRoot( const std::string &s )        { m_regionalNestingSEIFileRoot = s; }
+  const std::string &getRegionalNestingSEIFileRoot() const           { return m_regionalNestingSEIFileRoot; }
+#if JVET_T0050_ANNOTATED_REGIONS_SEI
+  Void  setAnnotatedRegionSEIFileRoot(const std::string &s)          { m_arSEIFileRoot = s; m_arObjects.clear(); }
+#else
+  Void  setAnnotatedRegionSEIFileRoot(const std::string &s)          { m_arSEIFileRoot = s; }
+#endif
+  const std::string &getAnnotatedRegionSEIFileRoot() const           { return m_arSEIFileRoot; }
 
   const TComSEIMasteringDisplay &getMasteringDisplaySEI() const      { return m_masteringDisplay; }
   Void         setUseWP               ( Bool b )                     { m_useWeightedPred   = b;    }
@@ -1040,7 +1952,221 @@ public:
 
   Void      setSummaryVerboseness(UInt v)                            { m_summaryVerboseness = v; }
   UInt      getSummaryVerboseness( ) const                           { return m_summaryVerboseness; }
+
+#if JCTVC_AD0021_SEI_MANIFEST
+  Void     setSEIManifestSEIEnabled(Bool b) { m_SEIManifestSEIEnabled = b; }
+  Bool     getSEIManifestSEIEnabled() { return m_SEIManifestSEIEnabled; }
+#endif
+#if JCTVC_AD0021_SEI_PREFIX_INDICATION
+  Void     setSEIPrefixIndicationSEIEnabled(Bool b) { m_SEIPrefixIndicationSEIEnabled = b; }
+  Bool     getSEIPrefixIndicationSEIEnabled() { return m_SEIPrefixIndicationSEIEnabled; }
+#endif
+#if JVET_AJ0207_GFV
+  void              setGenerativeFaceVideoSEIEnabled(bool enabledFlag) { m_generativeFaceVideoEnabled = enabledFlag; }
+  bool              getGenerativeFaceVideoSEIEnabled()                              const { return m_generativeFaceVideoEnabled; }
+  void              setGenerativeFaceVideoSEINumber(uint32_t number) { m_generativeFaceVideoSEINumber = number; }
+  uint32_t          getGenerativeFaceVideoSEINumber()                               const { return m_generativeFaceVideoSEINumber; }
+  void              setGenerativeFaceVideoSEIBasePicFlag(bool BasePicFlag) { m_generativeFaceVideoSEIBasePicFlag = BasePicFlag; }
+  bool              getGenerativeFaceVideoSEIBasePicFlag()                          const { return m_generativeFaceVideoSEIBasePicFlag; }
+  void              setGenerativeFaceVideoSEINNPresentFlag(bool NNPresentFlag) { m_generativeFaceVideoSEINNPresentFlag = NNPresentFlag; }
+  bool              getGenerativeFaceVideoSEINNPresentFlag()                        const { return m_generativeFaceVideoSEINNPresentFlag; }
+  void              setGenerativeFaceVideoSEINNModeIdc(uint32_t NNModeIdc) { m_generativeFaceVideoSEINNModeIdc = NNModeIdc; }
+  uint32_t          getGenerativeFaceVideoSEINNModeIdc()                            const { return m_generativeFaceVideoSEINNModeIdc; }
+  void              setGenerativeFaceVideoSEINNTagURI(const std::string &NNTagURI) { m_generativeFaceVideoSEINNTagURI = NNTagURI; }
+  const std::string getGenerativeFaceVideoSEINNTagURI()                             const { return m_generativeFaceVideoSEINNTagURI; }
+  void              setGenerativeFaceVideoSEINNURI(const std::string &NNURI) { m_generativeFaceVideoSEINNURI = NNURI; }
+  const std::string getGenerativeFaceVideoSEINNURI()                                const { return m_generativeFaceVideoSEINNURI; }
+  void              setGenerativeFaceVideoSEIChromaKeyInfoPresentFlag(bool ChromaKeyInfoPresentFlag) { m_generativeFaceVideoSEIChromaKeyInfoPresentFlag = ChromaKeyInfoPresentFlag; }
+  bool              getGenerativeFaceVideoSEIChromaKeyInfoPresentFlag()                                               const { return m_generativeFaceVideoSEIChromaKeyInfoPresentFlag; }
+  void              setGenerativeFaceVideoSEIChromaKeyValuePresentFlag(const std::vector<bool>& ChromaKeyValuePresentFlag) { m_generativeFaceVideoSEIChromaKeyValuePresentFlag = ChromaKeyValuePresentFlag; }
+  bool              getGenerativeFaceVideoSEIChromaKeyValuePresentFlag(int c)                                         const { return m_generativeFaceVideoSEIChromaKeyValuePresentFlag[c]; }
+  void              setGenerativeFaceVideoSEIChromaKeyValue(const std::vector<uint32_t>& ChromaKeyValue) { m_generativeFaceVideoSEIChromaKeyValue = ChromaKeyValue; }
+  uint32_t          getGenerativeFaceVideoSEIChromaKeyValue(uint32_t c)                                               const { return m_generativeFaceVideoSEIChromaKeyValue[c]; }
+  void              setGenerativeFaceVideoSEIChromaKeyThrPresentFlag(const std::vector<bool>& ChromaKeyThrPresentFlag) { m_generativeFaceVideoSEIChromaKeyThrPresentFlag = ChromaKeyThrPresentFlag; }
+  bool              getGenerativeFaceVideoSEIChromaKeyThrPresentFlag(int i)                                           const { return m_generativeFaceVideoSEIChromaKeyThrPresentFlag[i]; }
+  void              setGenerativeFaceVideoSEIChromaKeyThrValue(const std::vector<uint32_t>& ChromaKeyThrValue) { m_generativeFaceVideoSEIChromaKeyThrValue = ChromaKeyThrValue; }
+  uint32_t          getGenerativeFaceVideoSEIChromaKeyThrValue(uint32_t i)                                            const { return m_generativeFaceVideoSEIChromaKeyThrValue[i]; }
+  void              setGenerativeFaceVideoSEIDrivePicFusionFlag(const std::vector<bool>& DrivePicFusionFlag) { m_generativeFaceVideoSEIDrivePicFusionFlag = DrivePicFusionFlag; }
+  bool              getGenerativeFaceVideoSEIDrivePicFusionFlag(int idx)            const { return m_generativeFaceVideoSEIDrivePicFusionFlag[idx]; }
+  void              setGenerativeFaceVideoSEIId(const std::vector<uint32_t>& id) { m_generativeFaceVideoSEIId = id; }
+  uint32_t          getGenerativeFaceVideoSEIId(int idx)                            const { return m_generativeFaceVideoSEIId[idx]; }
+  void              setGenerativeFaceVideoSEICnt(const std::vector<uint32_t>& cnt) { m_generativeFaceVideoSEICnt = cnt; }
+  uint32_t          getGenerativeFaceVideoSEICnt(int idx)                           const { return m_generativeFaceVideoSEICnt[idx]; }
+  void              setGenerativeFaceVideoSEILowConfidenceFaceParameterFlag(const std::vector<bool>& lowconfidence) { m_generativeFaceVideoSEILowConfidenceFaceParameterFlag = lowconfidence; }
+  bool              getGenerativeFaceVideoSEILowConfidenceFaceParameterFlag(int idx)                                      const { return m_generativeFaceVideoSEILowConfidenceFaceParameterFlag[idx]; }
+  void              setGenerativeFaceVideoSEICoordinatePresentFlag(const std::vector<bool>& coordinatepresentFlag) { m_generativeFaceVideoSEICoordinatePresentFlag = coordinatepresentFlag; }
+  bool              getGenerativeFaceVideoSEICoordinatePresentFlag(int idx)                                               const { return m_generativeFaceVideoSEICoordinatePresentFlag[idx]; }
+  void              setGenerativeFaceVideoSEICoordinateQuantizationFactor(const std::vector<uint32_t>& cqf) { m_generativeFaceVideoSEICoordinateQuantizationFactor = cqf; }
+  uint32_t          getGenerativeFaceVideoSEICoordinateQuantizationFactor(int idx)                                        const { return m_generativeFaceVideoSEICoordinateQuantizationFactor[idx]; }
+  void              setGenerativeFaceVideoSEICoordinatePredFlag(const std::vector<bool>& CoordinatePredFlag) { m_generativeFaceVideoSEICoordinatePredFlag = CoordinatePredFlag; }
+  bool              getGenerativeFaceVideoSEICoordinatePredFlag(int idx)                                                  const { return m_generativeFaceVideoSEICoordinatePredFlag[idx]; }
+  void              setGenerativeFaceVideoSEI3DCoordinateFlag(const std::vector<bool>& Coordinate3dFlag) { m_generativeFaceVideoSEI3DCoordinateFlag = Coordinate3dFlag; }
+  bool              getGenerativeFaceVideoSEI3DCoordinateFlag(int idx)                                                    const { return m_generativeFaceVideoSEI3DCoordinateFlag[idx]; }
+  void              setGenerativeFaceVideoSEICoordinatePointNum(const std::vector<uint32_t>& CoordinatePointNum) { m_generativeFaceVideoSEICoordinatePointNum = CoordinatePointNum; }
+  uint32_t          getGenerativeFaceVideoSEICoordinatePointNum(int idx)                                                  const { return m_generativeFaceVideoSEICoordinatePointNum[idx]; }
+  void              setGenerativeFaceVideoSEICoordinateXTesonr(const std::vector<std::vector<double>>& Xcoordinate) { m_generativeFaceVideoSEICoordinateXTesonr = Xcoordinate; }
+  double            getGenerativeFaceVideoSEICoordinateXTesonr(int i, int j)                                              const { return m_generativeFaceVideoSEICoordinateXTesonr[i][j]; }
+  void              setGenerativeFaceVideoSEICoordinateYTesonr(const std::vector<std::vector<double>>& Ycoordinate) { m_generativeFaceVideoSEICoordinateYTesonr = Ycoordinate; }
+  double            getGenerativeFaceVideoSEICoordinateYTesonr(int i, int j)                                              const { return m_generativeFaceVideoSEICoordinateYTesonr[i][j]; }
+  void              setGenerativeFaceVideoSEIZCoordinateMaxValue(const std::vector<std::vector<uint32_t>>& coordinateZMaxValue) { m_generativeFaceVideoSEIZCoordinateMaxValue = coordinateZMaxValue; }
+  uint32_t          getGenerativeFaceVideoSEIZCoordinateMaxValue(int i, int j)                                            const { return m_generativeFaceVideoSEIZCoordinateMaxValue[i][j]; }
+  void              setGenerativeFaceVideoSEICoordinateZTesonr(const std::vector<std::vector<double>>& Zcoordinate) { m_generativeFaceVideoSEICoordinateZTesonr = Zcoordinate; }
+  double            getGenerativeFaceVideoSEICoordinateZTesonr(int i, int j)                                              const { return m_generativeFaceVideoSEICoordinateZTesonr[i][j]; }
+  void              setGenerativeFaceVideoSEIMatrixPresentFlag(const std::vector<bool>& matrixpresentFlag) { m_generativeFaceVideoSEIMatrixPresentFlag = matrixpresentFlag; }
+  bool              getGenerativeFaceVideoSEIMatrixPresentFlag(int idx)                                                                            const { return m_generativeFaceVideoSEIMatrixPresentFlag[idx]; }
+  void              setGenerativeFaceVideoSEIMatrixElementPrecisionFactor(const std::vector<uint32_t>& mpf) { m_generativeFaceVideoSEIMatrixElementPrecisionFactor = mpf; }
+  uint32_t          getGenerativeFaceVideoSEIMatrixElementPrecisionFactor(int idx)                                                                 const { return m_generativeFaceVideoSEIMatrixElementPrecisionFactor[idx]; }
+  void              setGenerativeFaceVideoSEINumMatrixType(const std::vector<uint32_t>& nummatrixtype) { m_generativeFaceVideoSEINumMatrixType = nummatrixtype; }
+  uint32_t          getGenerativeFaceVideoSEINumMatrixType(int idx)                                                                                const { return m_generativeFaceVideoSEINumMatrixType[idx]; }
+  void              setGenerativeFaceVideoSEIMatrixTypeIdx(const std::vector<std::vector<uint32_t>>& matrixTypeIdx) { m_generativeFaceVideoSEIMatrixTypeIdx = matrixTypeIdx; }
+  uint32_t          getGenerativeFaceVideoSEIMatrixTypeIdx(int idx, int idy)                                                                        const { return m_generativeFaceVideoSEIMatrixTypeIdx[idx][idy]; }
+  void              setGenerativeFaceVideoSEIMatrix3DSpaceFlag(const std::vector<std::vector<uint32_t>>& matrix3DSpaceFlag) { m_generativeFaceVideoSEIMatrix3DSpaceFlag = matrix3DSpaceFlag; }
+  uint32_t          getGenerativeFaceVideoSEIMatrix3DSpaceFlag(int idx, int idy)                                                                   const { return m_generativeFaceVideoSEIMatrix3DSpaceFlag[idx][idy]; }
+  void              setGenerativeFaceVideoSEINumMatrices(const std::vector<std::vector<uint32_t>>& numMatrices) { m_generativeFaceVideoSEINumMatrices = numMatrices; }
+  uint32_t          getGenerativeFaceVideoSEINumMatrices(int idx, int idy)                                                                         const { return m_generativeFaceVideoSEINumMatrices[idx][idy]; }
+  void              setGenerativeFaceVideoSEIMatrixWidth(const std::vector<std::vector<uint32_t>>& matrixWidth) { m_generativeFaceVideoSEIMatrixWidth = matrixWidth; }
+  uint32_t          getGenerativeFaceVideoSEIMatrixWidth(int idx, int idy)                                                                         const { return m_generativeFaceVideoSEIMatrixWidth[idx][idy]; }
+  void              setGenerativeFaceVideoSEIMatrixHeight(const std::vector<std::vector<uint32_t>>& matrixHeight) { m_generativeFaceVideoSEIMatrixHeight = matrixHeight; }
+  uint32_t          getGenerativeFaceVideoSEIMatrixHeight(int idx, int idy)                                                                        const { return m_generativeFaceVideoSEIMatrixHeight[idx][idy]; }
+  void              setGenerativeFaceVideoSEIMatrixElement(const std::vector<std::vector<std::vector<std::vector<std::vector<double>>>>>& matrixElement) { m_generativeFaceVideoSEIMatrixElement = matrixElement; }
+  double            getGenerativeFaceVideoSEIMatrixElement(int i, int j, int k, int l, int m)                                                      const { return m_generativeFaceVideoSEIMatrixElement[i][j][k][l][m]; }
+  void              setGenerativeFaceVideoSEIMatrixPredFlag(const std::vector<bool>& matrixpredFlag) { m_generativeFaceVideoSEIMatrixPredFlag = matrixpredFlag; }
+  bool              getGenerativeFaceVideoSEIMatrixPredFlag(int idx)                                                                                const { return m_generativeFaceVideoSEIMatrixPredFlag[idx]; }
+  void              setGenerativeFaceVideoSEINumMatricestoNumKpsFlag(const std::vector<std::vector<uint32_t>>& numflag) { m_generativeFaceVideoSEINumMatricestoNumKpsFlag = numflag; }
+  uint32_t          getGenerativeFaceVideoSEINumMatricestoNumKpsFlag(int idx, int idy)                                                               const { return m_generativeFaceVideoSEINumMatricestoNumKpsFlag[idx][idy]; }
+  void              setGenerativeFaceVideoSEINumMatricesInfo(const std::vector<std::vector<uint32_t>>& nummatricesinfo) { m_generativeFaceVideoSEINumMatricesInfo = nummatricesinfo; }
+  uint32_t          getGenerativeFaceVideoSEINumMatricesInfo(int idx, int idy)                                                                       const { return m_generativeFaceVideoSEINumMatricesInfo[idx][idy]; }
+  void              setGenerativeFaceVideoSEIPayloadFilename(const std::string &payloadFilename) { m_generativeFaceVideoSEIPayloadFilename = payloadFilename; }
+  const std::string getGenerativeFaceVideoSEIPayloadFilename()                                                                                      const { return m_generativeFaceVideoSEIPayloadFilename; }
+#endif
+#if JVET_AK0239_GEFV
+  void              setGenerativeFaceVideoEnhancementSEIEnabled(bool enabledFlag) { m_generativeFaceVideoEnhancementEnabled = enabledFlag; }
+  bool              getGenerativeFaceVideoEnhancementSEIEnabled()                                    const { return m_generativeFaceVideoEnhancementEnabled; }
+  void              setGenerativeFaceVideoEnhancementSEINumber(uint32_t number) { m_generativeFaceVideoEnhancementSEINumber = number; }
+  uint32_t          getGenerativeFaceVideoEnhancementSEINumber()                                     const { return m_generativeFaceVideoEnhancementSEINumber; }
+  void              setGenerativeFaceVideoEnhancementSEIBasePicFlag(bool BasePicFlag) { m_generativeFaceVideoEnhancementSEIBasePicFlag = BasePicFlag; }
+  bool              getGenerativeFaceVideoEnhancementSEIBasePicFlag()                                const { return m_generativeFaceVideoEnhancementSEIBasePicFlag; }
+  void              setGenerativeFaceVideoEnhancementSEINNPresentFlag(bool NNPresentFlag) { m_generativeFaceVideoEnhancementSEINNPresentFlag = NNPresentFlag; }
+  bool              getGenerativeFaceVideoEnhancementSEINNPresentFlag()                              const { return m_generativeFaceVideoEnhancementSEINNPresentFlag; }
+  void              setGenerativeFaceVideoEnhancementSEINNModeIdc(uint32_t NNModeIdc) { m_generativeFaceVideoEnhancementSEINNModeIdc = NNModeIdc; }
+  uint32_t          getGenerativeFaceVideoEnhancementSEINNModeIdc()                                  const { return m_generativeFaceVideoEnhancementSEINNModeIdc; }
+  void              setGenerativeFaceVideoEnhancementSEINNTagURI(const std::string &NNTagURI) { m_generativeFaceVideoEnhancementSEINNTagURI = NNTagURI; }
+  const std::string getGenerativeFaceVideoEnhancementSEINNTagURI()                                   const { return m_generativeFaceVideoEnhancementSEINNTagURI; }
+  void              setGenerativeFaceVideoEnhancementSEINNURI(const std::string &NNURI) { m_generativeFaceVideoEnhancementSEINNURI = NNURI; }
+  const std::string getGenerativeFaceVideoEnhancementSEINNURI()                                      const { return m_generativeFaceVideoEnhancementSEINNURI; }
+  void              setGenerativeFaceVideoEnhancementSEIId(const std::vector<uint32_t>& id) { m_generativeFaceVideoEnhancementSEIId = id; }
+  uint32_t          getGenerativeFaceVideoEnhancementSEIId(int idx)                                  const { return m_generativeFaceVideoEnhancementSEIId[idx]; }
+  void              setGenerativeFaceVideoEnhancementSEIGFVId(const std::vector<uint32_t>& gfvid) { m_generativeFaceVideoEnhancementSEIGFVId = gfvid; }
+  uint32_t          getGenerativeFaceVideoEnhancementSEIGFVId(int idx)                               const { return m_generativeFaceVideoEnhancementSEIGFVId[idx]; }
+  void              setGenerativeFaceVideoEnhancementSEIGFVCnt(const std::vector<uint32_t>& cnt) { m_generativeFaceVideoEnhancementSEIGFVCnt = cnt; }
+  uint32_t          getGenerativeFaceVideoEnhancementSEIGFVCnt(int idx)                              const { return m_generativeFaceVideoEnhancementSEIGFVCnt[idx]; }
+  void              setGenerativeFaceVideoEnhancementSEIMatrixElementPrecisionFactor(const std::vector<uint32_t>& mpf) { m_generativeFaceVideoEnhancementSEIMatrixElementPrecisionFactor = mpf; }
+  uint32_t          getGenerativeFaceVideoEnhancementSEIMatrixElementPrecisionFactor(int idx)                                                                 const { return m_generativeFaceVideoEnhancementSEIMatrixElementPrecisionFactor[idx]; }
+  void              setGenerativeFaceVideoEnhancementSEIMatrixPresentFlag(const std::vector<bool>& mpf) { m_generativeFaceVideoEnhancementSEIMatrixPresentFlag = mpf; }
+  bool              getGenerativeFaceVideoEnhancementSEIMatrixPresentFlag(int idx)                                                                            const { return m_generativeFaceVideoEnhancementSEIMatrixPresentFlag[idx]; }
+  void              setGenerativeFaceVideoEnhancementSEIMatrixPredFlag(const std::vector<bool>& mpf) { m_generativeFaceVideoEnhancementSEIMatrixPredFlag = mpf; }
+  bool              getGenerativeFaceVideoEnhancementSEIMatrixPredFlag(int idx)                                                                               const { return m_generativeFaceVideoEnhancementSEIMatrixPredFlag[idx]; }
+  void              setGenerativeFaceVideoEnhancementSEINumMatrices(const std::vector<uint32_t>& numMatrices) { m_generativeFaceVideoEnhancementSEINumMatrices = numMatrices; }
+  uint32_t          getGenerativeFaceVideoEnhancementSEINumMatrices(int idx)                                                                                  const { return m_generativeFaceVideoEnhancementSEINumMatrices[idx]; }
+  void              setGenerativeFaceVideoEnhancementSEIMatrixWidth(const std::vector<std::vector<uint32_t>>& matrixWidth) { m_generativeFaceVideoEnhancementSEIMatrixWidth = matrixWidth; }
+  uint32_t          getGenerativeFaceVideoEnhancementSEIMatrixWidth(int idx, int idj)                                                                         const { return m_generativeFaceVideoEnhancementSEIMatrixWidth[idx][idj]; }
+  void              setGenerativeFaceVideoEnhancementSEIMatrixHeight(const std::vector<std::vector<uint32_t>>& matrixHeight) { m_generativeFaceVideoEnhancementSEIMatrixHeight = matrixHeight; }
+  uint32_t          getGenerativeFaceVideoEnhancementSEIMatrixHeight(int idx, int idj)                                                                        const { return m_generativeFaceVideoEnhancementSEIMatrixHeight[idx][idj]; }
+  void              setGenerativeFaceVideoEnhancementSEIMatrixElement(const std::vector<std::vector<std::vector<std::vector<double>>>>& matrixElement) { m_generativeFaceVideoEnhancementSEIMatrixElement = matrixElement; }
+  double            getGenerativeFaceVideoEnhancementSEIMatrixElement(int i, int j, int k, int l)                                                             const { return m_generativeFaceVideoEnhancementSEIMatrixElement[i][j][k][l]; }
+  void              setGenerativeFaceVideoEnhancementSEIPayloadFilename(const std::string &payloadFilename) { m_generativeFaceVideoEnhancementSEIPayloadFilename = payloadFilename; }
+  const std::string getGenerativeFaceVideoEnhancementSEIPayloadFilename()                                                                                     const { return m_generativeFaceVideoEnhancementSEIPayloadFilename; }
+  void              setGenerativeFaceVideoEnhancementSEIPupilPresentIdx(const std::vector<uint32_t>& pupilPresentIdx) { m_generativeFaceVideoEnhancementSEIPupilPresentIdx = pupilPresentIdx; }
+  uint32_t          getGenerativeFaceVideoEnhancementSEIPupilPresentIdx(int idx)                                                                              const { return m_generativeFaceVideoEnhancementSEIPupilPresentIdx[idx]; }
+  void              setGenerativeFaceVideoEnhancementSEIPupilCoordinatePrecisionFactor(const std::vector<uint32_t>& pupilCoordinatePrecisionFactor) { m_generativeFaceVideoEnhancementSEIPupilCoordinatePrecisionFactor = pupilCoordinatePrecisionFactor; }
+  uint32_t          getGenerativeFaceVideoEnhancementSEIPupilCoordinatePrecisionFactor(int idx)                                                               const { return m_generativeFaceVideoEnhancementSEIPupilCoordinatePrecisionFactor[idx]; }
+  void              setGenerativeFaceVideoEnhancementSEIPupilLeftEyeCoordinateX(const std::vector<double>& pupilLeftEyeCoordinateX) { m_generativeFaceVideoEnhancementSEIPupilLeftEyeCoordinateX = pupilLeftEyeCoordinateX; }
+  double            getGenerativeFaceVideoEnhancementSEIPupilLeftEyeCoordinateX(int idx)                                                                      const { return m_generativeFaceVideoEnhancementSEIPupilLeftEyeCoordinateX[idx]; }
+  void              setGenerativeFaceVideoEnhancementSEIPupilLeftEyeCoordinateY(const std::vector<double>& pupilLeftEyeCoordinateY) { m_generativeFaceVideoEnhancementSEIPupilLeftEyeCoordinateY = pupilLeftEyeCoordinateY; }
+  double            getGenerativeFaceVideoEnhancementSEIPupilLeftEyeCoordinateY(int idx)                                                                      const { return m_generativeFaceVideoEnhancementSEIPupilLeftEyeCoordinateY[idx]; }
+  void              setGenerativeFaceVideoEnhancementSEIPupilRightEyeCoordinateX(const std::vector<double>& pupilRightEyeCoordinateX) { m_generativeFaceVideoEnhancementSEIPupilRightEyeCoordinateX = pupilRightEyeCoordinateX; }
+  double            getGenerativeFaceVideoEnhancementSEIPupilRightEyeCoordinateX(int idx)                                                                     const { return m_generativeFaceVideoEnhancementSEIPupilRightEyeCoordinateX[idx]; }
+  void              setGenerativeFaceVideoEnhancementSEIPupilRightEyeCoordinateY(const std::vector<double>& pupilRightEyeCoordinateY) { m_generativeFaceVideoEnhancementSEIPupilRightEyeCoordinateY = pupilRightEyeCoordinateY; }
+  double            getGenerativeFaceVideoEnhancementSEIPupilRightEyeCoordinateY(int idx)                                                                     const { return m_generativeFaceVideoEnhancementSEIPupilRightEyeCoordinateY[idx]; }
+#endif
+#if JVET_AK0140_PACKED_REGIONS_INFORMATION_SEI
+  void     setPriSEIEnabled(bool b)                                       { m_priSEIEnabled = b; }
+  bool     getPriSEIEnabled()                                             { return m_priSEIEnabled; }
+  void     setPriSEICancelFlag(bool b)                                    { m_priSEICancelFlag = b; }
+  bool     getPriSEICancelFlag()                                          { return m_priSEICancelFlag; }
+  void     setPriSEIPersistenceFlag(bool b)                               { m_priSEIPersistenceFlag = b; }
+  bool     getPriSEIPersistenceFlag()                                     { return m_priSEIPersistenceFlag; }
+  void     setPriSEINumRegionsMinus1(uint32_t i)                          { m_priSEINumRegionsMinus1 = i; }
+  uint32_t getPriSEINumRegionsMinus1()                                    { return m_priSEINumRegionsMinus1; }
+  void     setPriSEIMultilayerFlag(bool b)                                { m_priSEIMultilayerFlag = b; }
+  bool     getPriSEIMultilayerFlag()                                      { return m_priSEIMultilayerFlag; }
+  void     setPriSEIUseMaxDimensionsFlag(bool b)                          { m_priSEIUseMaxDimensionsFlag = b; }
+  bool     getPriSEIUseMaxDimensionsFlag()                                { return m_priSEIUseMaxDimensionsFlag; }
+  void     setPriSEILog2UnitSize(uint32_t i)                              { m_priSEILog2UnitSize = i; }
+  uint32_t getPriSEILog2UnitSize()                                        { return m_priSEILog2UnitSize; }
+  void     setPriSEIRegionSizeLenMinus1(uint32_t i)                       { m_priSEIRegionSizeLenMinus1 = i; }
+  uint32_t getPriSEIRegionSizeLenMinus1()                                 { return m_priSEIRegionSizeLenMinus1; }
+  void     setPriSEIRegionIdPresentFlag(bool b)                           { m_priSEIRegionIdPresentFlag = b; }
+  bool     getPriSEIRegionIdPresentFlag()                                 { return m_priSEIRegionIdPresentFlag; }
+  void     setPriSEITargetPicParamsPresentFlag(bool b)                    { m_priSEITargetPicParamsPresentFlag = b; }
+  bool     getPriSEITargetPicParamsPresentFlag()                          { return m_priSEITargetPicParamsPresentFlag; }
+  void     setPriSEITargetPicWidthMinus1(uint32_t i)                      { m_priSEITargetPicWidthMinus1 = i; }
+  uint32_t getPriSEITargetPicWidthMinus1()                                { return m_priSEITargetPicWidthMinus1; }
+  void     setPriSEITargetPicHeightMinus1(uint32_t i)                     { m_priSEITargetPicHeightMinus1 = i; }
+  uint32_t getPriSEITargetPicHeightMinus1()                               { return m_priSEITargetPicHeightMinus1; }
+  void     setPriSEINumResamplingRatiosMinus1(uint32_t i)                 { m_priSEINumResamplingRatiosMinus1 = i; }
+  uint32_t getPriSEINumResamplingRatiosMinus1()                           { return m_priSEINumResamplingRatiosMinus1; }
+  void     setPriSEIResamplingWidthNumMinus1(std::vector<uint32_t>& b)    { m_priSEIResamplingWidthNumMinus1 = b; }
+  uint32_t getPriSEIResamplingWidthNumMinus1(int i)                       { return m_priSEIResamplingWidthNumMinus1[i]; }
+  void     setPriSEIResamplingWidthDenomMinus1(std::vector<uint32_t>& b)  { m_priSEIResamplingWidthDenomMinus1 = b; }
+  uint32_t getPriSEIResamplingWidthDenomMinus1(int i)                     { return m_priSEIResamplingWidthDenomMinus1[i]; }
+  void     setPriSEIFixedAspectRatioFlag(std::vector<bool>& b)            { m_priSEIFixedAspectRatioFlag = b; }
+  bool     getPriSEIFixedAspectRatioFlag(int i)                           { return m_priSEIFixedAspectRatioFlag[i]; }
+  void     setPriSEIResamplingHeightNumMinus1(std::vector<uint32_t>& b)   { m_priSEIResamplingHeightNumMinus1 = b; }
+  uint32_t getPriSEIResamplingHeightNumMinus1(int i)                      { return m_priSEIResamplingHeightNumMinus1[i]; }
+  void     setPriSEIResamplingHeightDenomMinus1(std::vector<uint32_t>& b) { m_priSEIResamplingHeightDenomMinus1 = b; }
+  uint32_t getPriSEIResamplingHeightDenomMinus1(int i)                    { return m_priSEIResamplingHeightDenomMinus1[i]; }
+  void     setPriSEIRegionId(std::vector<uint32_t>& b)                    { m_priSEIRegionId = b; }
+  uint32_t getPriSEIRegionId(int i)                                       { return m_priSEIRegionId[i]; }
+  void     setPriSEIRegionLayerId(std::vector<uint32_t>& b)               { m_priSEIRegionLayerId = b; }
+  uint32_t getPriSEIRegionLayerId(int i)                                  { return m_priSEIRegionLayerId[i]; }
+  void     setPriSEIRegionIsALayerFlag(std::vector<bool>& b)              { m_priSEIRegionIsALayerFlag = b; }
+  uint32_t getPriSEIRegionIsALayerFlag(int i)                             { return m_priSEIRegionIsALayerFlag[i]; }
+  void     setPriSEIRegionTopLeftInUnitsX(std::vector<uint32_t>& b)       { m_priSEIRegionTopLeftInUnitsX = b; }
+  uint32_t getPriSEIRegionTopLeftInUnitsX(int i)                          { return m_priSEIRegionTopLeftInUnitsX[i]; }
+  void     setPriSEIRegionTopLeftInUnitsY(std::vector<uint32_t>& b)       { m_priSEIRegionTopLeftInUnitsY = b; }
+  uint32_t getPriSEIRegionTopLeftInUnitsY(int i)                          { return m_priSEIRegionTopLeftInUnitsY[i]; }
+  void     setPriSEIRegionWidthInUnitsMinus1(std::vector<uint32_t>& b)    { m_priSEIRegionWidthInUnitsMinus1 = b; }
+  uint32_t getPriSEIRegionWidthInUnitsMinus1(int i)                       { return m_priSEIRegionWidthInUnitsMinus1[i]; }
+  void     setPriSEIRegionHeightInUnitsMinus1(std::vector<uint32_t>& b)   { m_priSEIRegionHeightInUnitsMinus1 = b; }
+  uint32_t getPriSEIRegionHeightInUnitsMinus1(int i)                      { return m_priSEIRegionHeightInUnitsMinus1[i]; }
+  void     setPriSEIResamplingRatioIdx(std::vector<uint32_t>& b)          { m_priSEIResamplingRatioIdx = b; }
+  uint32_t getPriSEIResamplingRatioIdx(int i)                             { return m_priSEIResamplingRatioIdx[i]; }
+  void     setPriSEITargetRegionTopLeftInUnitsX(std::vector<uint32_t>& b) { m_priSEITargetRegionTopLeftInUnitsX = b; }
+  uint32_t getPriSEITargetRegionTopLeftInUnitsX(int i) { return m_priSEITargetRegionTopLeftInUnitsX[i]; }
+  void     setPriSEITargetRegionTopLeftInUnitsY(std::vector<uint32_t>& b) { m_priSEITargetRegionTopLeftInUnitsY = b; }
+  uint32_t getPriSEITargetRegionTopLeftInUnitsY(int i) { return m_priSEITargetRegionTopLeftInUnitsY[i]; }
+#endif
+
+#if JVET_AK2006_SPTI_SEI_MESSAGE
+  void setSptiSEIEnabled(bool b) { m_sptiSEIEnabled = b; }
+  bool getSptiSEIEnabled() { return m_sptiSEIEnabled; }
+  void setmSptiSEISourceTimingEqualsOutputTimingFlag(bool b) { m_sptiSourceTimingEqualsOutputTimingFlag = b; }
+  bool getmSptiSEISourceTimingEqualsOutputTimingFlag() { return m_sptiSourceTimingEqualsOutputTimingFlag; }
+  void setmSptiSEISourceType(uint32_t b) { m_sptiSourceType = b; }
+  uint32_t getmSptiSEISourceType() { return m_sptiSourceType; }
+  void setmSptiSEITimeScale(uint32_t b) { m_sptiTimeScale = b; }
+  uint32_t getmSptiSEITimeScale() { return m_sptiTimeScale; }
+  void setmSptiSEINumUnitsInElementalInterval(uint32_t b) { m_sptiNumUnitsInElementalInterval = b; }
+  uint32_t getmSptiSEINumUnitsInElementalInterval() { return m_sptiNumUnitsInElementalInterval; }
+  void setmSptiSEIDirectionFlag(bool b) { m_sptiDirectionFlag = b; }
+  uint32_t getmSptiSEIDirectionFlag() { return m_sptiDirectionFlag; }
+#endif
+
+
 };
+
+
 
 //! \}
 

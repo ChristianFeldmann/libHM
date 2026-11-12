@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -122,13 +122,41 @@ TEncPic::~TEncPic()
  * \param bIsVirtual
  */
 #if REDUCED_ENCODER_MEMORY
-Void TEncPic::create( const TComSPS &sps, const TComPPS &pps, UInt uiMaxAdaptiveQPDepth )
+Void TEncPic::create( const TComSPS &sps, const TComPPS &pps, UInt uiMaxAdaptiveQPDepth
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+                    , const Bool bCreateForProcessedReconstruction
+#endif
+#if JVET_X0048_X0103_FILM_GRAIN
+                    , const Bool bCreateFilteredSourcePicYuv
+#endif
+                    )
 {
-  TComPic::create( sps, pps, true, false );
+  TComPic::create( sps, pps, true, false
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+                  , bCreateForProcessedReconstruction
+#endif
+#if JVET_X0048_X0103_FILM_GRAIN
+                  , bCreateFilteredSourcePicYuv
+#endif
+                  );
 #else
-Void TEncPic::create( const TComSPS &sps, const TComPPS &pps, UInt uiMaxAdaptiveQPDepth, Bool bIsVirtual )
+Void TEncPic::create( const TComSPS &sps, const TComPPS &pps, UInt uiMaxAdaptiveQPDepth, Bool bIsVirtual
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+                    , const Bool bCreateForProcessedReconstruction
+#endif
+#if JVET_X0048_X0103_FILM_GRAIN
+                    , const Bool bCreateFilteredSourcePicYuv
+#endif
+                    )
 {
-  TComPic::create( sps, pps, bIsVirtual );
+  TComPic::create( sps, pps, bIsVirtual
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+                  , bCreateForProcessedReconstruction
+#endif
+#if JVET_X0048_X0103_FILM_GRAIN
+                  , bCreateFilteredSourcePicYuv
+#endif
+                  );
 #endif
   const Int  iWidth      = sps.getPicWidthInLumaSamples();
   const Int  iHeight     = sps.getPicHeightInLumaSamples();

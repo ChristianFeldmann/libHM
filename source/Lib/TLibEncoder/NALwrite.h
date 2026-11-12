@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -74,12 +74,13 @@ struct OutputNALUnit : public NALUnit
   TComOutputBitstream m_Bitstream;
 };
 
-Void write(std::ostream& out, OutputNALUnit& nalu);
+void writeNaluWithHeader(std::ostream& out, OutputNALUnit& nalu);
+void writeNaluContent(std::ostream& out, OutputNALUnit& nalu);
 
 inline NALUnitEBSP::NALUnitEBSP(OutputNALUnit& nalu)
   : NALUnit(nalu)
 {
-  write(m_nalUnitData, nalu);
+  writeNaluWithHeader(m_nalUnitData, nalu);
 }
 
 //! \}

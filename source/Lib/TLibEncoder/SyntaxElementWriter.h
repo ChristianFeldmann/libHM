@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -50,18 +50,19 @@
 //! \{
 
 #if ENC_DEC_TRACE
-
-#define WRITE_CODE( value, length, name)    xWriteCodeTr ( value, length, name )
-#define WRITE_UVLC( value,         name)    xWriteUvlcTr ( value,         name )
-#define WRITE_SVLC( value,         name)    xWriteSvlcTr ( value,         name )
-#define WRITE_FLAG( value,         name)    xWriteFlagTr ( value,         name )
-
+#define WRITE_SCODE( value, length, name)   xWriteSCodeTr ( value, length, name )
+#define WRITE_CODE( value, length, name)    xWriteCodeTr  ( value, length, name )
+#define WRITE_UVLC( value,         name)    xWriteUvlcTr  ( value,         name )
+#define WRITE_SVLC( value,         name)    xWriteSvlcTr  ( value,         name )
+#define WRITE_FLAG( value,         name)    xWriteFlagTr  ( value,         name )
+#define WRITE_STRING( value,         name)  xWriteStringTr( value,         name )
 #else
-
-#define WRITE_CODE( value, length, name)     xWriteCode ( value, length )
-#define WRITE_UVLC( value,         name)     xWriteUvlc ( value )
-#define WRITE_SVLC( value,         name)     xWriteSvlc ( value )
-#define WRITE_FLAG( value,         name)     xWriteFlag ( value )
+#define WRITE_SCODE( value, length, name)    xWriteSCode ( value, length )
+#define WRITE_CODE( value, length, name)     xWriteCode  ( value, length )
+#define WRITE_UVLC( value,         name)     xWriteUvlc  ( value )
+#define WRITE_SVLC( value,         name)     xWriteSvlc  ( value )
+#define WRITE_FLAG( value,         name)     xWriteFlag  ( value )
+#define WRITE_STRING( value,         name)   xWriteString( value )
 
 #endif
 
@@ -77,17 +78,23 @@ protected:
 
   Void  setBitstream          ( TComBitIf* p )  { m_pcBitIf = p;  }
 
+  Void  xWriteSCode           ( Int  iCode,  UInt uiLength );
   Void  xWriteCode            ( UInt uiCode, UInt uiLength );
   Void  xWriteUvlc            ( UInt uiCode );
   Void  xWriteSvlc            ( Int  iCode   );
   Void  xWriteFlag            ( UInt uiCode );
+  void  xWriteString          ( const std::string &value );
+
 #if ENC_DEC_TRACE
+  Void  xWriteSCodeTr         ( Int value,  UInt  length, const TChar *pSymbolName);
   Void  xWriteCodeTr          ( UInt value, UInt  length, const TChar *pSymbolName);
   Void  xWriteUvlcTr          ( UInt value,               const TChar *pSymbolName);
   Void  xWriteSvlcTr          ( Int  value,               const TChar *pSymbolName);
   Void  xWriteFlagTr          ( UInt value,               const TChar *pSymbolName);
+  void  xWriteStringTr        ( const std::string &value, const TChar *symbolName );
 #endif
   Void xWriteRbspTrailingBits();
+  bool isByteAligned()        { return (m_pcBitIf->getNumBitsUntilByteAligned() == 0); } ;
 
   UInt  xConvertToUInt        ( Int iValue ) {  return ( iValue <= 0) ? -iValue<<1 : (iValue<<1)-1; }
 };

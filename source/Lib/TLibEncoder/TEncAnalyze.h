@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -62,12 +62,40 @@
 /// encoder analyzer class
 class TEncAnalyze
 {
+public:
+  struct OutputLogControl
+  {
+    Bool printMSEBasedSNR;
+    Bool printSequenceMSE;
+    Bool printFrameMSE;
+    Bool printMSSSIM;
+    Bool printXPSNR;
+    Bool printHexPerPOCPSNRs;
+  };
+
+  struct ResultData
+  {
+    ResultData () : bits(0)
+      , xpsnr(0)
+    {
+      for(Int i=0; i<MAX_NUM_COMPONENT; i++)
+      {
+        psnr[i]=0;
+        MSEyuvframe[i]=0;
+        MSSSIM[i]=0;
+      }
+    }
+    Double psnr[MAX_NUM_COMPONENT];
+    Double bits;
+    Double MSEyuvframe[MAX_NUM_COMPONENT];
+    Double MSSSIM[MAX_NUM_COMPONENT];
+    Double xpsnr;
+  };
+
 private:
-  Double    m_dPSNRSum[MAX_NUM_COMPONENT];
-  Double    m_dAddBits;
+  ResultData m_runningTotal;
   UInt      m_uiNumPic;
   Double    m_dFrmRate; //--CFG_KDY
-  Double    m_MSEyuvframe[MAX_NUM_COMPONENT]; // sum of MSEs
 
 #if EXTENSION_360_VIDEO
   TExt360EncAnalyze m_ext360;
@@ -77,21 +105,25 @@ public:
   virtual ~TEncAnalyze()  {}
   TEncAnalyze() { clear(); }
 
-  Void  addResult( Double psnr[MAX_NUM_COMPONENT], Double bits, const Double MSEyuvframe[MAX_NUM_COMPONENT])
+  Void  addResult( const ResultData &result)
   {
-    m_dAddBits  += bits;
+    m_runningTotal.bits  += result.bits;
     for(UInt i=0; i<MAX_NUM_COMPONENT; i++)
     {
-      m_dPSNRSum[i] += psnr[i];
-      m_MSEyuvframe[i] += MSEyuvframe[i];
+      m_runningTotal.psnr[i] += result.psnr[i];
+      m_runningTotal.MSEyuvframe[i] += result.MSEyuvframe[i];
+      m_runningTotal.MSSSIM[i] += result.MSSSIM[i];
     }
 
+    m_runningTotal.xpsnr += result.xpsnr;
     m_uiNumPic++;
   }
 
-  Double  getPsnr(ComponentID compID) const { return  m_dPSNRSum[compID];  }
-  Double  getBits()                   const { return  m_dAddBits;   }
-  Void    setBits(Double numBits)     { m_dAddBits=numBits; }
+  Double  getPsnr(ComponentID compID) const { return  m_runningTotal.psnr[compID];  }
+  Double  getMsssim(ComponentID compID) const { return  m_runningTotal.MSSSIM[compID];  }
+  Double  getxPSNR()                  const { return m_runningTotal.xpsnr;}
+  Double  getBits()                   const { return m_runningTotal.bits;   }
+  Void    setBits(Double numBits)           { m_runningTotal.bits=numBits; }
   UInt    getNumPic()                 const { return  m_uiNumPic;   }
 #if EXTENSION_360_VIDEO
   TExt360EncAnalyze& getExt360Info() { return m_ext360; }
@@ -100,12 +132,7 @@ public:
   Void    setFrmRate  (Double dFrameRate) { m_dFrmRate = dFrameRate; } //--CFG_KDY
   Void    clear()
   {
-    m_dAddBits = 0;
-    for(UInt i=0; i<MAX_NUM_COMPONENT; i++)
-    {
-      m_dPSNRSum[i] = 0;
-      m_MSEyuvframe[i] = 0;
-    }
+    m_runningTotal=ResultData();
     m_uiNumPic = 0;
 #if EXTENSION_360_VIDEO
     m_ext360.clear();
@@ -138,7 +165,7 @@ public:
       const Int         scaleChan     = (4>>(csx+csy));
       const UInt        bitDepthShift = 2 * (maximumBitDepth - bitDepths.recon[toChannelType(compID)]); //*2 because this is a squared number
 
-      const Double      channelMSE    = (m_MSEyuvframe[compID] * Double(1 << bitDepthShift)) / Double(getNumPic());
+      const Double      channelMSE    = (m_runningTotal.MSEyuvframe[compID] * Double(1 << bitDepthShift)) / Double(getNumPic());
 
       scale  += scaleChan;
       MSEyuv += scaleChan * channelMSE;
@@ -148,14 +175,13 @@ public:
     PSNRyuv = (MSEyuv==0 ? 999.99 : 10*log10((maxval*maxval)/MSEyuv));
   }
 
-
-  Void    printOut ( TChar cDelim, const ChromaFormat chFmt, const Bool printMSEBasedSNR, const Bool printSequenceMSE, const BitDepths &bitDepths )
+  Void    printOut ( TChar cDelim, const ChromaFormat chFmt, const OutputLogControl &logctrl, const BitDepths &bitDepths )
   {
     Double dFps     =   m_dFrmRate; //--CFG_KDY
     Double dScale   = dFps / 1000 / (Double)m_uiNumPic;
 
     Double MSEBasedSNR[MAX_NUM_COMPONENT];
-    if (printMSEBasedSNR)
+    if (logctrl.printMSEBasedSNR)
     {
       for (UInt componentIndex = 0; componentIndex < MAX_NUM_COMPONENT; componentIndex++)
       {
@@ -169,7 +195,7 @@ public:
         {
           //NOTE: this is not the true maximum value for any bitDepth other than 8. It comes from the original HM PSNR calculation
           const UInt maxval = 255 << (bitDepths.recon[toChannelType(compID)] - 8);
-          const Double MSE = m_MSEyuvframe[compID];
+          const Double MSE = m_runningTotal.MSEyuvframe[compID];
 
           MSEBasedSNR[compID] = (MSE == 0) ? 999.99 : (10 * log10((maxval * maxval) / (MSE / (Double)getNumPic())));
         }
@@ -179,68 +205,71 @@ public:
     switch (chFmt)
     {
       case CHROMA_400:
-        if (printMSEBasedSNR)
+        if (logctrl.printMSEBasedSNR)
         {
-          printf( "         \tTotal Frames |   "   "Bitrate     "  "Y-PSNR" );
+          printf( "         " );
+        }
 
-          if (printSequenceMSE)
-          {
-            printf( "    Y-MSE\n" );
-          }
-          else
-          {
-            printf("\n");
-          }
+        printf( "\tTotal Frames |   "   "Bitrate     "  "Y-PSNR    " );
 
-          //printf( "\t------------ "  " ----------"   " -------- "  " -------- "  " --------\n" );
-          printf( "Average: \t %8d    %c "          "%12.4lf  "    "%8.4lf",
+        if (logctrl.printMSSSIM)
+        {
+          printf( "  Y-MS-SSIM  ");
+        }
+
+        if (logctrl.printXPSNR)
+        {
+          printf( "    xPSNR  ");
+        }
+
+        if (logctrl.printSequenceMSE)
+        {
+          printf( "   Y-MSE    \n" );
+        }
+        else
+        {
+          printf("\n");
+        }
+
+
+        if (logctrl.printMSEBasedSNR)
+        {
+          printf( "Average: ");
+        }
+
+        printf( "\t %8d    %c "          "%12.4lf  "    "%8.4lf  ",
                  getNumPic(), cDelim,
                  getBits() * dScale,
                  getPsnr(COMPONENT_Y) / (Double)getNumPic() );
 
-          if (printSequenceMSE)
-          {
-            printf( "  %8.4lf\n", m_MSEyuvframe[COMPONENT_Y ] / (Double)getNumPic() );
-          }
-          else
-          {
-            printf("\n");
-          }
+        if (logctrl.printMSSSIM)
+        {
+          printf("   %8.6lf  ", getMsssim(COMPONENT_Y) / (Double)getNumPic());
+        }
+        if(logctrl.printXPSNR)
+        {
+          printf(" %8.4lf  ",
+                 getxPSNR() / (Double)getNumPic());
+        }
 
+        if (logctrl.printSequenceMSE)
+        {
+          printf( "  %8.4lf  \n", m_runningTotal.MSEyuvframe[COMPONENT_Y ] / (Double)getNumPic() );
+        }
+        else
+        {
+          printf("\n");
+        }
+
+        if (logctrl.printMSEBasedSNR)
+        {
           printf( "From MSE:\t %8d    %c "          "%12.4lf  "    "%8.4lf\n",
                  getNumPic(), cDelim,
                  getBits() * dScale,
                  MSEBasedSNR[COMPONENT_Y] );
         }
-        else
-        {
-          printf( "\tTotal Frames |   "   "Bitrate     "  "Y-PSNR" );
-
-          if (printSequenceMSE)
-          {
-            printf( "    Y-MSE\n" );
-          }
-          else
-          {
-            printf("\n");
-          }
-
-          //printf( "\t------------ "  " ----------"   " -------- "  " -------- "  " --------\n" );
-          printf( "\t %8d    %c "          "%12.4lf  "    "%8.4lf",
-                 getNumPic(), cDelim,
-                 getBits() * dScale,
-                 getPsnr(COMPONENT_Y) / (Double)getNumPic() );
-
-          if (printSequenceMSE)
-          {
-            printf( "  %8.4lf\n", m_MSEyuvframe[COMPONENT_Y ] / (Double)getNumPic() );
-          }
-          else
-          {
-            printf("\n");
-          }
-        }
         break;
+
       case CHROMA_420:
       case CHROMA_422:
       case CHROMA_444:
@@ -250,41 +279,80 @@ public:
           
           calculateCombinedValues(chFmt, PSNRyuv, MSEyuv, bitDepths);
 
-          if (printMSEBasedSNR)
+          if (logctrl.printMSEBasedSNR)
           {
-            printf( "         \tTotal Frames |   "   "Bitrate     "  "Y-PSNR    "  "U-PSNR    "  "V-PSNR    "  "YUV-PSNR " );
+            printf( "         " );
+          }
 
-            if (printSequenceMSE)
-            {
-              printf( " Y-MSE     "  "U-MSE     "  "V-MSE    "  "YUV-MSE \n" );
-            }
-            else
-            {
-              printf("\n");
-            }
+          printf( "\tTotal Frames |   "   "Bitrate     "  "Y-PSNR    "  "U-PSNR    "  "V-PSNR    "  "YUV-PSNR  " );
 
-            //printf( "\t------------ "  " ----------"   " -------- "  " -------- "  " --------\n" );
-            printf( "Average: \t %8d    %c "          "%12.4lf  "    "%8.4lf  "   "%8.4lf  "    "%8.4lf  "   "%8.4lf",
-                   getNumPic(), cDelim,
-                   getBits() * dScale,
-                   getPsnr(COMPONENT_Y) / (Double)getNumPic(),
-                   getPsnr(COMPONENT_Cb) / (Double)getNumPic(),
-                   getPsnr(COMPONENT_Cr) / (Double)getNumPic(),
-                   PSNRyuv );
+          if (logctrl.printMSSSIM)
+          {
+            printf("  Y-MS-SSIM    " "U-MS-SSIM    " "V-MS-SSIM  ");
+          }
+          if (logctrl.printXPSNR)
+          {
+            printf( "    xPSNR  ");
+          }
 
-            if (printSequenceMSE)
-            {
-              printf( "  %8.4lf  "   "%8.4lf  "    "%8.4lf  "   "%8.4lf\n",
-                     m_MSEyuvframe[COMPONENT_Y ] / (Double)getNumPic(),
-                     m_MSEyuvframe[COMPONENT_Cb] / (Double)getNumPic(),
-                     m_MSEyuvframe[COMPONENT_Cr] / (Double)getNumPic(),
-                     MSEyuv );
-            }
-            else
-            {
-              printf("\n");
-            }
+#if EXTENSION_360_VIDEO
+            m_ext360.printHeader();
+#endif
+          if (logctrl.printSequenceMSE)
+          {
+            printf( "  Y-MSE     "  "U-MSE     "  "V-MSE     "  "YUV-MSE  \n" );
+          }
+          else
+          {
+            printf("\n");
+          }
 
+          if (logctrl.printMSEBasedSNR)
+          {
+            printf( "Average: ");
+          }
+            
+          printf( "\t %8d    %c "          "%12.4lf  "    "%8.4lf  "   "%8.4lf  "    "%8.4lf  "   "%8.4lf  ",
+                 getNumPic(), cDelim,
+                 getBits() * dScale,
+                 getPsnr(COMPONENT_Y) / (Double)getNumPic(),
+                 getPsnr(COMPONENT_Cb) / (Double)getNumPic(),
+                 getPsnr(COMPONENT_Cr) / (Double)getNumPic(),
+                 PSNRyuv );
+
+          if (logctrl.printMSSSIM)
+          {
+            printf("   %8.6lf     " "%8.6lf     " "%8.6lf  ",
+                   getMsssim(COMPONENT_Y) / (Double)getNumPic(),
+                   getMsssim(COMPONENT_Cb) / (Double)getNumPic(),
+                   getMsssim(COMPONENT_Cr) / (Double)getNumPic());
+          }
+
+          if(logctrl.printXPSNR)
+          {
+            printf(" %8.4lf  ",
+                   getxPSNR() / (Double)getNumPic());
+          }
+
+#if EXTENSION_360_VIDEO
+          m_ext360.printPSNRs(getNumPic());
+#endif
+
+          if (logctrl.printSequenceMSE)
+          {
+            printf( " %8.4lf  "   "%8.4lf  "    "%8.4lf  "   "%8.4lf  \n",
+                   m_runningTotal.MSEyuvframe[COMPONENT_Y ] / (Double)getNumPic(),
+                   m_runningTotal.MSEyuvframe[COMPONENT_Cb] / (Double)getNumPic(),
+                   m_runningTotal.MSEyuvframe[COMPONENT_Cr] / (Double)getNumPic(),
+                   MSEyuv );
+          }
+          else
+          {
+            printf("\n");
+          }
+
+          if (logctrl.printMSEBasedSNR)
+          {
             printf( "From MSE:\t %8d    %c "          "%12.4lf  "    "%8.4lf  "   "%8.4lf  "    "%8.4lf  "   "%8.4lf\n",
                    getNumPic(), cDelim,
                    getBits() * dScale,
@@ -292,49 +360,6 @@ public:
                    MSEBasedSNR[COMPONENT_Cb],
                    MSEBasedSNR[COMPONENT_Cr],
                    PSNRyuv );
-          }
-          else
-          {
-            printf( "\tTotal Frames |   "   "Bitrate     "  "Y-PSNR    "  "U-PSNR    "  "V-PSNR    "  "YUV-PSNR " );
-            
-#if EXTENSION_360_VIDEO
-            m_ext360.printHeader();
-#endif
-
-            if (printSequenceMSE)
-            {
-              printf( " Y-MSE     "  "U-MSE     "  "V-MSE    "  "YUV-MSE \n" );
-            }
-            else
-            {
-              printf("\n");
-            }
-
-            //printf( "\t------------ "  " ----------"   " -------- "  " -------- "  " --------\n" );
-            printf( "\t %8d    %c "          "%12.4lf  "    "%8.4lf  "   "%8.4lf  "    "%8.4lf  "   "%8.4lf",
-                   getNumPic(), cDelim,
-                   getBits() * dScale,
-                   getPsnr(COMPONENT_Y) / (Double)getNumPic(),
-                   getPsnr(COMPONENT_Cb) / (Double)getNumPic(),
-                   getPsnr(COMPONENT_Cr) / (Double)getNumPic(),
-                   PSNRyuv );
-
-#if EXTENSION_360_VIDEO
-            m_ext360.printPSNRs(getNumPic());
-#endif
-
-            if (printSequenceMSE)
-            {
-              printf( "  %8.4lf  "   "%8.4lf  "    "%8.4lf  "   "%8.4lf\n",
-                     m_MSEyuvframe[COMPONENT_Y ] / (Double)getNumPic(),
-                     m_MSEyuvframe[COMPONENT_Cb] / (Double)getNumPic(),
-                     m_MSEyuvframe[COMPONENT_Cr] / (Double)getNumPic(),
-                     MSEyuv );
-            }
-            else
-            {
-              printf("\n");
-            }
           }
         }
         break;
@@ -346,7 +371,7 @@ public:
   }
 
 
-  Void    printSummary(const ChromaFormat chFmt, const Bool printSequenceMSE, const BitDepths &bitDepths, const std::string &sFilename)
+  Void printSummary(const ChromaFormat chFmt, const OutputLogControl &logctrl, const BitDepths &bitDepths, const std::string &sFilename)
   {
     FILE* pFile = fopen (sFilename.c_str(), "at");
 
@@ -375,12 +400,12 @@ public:
               getPsnr(COMPONENT_Cr) / (Double)getNumPic(),
               PSNRyuv );
 
-          if (printSequenceMSE)
+          if (logctrl.printSequenceMSE)
           {
             fprintf(pFile, "\t %f\t %f\t %f\t %f\n",
-                m_MSEyuvframe[COMPONENT_Y ] / (Double)getNumPic(),
-                m_MSEyuvframe[COMPONENT_Cb] / (Double)getNumPic(),
-                m_MSEyuvframe[COMPONENT_Cr] / (Double)getNumPic(),
+                m_runningTotal.MSEyuvframe[COMPONENT_Y ] / (Double)getNumPic(),
+                m_runningTotal.MSEyuvframe[COMPONENT_Cb] / (Double)getNumPic(),
+                m_runningTotal.MSEyuvframe[COMPONENT_Cr] / (Double)getNumPic(),
                 MSEyuv );
           }
           else

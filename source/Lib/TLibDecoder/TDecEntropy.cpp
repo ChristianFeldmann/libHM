@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -195,6 +195,9 @@ Void TDecEntropy::decodePUWise( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDept
   Int numValidMergeCand = 0;
   Bool hasMergedCandList = false;
 
+#if MCTS_ENC_CHECK
+  UInt numSpatialMergeCandidates = 0;
+#endif
   pcSubCU->copyInterPredInfoFrom( pcCU, uiAbsPartIdx, REF_PIC_LIST_0 );
   pcSubCU->copyInterPredInfoFrom( pcCU, uiAbsPartIdx, REF_PIC_LIST_1 );
   for ( UInt uiPartIdx = 0, uiSubPartIdx = uiAbsPartIdx; uiPartIdx < uiNumPU; uiPartIdx++, uiSubPartIdx += uiPUOffset )
@@ -217,16 +220,33 @@ Void TDecEntropy::decodePUWise( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDept
         if ( !hasMergedCandList )
         {
           pcSubCU->setPartSizeSubParts( SIZE_2Nx2N, 0, uiDepth ); // temporarily set.
+#if MCTS_ENC_CHECK
+          numSpatialMergeCandidates = 0;
+          pcSubCU->getInterMergeCandidates( 0, 0, cMvFieldNeighbours, uhInterDirNeighbours, numValidMergeCand, numSpatialMergeCandidates );
+#else
           pcSubCU->getInterMergeCandidates( 0, 0, cMvFieldNeighbours, uhInterDirNeighbours, numValidMergeCand );
+#endif
           pcSubCU->setPartSizeSubParts( ePartSize, 0, uiDepth ); // restore.
           hasMergedCandList = true;
         }
       }
       else
       {
+#if MCTS_ENC_CHECK
+        numSpatialMergeCandidates = 0;
+        pcSubCU->getInterMergeCandidates( uiSubPartIdx-uiAbsPartIdx, uiPartIdx, cMvFieldNeighbours, uhInterDirNeighbours, numValidMergeCand, numSpatialMergeCandidates, uiMergeIndex );
+#else
         pcSubCU->getInterMergeCandidates( uiSubPartIdx-uiAbsPartIdx, uiPartIdx, cMvFieldNeighbours, uhInterDirNeighbours, numValidMergeCand, uiMergeIndex );
+#endif
       }
 
+#if MCTS_ENC_CHECK
+      if (m_pConformanceCheck->getTMctsCheck() &&  pcSubCU->isLastColumnCTUInTile() && (uiMergeIndex >= numSpatialMergeCandidates) )
+      {
+        m_pConformanceCheck->flagTMctsError("Merge Index using non-spatial merge candidate (Merge)");
+      }
+
+#endif
       pcCU->setInterDirSubParts( uhInterDirNeighbours[uiMergeIndex], uiSubPartIdx, uiPartIdx, uiDepth );
 
       TComMv cTmpMv( 0, 0 );
@@ -356,6 +376,12 @@ Void TDecEntropy::decodeMVPIdxPU( TComDataCU* pcSubCU, UInt uiPartAddr, UInt uiD
     m_pcEntropyDecoderIf->parseMVPIdx( iMVPIdx );
   }
   pcSubCU->fillMvpCand(uiPartIdx, uiPartAddr, eRefList, iRefIdx, pAMVPInfo);
+#if MCTS_ENC_CHECK
+  if ((iRefIdx >= 0) && m_pConformanceCheck->getTMctsCheck() && pcSubCU->isLastColumnCTUInTile() && (iMVPIdx == pAMVPInfo->numSpatialMVPCandidates))
+  {
+    m_pConformanceCheck->flagTMctsError("Merge Index using non-spatial merge candidate (AMVP)");
+  }
+#endif
   pcSubCU->setMVPNumSubParts(pAMVPInfo->iN, eRefList, uiPartAddr, uiPartIdx, uiDepth);
   pcSubCU->setMVPIdxSubParts( iMVPIdx, eRefList, uiPartAddr, uiPartIdx, uiDepth );
   if ( iRefIdx >= 0 )

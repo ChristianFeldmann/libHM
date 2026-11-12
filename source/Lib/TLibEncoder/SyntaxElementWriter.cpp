@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,6 +42,23 @@
 //! \{
 
 #if ENC_DEC_TRACE
+
+Void  SyntaxElementWriter::xWriteSCodeTr (Int value, UInt  length, const TChar *pSymbolName)
+{
+  xWriteSCode (value,length);
+  if( g_HLSTraceEnable )
+  {
+    fprintf( g_hTrace, "%8lld  ", g_nSymbolCounter++ );
+    if( length<10 )
+    {
+      fprintf( g_hTrace, "%-50s u(%d)  : %d\n", pSymbolName, length, value );
+    }
+    else
+    {
+      fprintf( g_hTrace, "%-50s u(%d) : %d\n", pSymbolName, length, value );
+    }
+  }
+}
 
 Void  SyntaxElementWriter::xWriteCodeTr (UInt value, UInt  length, const TChar *pSymbolName)
 {
@@ -90,8 +107,23 @@ Void  SyntaxElementWriter::xWriteFlagTr(UInt value, const TChar *pSymbolName)
   }
 }
 
+void  SyntaxElementWriter::xWriteStringTr( const std::string &value, const char *symbolName )
+{
+  xWriteString(value);
+  if (g_HLSTraceEnable)
+  {
+    fprintf( g_hTrace, "%8lld  ", g_nSymbolCounter++ );
+    fprintf( g_hTrace, "%-50s st(v)  : %s\n", symbolName, value.c_str() );
+  }
+}
 #endif
 
+Void SyntaxElementWriter::xWriteSCode    ( Int iCode, UInt uiLength )
+{
+  assert ( uiLength > 0 && uiLength<=32 );
+  assert( uiLength==32 || (iCode>=-(1<<(uiLength-1)) && iCode<(1<<(uiLength-1))) );
+  m_pcBitIf->write( uiLength==32 ? UInt(iCode) : ( UInt(iCode)&((1<<uiLength)-1) ), uiLength );
+}
 
 Void SyntaxElementWriter::xWriteCode     ( UInt uiCode, UInt uiLength )
 {
@@ -127,6 +159,15 @@ Void SyntaxElementWriter::xWriteSvlc     ( Int iCode )
 Void SyntaxElementWriter::xWriteFlag( UInt uiCode )
 {
   m_pcBitIf->write( uiCode, 1 );
+}
+
+void  SyntaxElementWriter::xWriteString( const std::string &value )
+{
+  for (int i = 0; i < value.length(); ++i)
+  {
+    m_pcBitIf->write(value[i], 8);
+  }
+  m_pcBitIf->write('\0', 8);
 }
 
 Void SyntaxElementWriter::xWriteRbspTrailingBits()

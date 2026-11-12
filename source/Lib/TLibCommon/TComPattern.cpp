@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -72,43 +72,47 @@ Int   isAboveRightAvailable ( const TComDataCU* pcCU, UInt uiPartIdxLT, UInt uiP
 Int   isBelowLeftAvailable  ( const TComDataCU* pcCU, UInt uiPartIdxLT, UInt uiPartIdxLB, Bool* bValidFlags );
 
 
-// ====================================================================================================================
-// Public member functions (TComPatternParam)
-// ====================================================================================================================
-
-/** 
- \param  piTexture     pixel data
- \param  iRoiWidth     pattern width
- \param  iRoiHeight    pattern height
- \param  iStride       buffer stride
- \param  bitDepth      bit depth
- */
-Void TComPatternParam::setPatternParamPel ( Pel* piTexture,
-                                           Int iRoiWidth,
-                                           Int iRoiHeight,
-                                           Int iStride,
-                                           Int bitDepth
-                                           )
-{
-  m_piROIOrigin    = piTexture;
-  m_iROIWidth      = iRoiWidth;
-  m_iROIHeight     = iRoiHeight;
-  m_iPatternStride = iStride;
-  m_bitDepth       = bitDepth;
-}
 
 // ====================================================================================================================
 // Public member functions (TComPattern)
 // ====================================================================================================================
 
+#if MCTS_ENC_CHECK
+Void TComPattern::initPattern(Pel* piY,
+                              Int roiWidth,
+                              Int roiHeight,
+                              Int stride,
+                              Int bitDepthLuma,
+                              Int roiPosX,
+                              Int roiPosY)
+#else
 Void TComPattern::initPattern (Pel* piY,
-                               Int iRoiWidth,
-                               Int iRoiHeight,
-                               Int iStride,
+                               Int roiWidth,
+                               Int roiHeight,
+                               Int stride,
                                Int bitDepthLuma)
+#endif
 {
-  m_cPatternY. setPatternParamPel( piY,  iRoiWidth, iRoiHeight, iStride, bitDepthLuma);
+  m_piROIOrigin = piY;
+  m_roiWidth = roiWidth;
+  m_roiHeight = roiHeight;
+  m_patternStride = stride;
+  m_bitDepth = bitDepthLuma;
+#if MCTS_ENC_CHECK
+  m_roiPosX       = roiPosX;
+  m_roiPosY       = roiPosY;
+#endif
 }
+
+#if MCTS_ENC_CHECK
+Void TComPattern::setTileBorders(Int tileLeftTopPelPosX, Int tileLeftTopPelPosY, Int tileRightBottomPelPosX, Int tileRightBottomPelPosY)
+{
+  m_tileLeftTopPelPosX = tileLeftTopPelPosX;
+  m_tileLeftTopPelPosY = tileLeftTopPelPosY;
+  m_tileRightBottomPelPosX = tileRightBottomPelPosX;
+  m_tileRightBottomPelPosY = tileRightBottomPelPosY;
+}
+#endif
 
 
 // TODO: move this function to TComPrediction.cpp.

@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -103,6 +103,16 @@ public:
                                     const UInt maxCUWidth=0,   ///< used for margin only
                                     const UInt maxCUHeight=0); ///< used for margin only
 
+#if JVET_X0048_X0103_FILM_GRAIN
+  Void          createWithPadding  (const Int picWidth,
+                                    const Int picHeight,
+                                    const ChromaFormat chromaFormatIDC,
+                                    const Bool bUseMargin=false, ///< if true, then a margin of padWidth and padHeight is created around the image.
+                                    const Bool bScaleMarginChroma=true, ///< if true, margin is scaled based on chroma format. Otherwise, the same padding is used for all components.
+                                    const UInt padWidth=0,   ///< used for margin only
+                                    const UInt padHeight=0); ///< used for margin only
+#endif
+
   Void          destroy           ();
 
   // The following have been removed - Use CHROMA_400 in the above function call.
@@ -123,6 +133,22 @@ private:
   Int           getStride         (const ChannelType id) const { return ((m_picWidth     ) + (m_marginX  <<1)) >> getChannelTypeScaleX(id); }
 public:
   Int           getTotalHeight    (const ComponentID id) const { return ((m_picHeight    ) + (m_marginY  <<1)) >> getComponentScaleY(id); }
+
+#if JVET_X0048_X0103_FILM_GRAIN
+  Int           getStride(const ComponentID id, const Bool bScaleMarginChroma) const {
+    unsigned xmargin = m_marginX >> (bScaleMarginChroma ? getComponentScaleX(id) : 0);
+    return ((m_picWidth >> getComponentScaleX(id)) + (2 * xmargin));
+  }
+
+  Int           getTotalHeight(const ComponentID id, const Bool bScaleMarginChroma) const {
+    unsigned ymargin = m_marginY >> (bScaleMarginChroma ? getComponentScaleY(id) : 0);
+    return ((m_picHeight >> getComponentScaleY(id)) + (2 * ymargin));
+  }
+
+  Pel& at(const int& x, const int& y, const ComponentID id, const Bool bScaleMarginChroma = true) { int stride = getStride(id, bScaleMarginChroma); return m_piPicOrg[id][y * stride + x]; }
+  const Pel& at(const int& x, const int& y, const ComponentID id, const Bool bScaleMarginChroma = true) const { int stride = getStride(id, bScaleMarginChroma); return m_piPicOrg[id][y * stride + x]; }
+
+#endif
 
   Int           getMarginX        (const ComponentID id) const { return m_marginX >> getComponentScaleX(id);  }
   Int           getMarginY        (const ComponentID id) const { return m_marginY >> getComponentScaleY(id);  }
@@ -158,14 +184,23 @@ public:
   // ------------------------------------------------------------------------------------------------
 
   //  Copy function to picture
-  Void          copyToPic         ( TComPicYuv*  pcPicYuvDst ) const ;
+#if JVET_X0048_X0103_FILM_GRAIN
+  Void  copyTo(TComPicYuv* pcPicYuvDst, ComponentID compIdSrc, ComponentID compIdDst, const Bool bScaleMarginChromaSrc, const Bool bScaleMarginChromaDst) const;
+  Void  extendPicBorder(const ComponentID compId, const Int marginX, const Int marginY, const Bool bScaleMarginChroma = true);
+  Void  copyToPic(TComPicYuv* pcPicYuvDst, const Bool bScaleMarginChromaSrc, const Bool bScaleMarginChromaDst) const;
+#endif
+  Void          copyToPic(TComPicYuv* pcPicYuvDst) const;
 
   //  Extend function of picture buffer
   Void          extendPicBorder   ();
 
   //  Dump picture
-  Void          dump              (const std::string &fileName, const BitDepths &bitDepths, const Bool bAppend=false, const Bool bForceTo8Bit=false) const ;
-
+#if JVET_X0048_X0103_FILM_GRAIN
+  Void          dump(const std::string& fileName, const BitDepths& bitDepths, const Bool bAppend = false, const Bool bForceTo8Bit = false, const Bool bScaleMarginChroma = true) const;
+#else
+  Void          dump(const std::string& fileName, const BitDepths& bitDepths, const Bool bAppend = false, const Bool bForceTo8Bit = false) const;
+#endif
+  
   // Set border extension flag
   Void          setBorderExtension(Bool b) { m_bIsBorderExtended = b; }
 };// END CLASS DEFINITION TComPicYuv

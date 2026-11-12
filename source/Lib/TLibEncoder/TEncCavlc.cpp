@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -43,28 +43,47 @@
 //! \{
 
 #if ENC_DEC_TRACE
-
-Void  xTraceVPSHeader ()
+#if MCTS_EXTRACTION
+Void  xTraceVPSHeaderEnc()
+#else
+Void  xTraceVPSHeader()
+#endif
 {
   fprintf( g_hTrace, "=========== Video Parameter Set     ===========\n" );
 }
 
-Void  xTraceSPSHeader ()
+#if MCTS_EXTRACTION
+Void  xTraceSPSHeaderEnc()
+#else
+Void  xTraceSPSHeader()
+#endif
 {
   fprintf( g_hTrace, "=========== Sequence Parameter Set  ===========\n" );
 }
 
-Void  xTracePPSHeader ()
+#if MCTS_EXTRACTION
+Void  xTracePPSHeaderEnc()
+#else
+Void  xTracePPSHeader()
+#endif
 {
   fprintf( g_hTrace, "=========== Picture Parameter Set  ===========\n");
 }
 
-Void  xTraceSliceHeader ()
+#if MCTS_EXTRACTION
+Void  xTraceSliceHeaderEnc()
+#else
+Void  xTraceSliceHeader()
+#endif
 {
   fprintf( g_hTrace, "=========== Slice ===========\n");
 }
 
-Void  xTraceAccessUnitDelimiter ()
+#if MCTS_EXTRACTION
+Void  xTraceAccessUnitDelimiterEnc()
+#else
+Void  xTraceAccessUnitDelimiter()
+#endif
 {
   fprintf( g_hTrace, "=========== Access Unit Delimiter ===========\n");
 }
@@ -74,7 +93,11 @@ Void  xTraceAccessUnitDelimiter ()
 Void AUDWriter::codeAUD(TComBitIf& bs, const Int pictureType)
 {
 #if ENC_DEC_TRACE
+#if MCTS_EXTRACTION
+  xTraceAccessUnitDelimiterEnc();
+#else
   xTraceAccessUnitDelimiter();
+#endif
 #endif
 
   assert (pictureType < 3);
@@ -166,7 +189,11 @@ Void TEncCavlc::codeShortTermRefPicSet( const TComReferencePictureSet* rps, Bool
 Void TEncCavlc::codePPS( const TComPPS* pcPPS )
 {
 #if ENC_DEC_TRACE
-  xTracePPSHeader ();
+#if MCTS_EXTRACTION
+  xTracePPSHeaderEnc();
+#else
+  xTracePPSHeader();
+#endif
 #endif
 
   WRITE_UVLC( pcPPS->getPPSId(),                             "pps_pic_parameter_set_id" );
@@ -477,7 +504,11 @@ Void TEncCavlc::codeSPS( const TComSPS* pcSPS )
   const Bool         chromaEnabled         = isChromaEnabled(format);
 
 #if ENC_DEC_TRACE
-  xTraceSPSHeader ();
+#if MCTS_EXTRACTION
+  xTraceSPSHeaderEnc();
+#else
+  xTraceSPSHeader();
+#endif
 #endif
   WRITE_CODE( pcSPS->getVPSId (),          4,       "sps_video_parameter_set_id" );
   WRITE_CODE( pcSPS->getMaxTLayers() - 1,  3,       "sps_max_sub_layers_minus1" );
@@ -646,7 +677,11 @@ Void TEncCavlc::codeSPS( const TComSPS* pcSPS )
 Void TEncCavlc::codeVPS( const TComVPS* pcVPS )
 {
 #if ENC_DEC_TRACE
+#if MCTS_EXTRACTION
+  xTraceVPSHeaderEnc();
+#else
   xTraceVPSHeader();
+#endif
 #endif
   WRITE_CODE( pcVPS->getVPSId(),                    4,        "vps_video_parameter_set_id" );
   WRITE_FLAG(                                       1,        "vps_base_layer_internal_flag" );
@@ -720,7 +755,11 @@ Void TEncCavlc::codeVPS( const TComVPS* pcVPS )
 Void TEncCavlc::codeSliceHeader         ( TComSlice* pcSlice )
 {
 #if ENC_DEC_TRACE
-  xTraceSliceHeader ();
+#if MCTS_EXTRACTION
+  xTraceSliceHeaderEnc();
+#else
+  xTraceSliceHeader();
+#endif
 #endif
 
   const ChromaFormat format                = pcSlice->getSPS()->getChromaFormatIdc();
@@ -982,10 +1021,15 @@ Void TEncCavlc::codeSliceHeader         ( TComSlice* pcSlice )
     {
       if (!pcSlice->isIntra() && pcSlice->getPPS()->getCabacInitPresentFlag())
       {
+#if MCTS_EXTRACTION
+        Bool encCabacInitFlag = pcSlice->getCabacInitFlag();
+#else
         SliceType sliceType   = pcSlice->getSliceType();
         SliceType  encCABACTableIdx = pcSlice->getEncCABACTableIdx();
         Bool encCabacInitFlag = (sliceType!=encCABACTableIdx && encCABACTableIdx!=I_SLICE) ? true : false;
         pcSlice->setCabacInitFlag( encCabacInitFlag );
+#endif
+
         WRITE_FLAG( encCabacInitFlag?1:0, "cabac_init_flag" );
       }
     }

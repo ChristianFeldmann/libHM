@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -2139,7 +2139,11 @@ Bool TComDataCU::hasEqualMotion( UInt uiAbsPartIdx, const TComDataCU* pcCandCU, 
 }
 
 //! Construct a list of merging candidates
+#if MCTS_ENC_CHECK
+Void TComDataCU::getInterMergeCandidates( UInt uiAbsPartIdx, UInt uiPUIdx, TComMvField* pcMvFieldNeighbours, UChar* puhInterDirNeighbours, Int& numValidMergeCand, UInt &numSpatialMergeCandidates, Int mrgCandIdx ) const
+#else
 Void TComDataCU::getInterMergeCandidates( UInt uiAbsPartIdx, UInt uiPUIdx, TComMvField* pcMvFieldNeighbours, UChar* puhInterDirNeighbours, Int& numValidMergeCand, Int mrgCandIdx ) const
+#endif
 {
   UInt uiAbsPartAddr = m_absZIdxInCtu + uiAbsPartIdx;
   Bool abCandIsInter[ MRG_MAX_NUM_CANDS ];
@@ -2183,6 +2187,9 @@ Void TComDataCU::getInterMergeCandidates( UInt uiAbsPartIdx, UInt uiPUIdx, TComM
     }
     if ( mrgCandIdx == iCount )
     {
+#if MCTS_ENC_CHECK
+      numSpatialMergeCandidates = iCount + 1;
+#endif
       return;
     }
     iCount ++;
@@ -2191,6 +2198,9 @@ Void TComDataCU::getInterMergeCandidates( UInt uiAbsPartIdx, UInt uiPUIdx, TComM
   // early termination
   if (iCount == getSlice()->getMaxNumMergeCand())
   {
+#if MCTS_ENC_CHECK
+    numSpatialMergeCandidates = iCount;
+#endif
     return;
   }
   // above
@@ -2215,6 +2225,9 @@ Void TComDataCU::getInterMergeCandidates( UInt uiAbsPartIdx, UInt uiPUIdx, TComM
     }
     if ( mrgCandIdx == iCount )
     {
+#if MCTS_ENC_CHECK
+      numSpatialMergeCandidates = iCount + 1;
+#endif
       return;
     }
     iCount ++;
@@ -2222,6 +2235,9 @@ Void TComDataCU::getInterMergeCandidates( UInt uiAbsPartIdx, UInt uiPUIdx, TComM
   // early termination
   if (iCount == getSlice()->getMaxNumMergeCand())
   {
+#if MCTS_ENC_CHECK
+    numSpatialMergeCandidates = iCount;
+#endif
     return;
   }
 
@@ -2246,6 +2262,9 @@ Void TComDataCU::getInterMergeCandidates( UInt uiAbsPartIdx, UInt uiPUIdx, TComM
     }
     if ( mrgCandIdx == iCount )
     {
+#if MCTS_ENC_CHECK
+      numSpatialMergeCandidates = iCount + 1;
+#endif
       return;
     }
     iCount ++;
@@ -2253,6 +2272,9 @@ Void TComDataCU::getInterMergeCandidates( UInt uiAbsPartIdx, UInt uiPUIdx, TComM
   // early termination
   if (iCount == getSlice()->getMaxNumMergeCand())
   {
+#if MCTS_ENC_CHECK
+    numSpatialMergeCandidates = iCount;
+#endif
     return;
   }
 
@@ -2277,6 +2299,9 @@ Void TComDataCU::getInterMergeCandidates( UInt uiAbsPartIdx, UInt uiPUIdx, TComM
     }
     if ( mrgCandIdx == iCount )
     {
+#if MCTS_ENC_CHECK
+      numSpatialMergeCandidates = iCount + 1;
+#endif
       return;
     }
     iCount ++;
@@ -2284,6 +2309,9 @@ Void TComDataCU::getInterMergeCandidates( UInt uiAbsPartIdx, UInt uiPUIdx, TComM
   // early termination
   if (iCount == getSlice()->getMaxNumMergeCand())
   {
+#if MCTS_ENC_CHECK
+    numSpatialMergeCandidates = iCount;
+#endif
     return;
   }
 
@@ -2311,6 +2339,9 @@ Void TComDataCU::getInterMergeCandidates( UInt uiAbsPartIdx, UInt uiPUIdx, TComM
       }
       if ( mrgCandIdx == iCount )
       {
+#if MCTS_ENC_CHECK
+        numSpatialMergeCandidates = iCount + 1;
+#endif
         return;
       }
       iCount ++;
@@ -2319,9 +2350,14 @@ Void TComDataCU::getInterMergeCandidates( UInt uiAbsPartIdx, UInt uiPUIdx, TComM
   // early termination
   if (iCount == getSlice()->getMaxNumMergeCand())
   {
+#if MCTS_ENC_CHECK
+    numSpatialMergeCandidates = iCount;
+#endif
     return;
   }
-
+#if MCTS_ENC_CHECK
+  numSpatialMergeCandidates = iCount;
+#endif
   if ( getSlice()->getEnableTMVPFlag() )
   {
     //>> MTK colocated-RightBottom
@@ -2580,6 +2616,9 @@ Void TComDataCU::fillMvpCand ( const UInt partIdx, const UInt partAddr, const Re
   pInfo->iN = 0;
   if (refIdx < 0)
   {
+#if MCTS_ENC_CHECK
+    pInfo->numSpatialMVPCandidates = 0;
+#endif
     return;
   }
 
@@ -2651,7 +2690,9 @@ Void TComDataCU::fillMvpCand ( const UInt partIdx, const UInt partAddr, const Re
       pInfo->iN = 1;
     }
   }
-
+#if MCTS_ENC_CHECK
+  pInfo->numSpatialMVPCandidates = pInfo->iN;
+#endif
   if (pInfo->iN < AMVP_MAX_NUM_CANDS && getSlice()->getEnableTMVPFlag() )
   {
     // Get Temporal Motion Predictor
@@ -3164,5 +3205,18 @@ UInt TComDataCU::getCoefScanIdx(const UInt uiAbsPartIdx, const UInt uiWidth, con
     return SCAN_DIAG;
   }
 }
+
+#if MCTS_ENC_CHECK
+Bool TComDataCU::isLastColumnCTUInTile() const
+{
+  UInt      currentTileIdx               = this->getPic()->getPicSym()->getTileIdxMap(this->getCtuRsAddr());
+  TComTile *pCurrentTile                 = m_pcPic->getPicSym()->getTComTile(currentTileIdx);
+  UInt      frameWidthInCtus             = m_pcPic->getPicSym()->getFrameWidthInCtus();
+  UInt      rightEdgeCTUPosInCurrentTile = pCurrentTile->getRightEdgePosInCtus();
+  UInt      ctuXPosInCtus                = this->getCtuRsAddr() % frameWidthInCtus;
+  
+  return (rightEdgeCTUPosInCurrentTile == ctuXPosInCtus);
+}
+#endif
 
 //! \}

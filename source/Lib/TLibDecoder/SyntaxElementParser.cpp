@@ -3,7 +3,7 @@
 * and contributor rights, including patent rights, and no such rights are
 * granted under this license.
 *
-* Copyright (c) 2010-2017, ITU/ISO/IEC
+* Copyright (c) 2010-2026, ITU/ISO/IEC
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
@@ -63,6 +63,13 @@ Void xTraceFillerData ()
 
 
 #if DECODER_PARTIAL_CONFORMANCE_CHECK!=0
+
+Void SyntaxElementParser::xReadSCodeChk ( UInt   length, Int& val, const TChar *pSymbolName, const Int minValIncl, const Int maxValIncl )
+{
+  READ_SCODE(length, val, pSymbolName);
+  TDecConformanceCheck::checkRange(val, pSymbolName, minValIncl, maxValIncl);
+}
+
 Void SyntaxElementParser::xReadCodeChk ( UInt   length, UInt& val, const TChar *pSymbolName, const UInt minValIncl, const UInt maxValIncl )
 {
   READ_CODE(length, val, pSymbolName);
@@ -92,6 +99,34 @@ Void SyntaxElementParser::xReadFlagChk ( UInt&  val, const TChar *pSymbolName, c
 // Protected member functions
 // ====================================================================================================================
 #if RExt__DECODER_DEBUG_BIT_STATISTICS || ENC_DEC_TRACE
+Void SyntaxElementParser::xReadSCode (UInt uiLength, Int& rValue, const TChar *pSymbolName)
+#else
+Void SyntaxElementParser::xReadSCode (UInt uiLength, Int& rValue)
+#endif
+{
+  UInt val;
+  assert ( uiLength > 0 && uiLength<=32);
+  m_pcBitstream->read (uiLength, val);
+  rValue= uiLength>=32 ? Int(val) : ( (-Int( val & (UInt(1)<<(uiLength-1)))) | Int(val) );
+
+#if RExt__DECODER_DEBUG_BIT_STATISTICS
+  TComCodingStatistics::IncrementStatisticEP(pSymbolName, uiLength, rValue);
+#endif
+#if ENC_DEC_TRACE
+  fprintf( g_hTrace, "%8lld  ", g_nSymbolCounter++ );
+  if (uiLength < 10)
+  {
+    fprintf( g_hTrace, "%-50s i(%d)  : %d\n", pSymbolName, uiLength, rValue );
+  }
+  else
+  {
+    fprintf( g_hTrace, "%-50s i(%d) : %d\n", pSymbolName, uiLength, rValue );
+  }
+  fflush ( g_hTrace );
+#endif
+}
+
+#if RExt__DECODER_DEBUG_BIT_STATISTICS || ENC_DEC_TRACE
 Void SyntaxElementParser::xReadCode (UInt uiLength, UInt& rValue, const TChar *pSymbolName)
 #else
 Void SyntaxElementParser::xReadCode (UInt uiLength, UInt& rValue)
@@ -104,13 +139,13 @@ Void SyntaxElementParser::xReadCode (UInt uiLength, UInt& rValue)
 #endif
 #if ENC_DEC_TRACE
   fprintf( g_hTrace, "%8lld  ", g_nSymbolCounter++ );
-  if (length < 10)
+  if (uiLength < 10)
   {
-    fprintf( g_hTrace, "%-50s u(%d)  : %u\n", pSymbolName, length, rValue );
+    fprintf( g_hTrace, "%-50s u(%d)  : %u\n", pSymbolName, uiLength, rValue );
   }
   else
   {
-    fprintf( g_hTrace, "%-50s u(%d) : %u\n", pSymbolName, length, rValue );
+    fprintf( g_hTrace, "%-50s u(%d) : %u\n", pSymbolName, uiLength, rValue );
   }
   fflush ( g_hTrace );
 #endif
@@ -159,6 +194,31 @@ Void SyntaxElementParser::xReadUvlc( UInt& rValue)
   fprintf( g_hTrace, "%-50s ue(v) : %u\n", pSymbolName, rValue );
   fflush ( g_hTrace );
 #endif
+}
+
+#if RExt__DECODER_DEBUG_BIT_STATISTICS || ENC_DEC_TRACE
+Void SyntaxElementParser::xReadString( std::string& valueOut, const TChar *symbolName )
+#else
+Void SyntaxElementParser::xReadString( std::string& valueOut )
+#endif
+{
+  uint32_t code;
+  std::string value( "" );;
+  do
+  {
+    m_pcBitstream->read(8, code);
+    if (code != 0)
+    {
+      value += (char) code;
+    }
+  } while (code != 0);
+
+#if ENC_DEC_TRACE
+  fprintf( g_hTrace, "%8lld  ", g_nSymbolCounter++ );
+  fprintf( g_hTrace, "%-50s st(v) : %s\n", symbolName, value.c_str() );
+  fflush ( g_hTrace );
+#endif
+  valueOut = value;
 }
 
 #if RExt__DECODER_DEBUG_BIT_STATISTICS || ENC_DEC_TRACE

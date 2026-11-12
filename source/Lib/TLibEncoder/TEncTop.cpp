@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -51,8 +51,8 @@
 // ====================================================================================================================
 
 TEncTop::TEncTop() :
-    m_spsMap(MAX_NUM_SPS)
-  , m_ppsMap(MAX_NUM_PPS)
+    m_spsMap(MAX_NUM_SPS),
+    m_ppsMap(MAX_NUM_PPS)
 {
   m_iPOCLast          = -1;
   m_iNumPicRcvd       =  0;
@@ -111,9 +111,15 @@ Void TEncTop::create ()
 
   if ( m_RCEnableRateControl )
   {
+#if JVET_Y0105_SW_AND_QDF
+    m_cRateCtrl.init( m_framesToBeEncoded, m_RCTargetBitrate, (Int)( (Double)m_iFrameRate/m_temporalSubsampleRatio + 0.5), m_iGOPSize, m_uiIntraPeriod, m_iSourceWidth, m_iSourceHeight,
+                      m_maxCUWidth, m_maxCUHeight,m_RCKeepHierarchicalBit, m_RCUseLCUSeparateModel, m_GOPList );
+#else
     m_cRateCtrl.init( m_framesToBeEncoded, m_RCTargetBitrate, (Int)( (Double)m_iFrameRate/m_temporalSubsampleRatio + 0.5), m_iGOPSize, m_iSourceWidth, m_iSourceHeight,
                       m_maxCUWidth, m_maxCUHeight,m_RCKeepHierarchicalBit, m_RCUseLCUSeparateModel, m_GOPList );
+#endif
   }
+  
 
   m_pppcRDSbacCoder = new TEncSbac** [m_maxTotalCUDepth+1];
 #if FAST_BIT_EST
@@ -326,7 +332,11 @@ Void TEncTop::deletePicBuffer()
  \retval  accessUnitsOut      list of output access units
  \retval  iNumEncoded         number of encoded pictures
  */
-Void TEncTop::encode( Bool flush, TComPicYuv* pcPicYuvOrg, TComPicYuv* pcPicYuvTrueOrg, const InputColourSpaceConversion snrCSC, TComList<TComPicYuv*>& rcListPicYuvRecOut, std::list<AccessUnit>& accessUnitsOut, Int& iNumEncoded )
+#if JVET_X0048_X0103_FILM_GRAIN
+Void TEncTop::encode(Bool flush, TComPicYuv* pcPicYuvOrg, TComPicYuv* pcPicYuvTrueOrg, TComPicYuv* pcfilteredOrgPicForFG, const InputColourSpaceConversion ipCSC, const InputColourSpaceConversion snrCSC, TComList<TComPicYuv*>& rcListPicYuvRecOut, std::list<AccessUnit>& accessUnitsOut, Int& iNumEncoded)
+#else
+Void TEncTop::encode( Bool flush, TComPicYuv* pcPicYuvOrg, TComPicYuv* pcPicYuvTrueOrg, const InputColourSpaceConversion ipCSC, const InputColourSpaceConversion snrCSC, TComList<TComPicYuv*>& rcListPicYuvRecOut, std::list<AccessUnit>& accessUnitsOut, Int& iNumEncoded )
+#endif
 {
   if (pcPicYuvOrg != NULL)
   {
@@ -341,6 +351,20 @@ Void TEncTop::encode( Bool flush, TComPicYuv* pcPicYuvOrg, TComPicYuv* pcPicYuvT
     xGetNewPicBuffer( pcPicCurr, ppsID );
     pcPicYuvOrg->copyToPic( pcPicCurr->getPicYuvOrg() );
     pcPicYuvTrueOrg->copyToPic( pcPicCurr->getPicYuvTrueOrg() );
+#if JVET_X0048_X0103_FILM_GRAIN
+    if (m_fgcSEIAnalysisEnabled && m_fgcSEIExternalDenoised.empty())
+    {
+      pcfilteredOrgPicForFG->copyToPic(pcPicCurr->getPicFilteredFG());
+    }
+#endif
+
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+    if ( getShutterFilterFlag() )
+    {
+      pcPicCurr->xOutputPreFilteredPic(pcPicCurr, &m_cListPic);
+      pcPicCurr->getPicYuvOrg()->copyToPic(pcPicYuvOrg);
+    }
+#endif
 
     // compute image characteristics
     if ( getUseAdaptiveQP() )
@@ -361,7 +385,7 @@ Void TEncTop::encode( Bool flush, TComPicYuv* pcPicYuvOrg, TComPicYuv* pcPicYuvT
   }
 
   // compress GOP
-  m_cGOPEncoder.compressGOP(m_iPOCLast, m_iNumPicRcvd, m_cListPic, rcListPicYuvRecOut, accessUnitsOut, false, false, snrCSC, m_printFrameMSE);
+  m_cGOPEncoder.compressGOP(m_iPOCLast, m_iNumPicRcvd, m_cListPic, rcListPicYuvRecOut, accessUnitsOut, false, false, ipCSC, snrCSC, getOutputLogControl());
 
   if ( m_RCEnableRateControl )
   {
@@ -395,7 +419,7 @@ Void separateFields(Pel* org, Pel* dstField, UInt stride, UInt width, UInt heigh
 
 }
 
-Void TEncTop::encode(Bool flush, TComPicYuv* pcPicYuvOrg, TComPicYuv* pcPicYuvTrueOrg, const InputColourSpaceConversion snrCSC, TComList<TComPicYuv*>& rcListPicYuvRecOut, std::list<AccessUnit>& accessUnitsOut, Int& iNumEncoded, Bool isTff)
+Void TEncTop::encode(Bool flush, TComPicYuv* pcPicYuvOrg, TComPicYuv* pcPicYuvTrueOrg, const InputColourSpaceConversion ipCSC, const InputColourSpaceConversion snrCSC, TComList<TComPicYuv*>& rcListPicYuvRecOut, std::list<AccessUnit>& accessUnitsOut, Int& iNumEncoded, Bool isTff)
 {
   iNumEncoded = 0;
 
@@ -465,8 +489,7 @@ Void TEncTop::encode(Bool flush, TComPicYuv* pcPicYuvOrg, TComPicYuv* pcPicYuvTr
     if ( m_iNumPicRcvd && ((flush&&fieldNum==1) || (m_iPOCLast/2)==0 || m_iNumPicRcvd==m_iGOPSize ) )
     {
       // compress GOP
-      m_cGOPEncoder.compressGOP(m_iPOCLast, m_iNumPicRcvd, m_cListPic, rcListPicYuvRecOut, accessUnitsOut, true, isTff, snrCSC, m_printFrameMSE);
-
+      m_cGOPEncoder.compressGOP(m_iPOCLast, m_iNumPicRcvd, m_cListPic, rcListPicYuvRecOut, accessUnitsOut, true, isTff, ipCSC, snrCSC, getOutputLogControl());
       iNumEncoded += m_iNumPicRcvd;
       m_uiNumAllPicCoded += m_iNumPicRcvd;
       m_iNumPicRcvd = 0;
@@ -521,7 +544,11 @@ Void TEncTop::xGetNewPicBuffer ( TComPic*& rpcPic, Int ppsId )
     {
 #if REDUCED_ENCODER_MEMORY
       rpcPic->releaseAllReconstructionData();
+#if JVET_X0048_X0103_FILM_GRAIN
+      rpcPic->prepareForEncoderSourcePicYuv( getFilmGrainAnalysisEnabled() );
+#else
       rpcPic->prepareForEncoderSourcePicYuv();
+#endif
 #endif
     }
     else
@@ -539,9 +566,23 @@ Void TEncTop::xGetNewPicBuffer ( TComPic*& rpcPic, Int ppsId )
     {
       TEncPic* pcEPic = new TEncPic;
 #if REDUCED_ENCODER_MEMORY
-      pcEPic->create( sps, pps, pps.getMaxCuDQPDepth()+1);
+      pcEPic->create(sps, pps, pps.getMaxCuDQPDepth() + 1
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+                    , getShutterFilterFlag()
+#endif
+#if JVET_X0048_X0103_FILM_GRAIN
+                    , getFilmGrainAnalysisEnabled()
+#endif
+                    );
 #else
-      pcEPic->create( sps, pps, pps.getMaxCuDQPDepth()+1, false);
+      pcEPic->create( sps, pps, pps.getMaxCuDQPDepth() + 1, false
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+                    , getShutterFilterFlag()
+#endif
+#if JVET_X0048_X0103_FILM_GRAIN
+                    , getFilmGrainAnalysisEnabled()
+#endif
+                    );
 #endif
       rpcPic = pcEPic;
     }
@@ -549,9 +590,23 @@ Void TEncTop::xGetNewPicBuffer ( TComPic*& rpcPic, Int ppsId )
     {
       rpcPic = new TComPic;
 #if REDUCED_ENCODER_MEMORY
-      rpcPic->create( sps, pps, true, false );
+      rpcPic->create( sps, pps, true, false
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+                    , getShutterFilterFlag()
+#endif
+#if JVET_X0048_X0103_FILM_GRAIN
+                    , getFilmGrainAnalysisEnabled()
+#endif
+                    );
 #else
-      rpcPic->create( sps, pps, false );
+      rpcPic->create( sps, pps, false
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+                    , getShutterFilterFlag()
+#endif
+#if JVET_X0048_X0103_FILM_GRAIN
+                    , getFilmGrainAnalysisEnabled()
+#endif
+                    );
 #endif
     }
 
@@ -922,6 +977,19 @@ Void TEncTop::xInitPPS(TComPPS &pps, const TComSPS &sps)
   {
     bUseDQP = true;
   }
+
+#if JVET_V0078
+  if (getSmoothQPReductionEnable())
+  {
+    bUseDQP = true;
+  }
+#endif
+#if JVET_Y0077_BIM
+  if (m_bimEnabled)
+  {
+    bUseDQP = true;
+  }
+#endif
 
   if (m_costMode==COST_SEQUENCE_LEVEL_LOSSLESS || m_costMode==COST_LOSSLESS_CODING)
   {
@@ -1367,13 +1435,11 @@ Void  TEncCfg::xCheckGSParameters()
   }
 }
 
-#if JCTVC_Y0038_PARAMS
 Void TEncTop::setParamSetChanged(Int spsId, Int ppsId)
 {
   m_ppsMap.setChangedFlag(ppsId);
   m_spsMap.setChangedFlag(spsId);
 }
-#endif
 
 Bool TEncTop::PPSNeedsWriting(Int ppsId)
 {
@@ -1389,7 +1455,6 @@ Bool TEncTop::SPSNeedsWriting(Int spsId)
   return bChanged;
 }
 
-#if X0038_LAMBDA_FROM_QP_CAPABILITY
 Int TEncCfg::getQPForPicture(const UInt gopIndex, const TComSlice *pSlice) const
 {
   const Int lumaQpBDOffset = pSlice->getSPS()->getQpBDOffset(CHANNEL_TYPE_LUMA);
@@ -1405,6 +1470,13 @@ Int TEncCfg::getQPForPicture(const UInt gopIndex, const TComSlice *pSlice) const
 
     qp = getBaseQP();
 
+    // modify QP if a fractional QP was originally specified, cause dQPs to be 0 or 1.
+    const Int* pdQPs = getdQPs();
+    if ( pdQPs )
+    {
+      qp += pdQPs[ pSlice->getPOC() ];
+    }
+
     if(sliceType==I_SLICE)
     {
       qp += getIntraQPOffset();
@@ -1412,7 +1484,15 @@ Int TEncCfg::getQPForPicture(const UInt gopIndex, const TComSlice *pSlice) const
     else
     {
       // Only adjust QP when not lossless
+#if JVET_Y0077_BIM
+      if (!((getMaxDeltaQP() == 0) && (!getLumaLevelToDeltaQPMapping().isEnabled()) && (!getSmoothQPReductionEnable()) && (!getBIM()) && (qp == -lumaQpBDOffset) && (pSlice->getPPS()->getTransquantBypassEnabledFlag())))
+#else
+#if JVET_V0078
+      if (!((getMaxDeltaQP() == 0) && (!getLumaLevelToDeltaQPMapping().isEnabled()) && (!getSmoothQPReductionEnable()) && (qp == -lumaQpBDOffset) && (pSlice->getPPS()->getTransquantBypassEnabledFlag())))
+#else
       if (!(( getMaxDeltaQP() == 0 ) && (!getLumaLevelToDeltaQPMapping().isEnabled()) && (qp == -lumaQpBDOffset ) && (pSlice->getPPS()->getTransquantBypassEnabledFlag())))
+#endif
+#endif
       {
         const GOPEntry &gopEntry=getGOPEntry(gopIndex);
         // adjust QP according to the QP offset for the GOP entry.
@@ -1425,16 +1505,9 @@ Int TEncCfg::getQPForPicture(const UInt gopIndex, const TComSlice *pSlice) const
       }
     }
 
-    // modify QP if a fractional QP was originally specified, cause dQPs to be 0 or 1.
-    const Int* pdQPs = getdQPs();
-    if ( pdQPs )
-    {
-      qp += pdQPs[ pSlice->getPOC() ];
-    }
   }
   qp = Clip3( -lumaQpBDOffset, MAX_QP, qp );
   return qp;
 }
-#endif
 
 //! \}

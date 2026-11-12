@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -107,6 +107,9 @@ private:
 
 #if REDUCED_ENCODER_MEMORY
 public:
+#if MCTS_EXTRACTION
+  friend class MctsExtractorTComPicSym;
+#endif
   struct DPBPerCtuData
   {
     Bool isInter(const UInt absPartAddr)                const { return m_pePredMode[absPartAddr] == MODE_INTER; }
@@ -193,7 +196,21 @@ protected:
 
 };// END CLASS DEFINITION TComPicSym
 
+
+#if MCTS_EXTRACTION
+// Mcts Extractor helper class
+class MctsExtractorTComPicSym {
+public:
+  Void               setNumberOfCtusInFrame(TComPicSym *picsym, UInt numOfCtusInFrame) { picsym->m_numCtusInFrame = numOfCtusInFrame; }  ///< allows setting numOfCtusInFrame which controls memory allocations of several variables in TComPic, TComPicSym, TComLoopFilter and others. Make sure to have equal values of numOfCtusInFrame at time of creation and destruction of an object lifetime to avoid memory leaks.
+};
+#endif
+
+
 //! \}
+
+#if MCTS_ENC_CHECK
+Void getTilePosition(const TComDataCU* const pcCU, UInt &tileXPosInCtus, UInt &tileYPosInCtus, UInt &tileWidthtInCtus, UInt &tileHeightInCtus);
+#endif
 
 #endif // __TCOMPICSYM__
 

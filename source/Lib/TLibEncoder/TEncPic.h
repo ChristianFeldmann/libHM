@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -103,9 +103,23 @@ public:
   virtual ~TEncPic();
 
 #if REDUCED_ENCODER_MEMORY
-  Void          create( const TComSPS &sps, const TComPPS &pps, UInt uiMaxAdaptiveQPDepth );
+  Void          create( const TComSPS &sps, const TComPPS &pps, UInt uiMaxAdaptiveQPDepth
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+                      , const Bool bCreateForProcessedReconstruction
+#endif
+#if JVET_X0048_X0103_FILM_GRAIN
+                      , const Bool bCreateFilteredSourcePicYuv
+#endif
+                      );
 #else
-  Void          create( const TComSPS &sps, const TComPPS &pps, UInt uiMaxAdaptiveQPDepth, Bool bIsVirtual /* = false*/ );
+  Void          create( const TComSPS &sps, const TComPPS &pps, UInt uiMaxAdaptiveQPDepth, Bool bIsVirtual /* = false*/
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+                      , const Bool bCreateForProcessedReconstruction
+#endif
+#if JVET_X0048_X0103_FILM_GRAIN
+                      , const Bool bCreateFilteredSourcePicYuv
+#endif
+                      );
 #endif
   virtual Void  destroy();
 

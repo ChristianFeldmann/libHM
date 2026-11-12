@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -131,7 +131,7 @@ public:
   TComRdCost();
   virtual ~TComRdCost();
 
-  Double calcRdCost( Double numBits, Double distortion, DFunc eDFunc = DF_DEFAULT );
+  Double calcRdCost( Double numBits, Distortion distortion, DFunc eDFunc = DF_DEFAULT );
 
   Void    setDistortionWeight  ( const ComponentID compID, const Double distortionWeight ) { m_distortionWeight[compID] = distortionWeight; }
   Void    setLambda      ( Double dLambda, const BitDepths &bitDepths );
