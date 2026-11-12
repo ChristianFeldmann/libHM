@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -48,7 +48,7 @@ static const UChar emulation_prevention_three_byte[] = {3};
 
 Void writeNalUnitHeader(ostream& out, OutputNALUnit& nalu)       // nal_unit_header()
 {
-TComOutputBitstream bsNALUHeader;
+  TComOutputBitstream bsNALUHeader;
 
   bsNALUHeader.write(0,1);                    // forbidden_zero_bit
   bsNALUHeader.write(nalu.m_nalUnitType, 6);  // nal_unit_type
@@ -61,9 +61,8 @@ TComOutputBitstream bsNALUHeader;
  * write nalu to bytestream out, performing RBSP anti startcode
  * emulation as required.  nalu.m_RBSPayload must be byte aligned.
  */
-Void write(ostream& out, OutputNALUnit& nalu)
+Void writeNaluContent(ostream& out, OutputNALUnit& nalu)
 {
-  writeNalUnitHeader(out, nalu);
   /* write out rsbp_byte's, inserting any required
    * emulation_prevention_three_byte's */
   /* 7.4.1 ...
@@ -120,6 +119,12 @@ Void write(ostream& out, OutputNALUnit& nalu)
     outputBuffer[outputAmount++]=emulation_prevention_three_byte[0];
   }
   out.write(reinterpret_cast<const TChar*>(&(*outputBuffer.begin())), outputAmount);
+}
+
+void writeNaluWithHeader(std::ostream &out, OutputNALUnit &nalu)
+{
+  writeNalUnitHeader(out, nalu);
+  writeNaluContent(out, nalu);
 }
 
 //! \}

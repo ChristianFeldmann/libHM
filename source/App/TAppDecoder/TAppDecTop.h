@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
 #pragma once
 #endif // _MSC_VER > 1000
 
-#include "TLibVideoIO/TVideoIOYuv.h"
+#include "Utilities/TVideoIOYuv.h"
 #include "TLibCommon/TComList.h"
 #include "TLibCommon/TComPicYuv.h"
 #include "TLibDecoder/TDecTop.h"
@@ -62,12 +62,23 @@ private:
   // class interface
   TDecTop                         m_cTDecTop;                     ///< decoder class
   TVideoIOYuv                     m_cTVideoIOYuvReconFile;        ///< reconstruction YUV class
+#if JVET_X0048_X0103_FILM_GRAIN
+  TVideoIOYuv                     m_cTVideoIOYuvSEIFGSFile;       ///< reconstruction YUV class
+#endif
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+  Bool                            m_ShutterFilterEnable;          ///< enable Post-processing with Shutter Interval SEI
+  TVideoIOYuv                     m_cTVideoIOYuvSIIPostFile;      ///< post-filtered YUV class
+#endif
 
   // for output control
   Int                             m_iPOCLastDisplay;              ///< last POC in display order
   std::ofstream                   m_seiMessageFileStream;         ///< Used for outputing SEI messages.
 
   SEIColourRemappingInfo*         m_pcSeiColourRemappingInfoPrevious;
+
+  SEIAnnotatedRegions::AnnotatedRegionHeader                 m_arHeader;
+  std::map<UInt, SEIAnnotatedRegions::AnnotatedRegionObject> m_arObjects;
+  std::map<UInt, std::string>                                m_arLabels;
 
 public:
   TAppDecTop();
@@ -78,18 +89,24 @@ public:
   Void  decode            (); ///< main decoding function
   UInt  getNumberOfChecksumErrorsDetected() const { return m_cTDecTop.getNumberOfChecksumErrorsDetected(); }
 
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+  Bool  getShutterFilterFlag()        const { return m_ShutterFilterEnable; }
+  Void  setShutterFilterFlag(Bool value)    { m_ShutterFilterEnable = value; }
+#endif
+
 protected:
   Void  xCreateDecLib     (); ///< create internal classes
   Void  xDestroyDecLib    (); ///< destroy internal classes
   Void  xInitDecLib       (); ///< initialize decoder class
 
-  Void  xWriteOutput      ( TComList<TComPic*>* pcListPic , UInt tId); ///< write YUV to file
+  Void  xWriteOutput      ( TComList<TComPic*>* pcListPic , UInt tId, Int poc); ///< write YUV to file
   Void  xFlushOutput      ( TComList<TComPic*>* pcListPic ); ///< flush all remaining decoded pictures to file
   Bool  isNaluWithinTargetDecLayerIdSet ( InputNALUnit* nalu ); ///< check whether given Nalu is within targetDecLayerIdSet
 
 private:
   Void applyColourRemapping(const TComPicYuv& pic, SEIColourRemappingInfo& pCriSEI, const TComSPS &activeSPS);
   Void xOutputColourRemapPic(TComPic* pcPic);
+  Void xOutputAnnotatedRegions(TComPic* pcPic);
 };
 
 //! \}

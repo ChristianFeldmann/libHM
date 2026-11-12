@@ -1,0 +1,147 @@
+stages:
+   - build
+
+variables:
+   CLEAN_CACHE_DIR:
+      value: "no-such-file"
+      description: "Use ext to clean the default cache before building anything."
+
+.build_template:
+   stage: build
+   only:
+      refs:
+         - master
+         - merge_requests
+         - web
+      variables:
+         - $CI_PROJECT_URL == 'https://vcgit.hhi.fraunhofer.de/jvet/HM'
+         - $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == 'master'
+
+.build_template_linux:
+   extends: .build_template
+   variables:
+      CCACHE_DIR: "$CI_PROJECT_DIR/ext/ccache"
+      CCACHE_MAXSIZE: 4G
+   cache:
+      key: $CI_JOB_NAME
+      paths:
+         - ext/   
+   before_script:
+      - cmake -E rm -rf $CLEAN_CACHE_DIR
+   script:
+      - cmake -G "Ninja" -D "CMAKE_BUILD_TYPE:STRING=Debug" -S . -B build/debug
+      - cmake --build build/debug --parallel $(nproc)
+      - cmake -G "Ninja" -D "CMAKE_BUILD_TYPE:STRING=Release" -S . -B build/release
+      - cmake --build build/release --parallel $(nproc)
+      - cmake -G "Ninja" -D "CMAKE_BUILD_TYPE:STRING=RelWithDebInfo" -S . -B build/relwithdebinfo
+      - cmake --build build/relwithdebinfo --parallel $(nproc)
+
+.build_template_linux_highbit:
+   extends: .build_template_linux
+   script:
+      - cmake -G "Ninja" -D "CMAKE_BUILD_TYPE:STRING=Release" -D "HIGH_BITDEPTH=true" -S . -B build/release
+      - cmake --build build/release --parallel $(nproc)
+
+.build_template_linux_trace_enable:
+   extends: .build_template_linux
+   script:
+      - cmake -G "Ninja" -D "CMAKE_BUILD_TYPE:STRING=Debug" -D "ENABLE_TRACING=true" -S . -B build/debug
+      - cmake --build build/debug --parallel $(nproc)
+
+.build_template_linux_no_openssl:
+   extends: .build_template_linux
+   script:
+      - cmake -G "Ninja" -D "CMAKE_BUILD_TYPE:STRING=Release" -D "ENABLE_SEARCH_OPENSSL=off" -S . -B build/release
+      - cmake --build build/release --parallel $(nproc)
+
+.build_template_macos:
+   extends: .build_template
+   script:
+      - cmake -G "Xcode" -D "CMAKE_CONFIGURATION_TYPES:STRING=Debug;Release;RelWithDebInfo" -S . -B build
+      - cmake --build build --parallel $(sysctl -n hw.ncpu) --config Debug
+      - cmake --build build --parallel $(sysctl -n hw.ncpu) --config Release
+      - cmake --build build --parallel $(sysctl -n hw.ncpu) --config RelWithDebInfo
+
+.build_template_windows:
+   extends: .build_template
+   script:
+      - cmake -G $CMAKE_GENERATOR -D "CMAKE_CONFIGURATION_TYPES:STRING=Debug;Release;RelWithDebInfo" -S . -B build
+      - cmake --build build --config Debug -- /maxcpucount /verbosity:minimal /nr:false
+      - cmake --build build --config Release -- /maxcpucount /verbosity:minimal /nr:false
+      - cmake --build build --config RelWithDebInfo -- /maxcpucount /verbosity:minimal /nr:false
+
+build_macos:
+   extends: .build_template_macos
+   tags:
+      - macos
+
+build_macos_arm:
+   extends: .build_template_macos
+   tags:
+      - macos-arm
+
+build_ubuntu2204:
+   extends: .build_template_linux
+   image: harbor.fe.hhi.de/vigitlab/pub/dockerimages/ubuntu_2204_full:latest 
+   tags:
+      - docker
+
+build_ubuntu2404:
+   extends: .build_template_linux
+   image: harbor.fe.hhi.de/vigitlab/pub/dockerimages/ubuntu_2404_full:latest 
+   tags:
+      - docker
+
+build_ubuntu2404_highbit:
+   extends: .build_template_linux_highbit
+   image: harbor.fe.hhi.de/vigitlab/pub/dockerimages/ubuntu_2404_full:latest 
+   tags:
+      - docker
+
+build_ubuntu2404_trace_enable:
+   extends: .build_template_linux_trace_enable
+   image: harbor.fe.hhi.de/vigitlab/pub/dockerimages/ubuntu_2404_full:latest 
+   tags:
+      - docker
+build_ubuntu2404_no_openssl:
+   extends: .build_template_linux_no_openssl
+   image: harbor.fe.hhi.de/vigitlab/pub/dockerimages/ubuntu_2404_full:latest 
+   tags:
+      - docker
+
+build_ubuntu2404-gcc14:
+   extends: .build_template_linux
+   image: harbor.fe.hhi.de/vigitlab/pub/dockerimages/ubuntu_2404_full:latest 
+   variables:
+      CC: gcc-14
+      CXX: g++-14
+   tags:
+      - docker
+
+build_vc192x:
+   extends: .build_template_windows
+   variables:
+      CMAKE_GENERATOR: "Visual Studio 16 2019"
+   tags:
+      - vc192x
+
+build_vc193x:
+   extends: .build_template_windows
+   variables:
+      CMAKE_GENERATOR: "Visual Studio 17 2022"
+   tags:
+      - vc193x
+
+build_software-manual:
+   extends: .build_template
+   image: harbor.fe.hhi.de/vigitlab/pub/dockerimages/ubuntu_2404_full:latest 
+   script:
+      - cd doc
+      - make clean
+      - make
+   artifacts:
+    paths:
+      - doc/software-manual.pdf
+   tags:
+      - docker
+

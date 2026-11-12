@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -734,7 +734,10 @@ Void TComPrediction::xPredIntraPlanar( const Pel* pSrc, Int srcStride, Pel* rpDs
 {
   assert(width <= height);
 
-  Int leftColumn[MAX_CU_SIZE+1], topRow[MAX_CU_SIZE+1], bottomRow[MAX_CU_SIZE], rightColumn[MAX_CU_SIZE];
+  Int leftColumn[MAX_CU_SIZE+1] = {0};
+  Int topRow[MAX_CU_SIZE+1] = {0};
+  Int bottomRow[MAX_CU_SIZE] = {0};
+  Int rightColumn[MAX_CU_SIZE] = {0};
   UInt shift1Dhor = g_aucConvertToBit[ width ] + 2;
   UInt shift1Dver = g_aucConvertToBit[ height ] + 2;
 
@@ -826,4 +829,273 @@ Bool TComPrediction::UseDPCMForFirstPassIntraEstimation(TComTU &rTu, const UInt 
           (uiDirMode==HOR_IDX || uiDirMode==VER_IDX);
 }
 
+#if MCTS_ENC_CHECK
+
+Void getRefPUPartPos(TComDataCU* pcCU, TComMv& cMv, Int uiPartIdx, Int& ruiPredXLeft, Int& ruiPredYTop, Int& ruiPredXRight, Int& ruiPredYBottom, Int iWidth, Int iHeight)
+{
+  ruiPredXLeft = pcCU->getCUPelX();
+  ruiPredYTop = pcCU->getCUPelY();
+
+  switch (pcCU->getPartitionSize(0))
+  {
+  case SIZE_2NxN:
+    if (uiPartIdx == 0)
+    {
+      ruiPredXRight = ruiPredXLeft + iWidth;
+      ruiPredYBottom = ruiPredYTop + iHeight;
+    }
+    else
+    {
+      ruiPredXRight = ruiPredXLeft + iWidth;
+      ruiPredYBottom = ruiPredYTop + (iHeight << 1);
+      ruiPredYTop += iHeight;
+    }
+    break;
+  case SIZE_Nx2N:
+    if (uiPartIdx == 0)
+    {
+      ruiPredXRight = ruiPredXLeft + iWidth;
+      ruiPredYBottom = ruiPredYTop + iHeight;
+    }
+    else
+    {
+      ruiPredXRight = ruiPredXLeft + (iWidth << 1);
+      ruiPredYBottom = ruiPredYTop + iHeight;
+      ruiPredXLeft += iWidth;
+    }
+    break;
+  case SIZE_NxN:
+    if (uiPartIdx == 0)
+    {
+      ruiPredXRight = ruiPredXLeft + iWidth;
+      ruiPredYBottom = ruiPredYTop + iHeight;
+    }
+    else if (uiPartIdx == 1)
+    {
+      ruiPredXRight = ruiPredXLeft + (iWidth << 1);
+      ruiPredYBottom = ruiPredYTop + iHeight;
+      ruiPredXLeft += iWidth;
+    }
+    else if (uiPartIdx == 2)
+    {
+      ruiPredXRight = ruiPredXLeft + iWidth;
+      ruiPredYBottom = ruiPredYTop + (iHeight << 1);
+      ruiPredYTop += iHeight;
+    }
+    else if (uiPartIdx == 3)
+    {
+      ruiPredXRight = ruiPredXLeft + (iWidth << 1);
+      ruiPredYBottom = ruiPredYTop + (iHeight << 1);
+      ruiPredXLeft += iWidth;
+      ruiPredYTop += iHeight;
+    }
+    break;
+  case SIZE_2NxnU:
+    if (uiPartIdx == 0)
+    {
+      ruiPredXRight = ruiPredXLeft + iWidth;
+      ruiPredYBottom = ruiPredYTop + iHeight;
+    }
+    else
+    {
+      ruiPredXRight = ruiPredXLeft + iWidth;
+      ruiPredYBottom = ruiPredYTop + pcCU->getHeight(0);
+      ruiPredYTop += (iHeight / 3);
+    }
+    break;
+  case SIZE_2NxnD:
+    if (uiPartIdx == 0)
+    {
+      ruiPredXRight = ruiPredXLeft + iWidth;
+      ruiPredYBottom = ruiPredYTop + iHeight;
+    }
+    else
+    {
+      Int oriHeight = iHeight << 2;
+      ruiPredXRight = ruiPredXLeft + iWidth;
+      ruiPredYBottom = ruiPredYTop + oriHeight;
+      ruiPredYTop += (oriHeight >> 2) + (oriHeight >> 1);
+    }
+    break;
+  case SIZE_nLx2N:
+    if (uiPartIdx == 0)
+    {
+      ruiPredXRight = ruiPredXLeft + iWidth;
+      ruiPredYBottom = ruiPredYTop + iHeight;
+    }
+    else
+    {
+      ruiPredXRight = ruiPredXLeft + pcCU->getWidth(0);
+      ruiPredYBottom = ruiPredYTop + iHeight;
+      ruiPredXLeft += (iWidth / 3);
+    }
+    break;
+  case SIZE_nRx2N:
+    if (uiPartIdx == 0)
+    {
+      ruiPredXRight = ruiPredXLeft + iWidth;
+      ruiPredYBottom = ruiPredYTop + iHeight;
+    }
+    else
+    {
+      Int oriWidth = (iWidth << 2);
+      ruiPredXRight = ruiPredXLeft + oriWidth;
+      ruiPredYBottom = ruiPredYTop + iHeight;
+      ruiPredXLeft += (oriWidth >> 2) + (oriWidth >> 1);
+    }
+    break;
+  default:
+    ruiPredXRight = ruiPredXLeft + iWidth;
+    ruiPredYBottom = ruiPredYTop + iHeight;
+    break;
+  }
+
+  ruiPredXLeft   += (cMv.getHor() >> 2);
+  ruiPredYTop    += (cMv.getVer() >> 2);
+  ruiPredXRight  += (cMv.getHor() >> 2) - 1;
+  ruiPredYBottom += (cMv.getVer() >> 2) - 1;
+}
+
+Bool checkMVPRange(TComMv& cMv, UInt ctuLength, UInt tileXPosInCtus, UInt tileYPosInCtus, UInt tileWidthtInCtus, UInt tileHeightInCtus, Int PredXLeft, Int PredXRight, Int PredYTop, Int PredYBottom, ChromaFormat chromaFormat)
+{
+  // filter length of sub-sample generation filter to be considered
+  const UInt LumaLTSampleOffset = 3;
+  const UInt LumaRBSampleOffset = 4;
+  const UInt CromaLTSampleoffset = 1;
+  const UInt CromaRBSampleoffset = 2;
+
+  // tile position in full pels
+  const Int leftTopPelPosX = ctuLength * tileXPosInCtus;
+  const Int leftTopPelPosY = ctuLength * tileYPosInCtus;
+  const Int rightBottomPelPosX = ((tileWidthtInCtus + tileXPosInCtus) * ctuLength) - 1;
+  const Int rightBottomPelPosY = ((tileHeightInCtus + tileYPosInCtus) * ctuLength) - 1;
+
+  // Luma MV range check
+  const Bool isFullPelHorLuma = (cMv.getHor() % 4 == 0);
+  const Bool isFullPelVerLuma = (cMv.getVer() % 4 == 0);
+
+  const Int lRangeXLeft = leftTopPelPosX + (isFullPelHorLuma ? 0 : LumaLTSampleOffset);
+  const Int lRangeYTop = leftTopPelPosY + (isFullPelVerLuma ? 0 : LumaLTSampleOffset);
+  const Int lRangeXRight = rightBottomPelPosX - (isFullPelHorLuma ? 0 : LumaRBSampleOffset);
+  const Int lRangeYBottom = rightBottomPelPosY - (isFullPelVerLuma ? 0 : LumaRBSampleOffset);
+
+  if (!(PredXLeft >= lRangeXLeft && PredXLeft <= lRangeXRight) || !(PredXRight >= lRangeXLeft && PredXRight <= lRangeXRight))
+  {
+    return false;
+  }
+  else if (!(PredYTop >= lRangeYTop && PredYTop <= lRangeYBottom) || !(PredYBottom >= lRangeYTop && PredYBottom <= lRangeYBottom))
+  {
+    return false;
+  }
+
+  if ((chromaFormat != CHROMA_444) && (chromaFormat != CHROMA_400))
+  {
+    // Chroma MV range check
+    const Bool isFullPelHorChroma = (cMv.getHor() % 8 == 0);
+    const Bool isFullPelVerChroma = (cMv.getVer() % 8 == 0);
+
+    const Int cRangeXLeft = leftTopPelPosX + (isFullPelHorChroma ? 0 : CromaLTSampleoffset);
+    const Int cRangeYTop = leftTopPelPosY + (isFullPelVerChroma ? 0 : CromaLTSampleoffset);
+    const Int cRangeXRight = rightBottomPelPosX - (isFullPelHorChroma ? 0 : CromaRBSampleoffset);
+    const Int cRangeYBottom = rightBottomPelPosY - (isFullPelVerChroma ? 0 : CromaRBSampleoffset);
+
+    if (!(PredXLeft >= cRangeXLeft && PredXLeft <= cRangeXRight) || !(PredXRight >= cRangeXLeft && PredXRight <= cRangeXRight))
+    {
+      return false;
+    }
+    else if ((!(PredYTop >= cRangeYTop && PredYTop <= cRangeYBottom) || !(PredYBottom >= cRangeYTop && PredYBottom <= cRangeYBottom)) && (chromaFormat != CHROMA_422))
+    {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+Bool TComPrediction::checkTMctsMvp(TComDataCU* pcCU, Int partIdx)
+{
+  Int   partWidth  = 0;
+  Int   partHeight = 0;
+  UInt  partAddr   = 0;
+
+  UInt  tileXPosInCtus = 0;
+  UInt  tileYPosInCtus = 0;
+  UInt  tileWidthtInCtus = 0;
+  UInt  tileHeightInCtus = 0;
+  
+  getTilePosition(pcCU, tileXPosInCtus, tileYPosInCtus, tileWidthtInCtus, tileHeightInCtus);
+
+  const UInt            ctuLength = pcCU->getPic()->getPicSym()->getSPS().getMaxCUWidth();
+  const ChromaFormat chromaFormat = pcCU->getPic()->getPicSym()->getSPS().getChromaFormatIdc();
+
+  Int   predXLeft;
+  Int   predYTop;
+  Int   predXRight;
+  Int   predYBottom;
+
+  if (partIdx >= 0)
+  {
+    pcCU->getPartIndexAndSize(partIdx, partAddr, partWidth, partHeight);
+
+    if (xCheckIdenticalMotion(pcCU, partAddr))
+    {
+      RefPicList eRefPicList = REF_PIC_LIST_0;
+      TComMv      cMv = pcCU->getCUMvField(eRefPicList)->getMv(partAddr);
+      getRefPUPartPos(pcCU, cMv, partIdx, predXLeft, predYTop, predXRight, predYBottom, partWidth, partHeight);
+      if (!checkMVPRange(cMv, ctuLength, tileXPosInCtus, tileYPosInCtus, tileWidthtInCtus, tileHeightInCtus, predXLeft, predXRight, predYTop, predYBottom, chromaFormat))
+      {
+        return false;
+      }
+    }
+    else
+    {
+      for (UInt refList = 0; refList < NUM_REF_PIC_LIST_01; refList++)
+      {
+        RefPicList eRefPicList = (refList ? REF_PIC_LIST_1 : REF_PIC_LIST_0);
+
+        TComMv      cMv = pcCU->getCUMvField(eRefPicList)->getMv(partAddr);
+        getRefPUPartPos(pcCU, cMv, partIdx, predXLeft, predYTop, predXRight, predYBottom, partWidth, partHeight);
+        if (!checkMVPRange(cMv, ctuLength, tileXPosInCtus, tileYPosInCtus, tileWidthtInCtus, tileHeightInCtus, predXLeft, predXRight, predYTop, predYBottom, chromaFormat))
+        {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  for (partIdx = 0; partIdx < pcCU->getNumPartitions(); partIdx++)
+  {
+    pcCU->getPartIndexAndSize(partIdx, partAddr, partWidth, partHeight);
+
+    if (xCheckIdenticalMotion(pcCU, partAddr))
+    {
+      RefPicList eRefPicList = REF_PIC_LIST_0;
+      TComMv      cMv = pcCU->getCUMvField(eRefPicList)->getMv(partAddr);
+      getRefPUPartPos(pcCU, cMv, partIdx, predXLeft, predYTop, predXRight, predYBottom, partWidth, partHeight);
+      if (!checkMVPRange(cMv, ctuLength, tileXPosInCtus, tileYPosInCtus, tileWidthtInCtus, tileHeightInCtus, predXLeft, predXRight, predYTop, predYBottom, chromaFormat))
+      {
+        return false;
+      }
+    }
+    else
+    {
+      for (UInt refList = 0; refList < NUM_REF_PIC_LIST_01; refList++)
+      {
+        RefPicList eRefPicList = (refList ? REF_PIC_LIST_1 : REF_PIC_LIST_0);
+
+        TComMv      cMv = pcCU->getCUMvField(eRefPicList)->getMv(partAddr);
+        getRefPUPartPos(pcCU, cMv, partIdx, predXLeft, predYTop, predXRight, predYBottom, partWidth, partHeight);
+        if (!checkMVPRange(cMv, ctuLength, tileXPosInCtus, tileYPosInCtus, tileWidthtInCtus, tileHeightInCtus, predXLeft, predXRight, predYTop, predYBottom, chromaFormat))
+        {
+          return false;
+        }
+      }
+    }
+  }
+  return true;
+}
+
+
+#endif
 //! \}

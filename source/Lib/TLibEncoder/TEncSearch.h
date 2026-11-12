@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -400,7 +400,16 @@ protected:
                                     const TComMv&      cMvPred,
                                     const Int          iSrchRng,
                                     TComMv&      rcMvSrchRngLT,
+#if !MCTS_ENC_CHECK
                                     TComMv&      rcMvSrchRngRB );
+#else
+                                    TComMv&      rcMvSrchRngRB,
+                                    const TComPattern* const pcPatternKey );
+#endif
+
+#if MCTS_ENC_CHECK
+  Void xInitTileBorders(const TComDataCU* const pcCU, TComPattern* pcPatternKey);
+#endif
 
   Void xPatternSearchFast         ( const TComDataCU* const  pcCU,
                                     const TComPattern* const pcPatternKey,

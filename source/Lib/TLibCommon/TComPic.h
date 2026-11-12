@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -43,6 +43,9 @@
 #include "TComPicSym.h"
 #include "TComPicYuv.h"
 #include "TComBitStream.h"
+#if JVET_X0048_X0103_FILM_GRAIN
+#include "SEIFilmGrainSynthesizer.h"
+#endif
 
 //! \ingroup TLibCommon
 //! \{
@@ -56,7 +59,21 @@
 class TComPic
 {
 public:
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+#if JVET_X0048_X0103_FILM_GRAIN
+  typedef enum { PIC_YUV_ORG = 0, PIC_YUV_REC = 1, PIC_YUV_TRUE_ORG = 2, PIC_YUV_POST_REC = 3, PIC_FILTERED_ORIGINAL_FG = 4, NUM_PIC_YUV = 5} PIC_YUV_T;
+  TComPicYuv* getPicFilteredFG() { return  m_apcPicYuv[PIC_FILTERED_ORIGINAL_FG]; }
+#else
+  typedef enum { PIC_YUV_ORG = 0, PIC_YUV_REC = 1, PIC_YUV_TRUE_ORG = 2, PIC_YUV_POST_REC = 3, NUM_PIC_YUV = 4 } PIC_YUV_T;
+#endif
+  TComPicYuv*   getPicYuvPostRec()        { return  m_apcPicYuv[PIC_YUV_POST_REC]; }
+
+  TComPic*  findPrevPicPOC(TComPic* pcPic, TComList<TComPic*>* pcListPic);
+  Void  xOutputPostFilteredPic(TComPic* pcPic, TComList<TComPic*>* pcListPic);
+  Void  xOutputPreFilteredPic(TComPic* pcPic, TComList<TComPic*>* pcListPic);
+#else
   typedef enum { PIC_YUV_ORG=0, PIC_YUV_REC=1, PIC_YUV_TRUE_ORG=2, NUM_PIC_YUV=3 } PIC_YUV_T;
+#endif
      // TRUE_ORG is the input file without any pre-encoder colour space conversion (but with possible bit depth increment)
   TComPicYuv*   getPicYuvTrueOrg()        { return  m_apcPicYuv[PIC_YUV_TRUE_ORG]; }
 
@@ -71,6 +88,7 @@ private:
   TComPicYuv*           m_pcPicYuvResi;           //  Residual
   Bool                  m_bReconstructed;
   Bool                  m_bNeededForOutput;
+  UInt                  m_picLatencyCount = 0;
   UInt                  m_uiCurrSliceIdx;         // Index of current slice
   Bool                  m_bCheckLTMSB;
 
@@ -87,14 +105,37 @@ public:
   virtual ~TComPic();
 
 #if REDUCED_ENCODER_MEMORY
-  Void          create( const TComSPS &sps, const TComPPS &pps, const Bool bCreateEncoderSourcePicYuv, const Bool bCreateForImmediateReconstruction, TComRom::TComRomScan *scan );
+  Void          create( const TComSPS &sps, const TComPPS &pps, const Bool bCreateEncoderSourcePicYuv, const Bool bCreateForImmediateReconstruction, TComRom::TComRomScan *scan
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+                      , const Bool bCreateForProcessedReconstruction
+#endif
+#if JVET_X0048_X0103_FILM_GRAIN
+                      , const Bool bCreateFilteredSourcePicYuv
+#endif
+                      );
+
+#if JVET_X0048_X0103_FILM_GRAIN
+  Void          prepareForEncoderSourcePicYuv( const Bool bCreateFilteredSourcePicYuv );
+#else
   Void          prepareForEncoderSourcePicYuv();
+#endif
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+  Void          prepareForReconstruction( const Bool bCreateForProcessedReconstruction );
+#else
   Void          prepareForReconstruction();
+#endif
   Void          releaseReconstructionIntermediateData();
   Void          releaseAllReconstructionData();
   Void          releaseEncoderSourceImageData();
 #else
-  Void          create( const TComSPS &sps, const TComPPS &pps, const Bool bIsVirtual /*= false*/ );
+  Void          create( const TComSPS &sps, const TComPPS &pps, const Bool bIsVirtual /*= false*/
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+                      , const Bool bCreateForProcessedReconstruction
+#endif
+#if JVET_X0048_X0103_FILM_GRAIN
+                      , const Bool bCreateFilteredSourcePicYuv
+#endif
+                      );
 #endif
 
   virtual Void  destroy();
@@ -120,6 +161,15 @@ public:
   TComPicYuv*   getPicYuvOrg()        { return  m_apcPicYuv[PIC_YUV_ORG]; }
   TComPicYuv*   getPicYuvRec()        { return  m_apcPicYuv[PIC_YUV_REC]; }
 
+#if JVET_X0048_X0103_FILM_GRAIN
+  Void createGrainSynthesizer(Bool bFirstPictureInSequence, SEIFilmGrainSynthesizer* pGrainCharacteristics, TComPicYuv* pGrainBuf, const TComSPS* sps);
+  Int                      m_padValue;
+  Bool                     m_isMctfFiltered;
+  SEIFilmGrainSynthesizer *m_grainCharacteristic;
+  TComPicYuv              *m_grainBuf;
+  TComPicYuv*   getPicYuvDisp();
+#endif
+
   TComPicYuv*   getPicYuvPred()       { return  m_pcPicYuvPred; }
   TComPicYuv*   getPicYuvResi()       { return  m_pcPicYuvResi; }
   Void          setPicYuvPred( TComPicYuv* pcPicYuv )       { m_pcPicYuvPred = pcPicYuv; }
@@ -144,6 +194,8 @@ public:
   Bool          getReconMark () const      { return m_bReconstructed;  }
   Void          setOutputMark (Bool b) { m_bNeededForOutput = b;     }
   Bool          getOutputMark () const      { return m_bNeededForOutput;  }
+  Void          setPicLatencyCount (UInt i) { m_picLatencyCount = i;  }
+  UInt          getPicLatencyCount () const { return m_picLatencyCount;  }
 
   Void          compressMotion();
   UInt          getCurrSliceIdx() const           { return m_uiCurrSliceIdx;                }
@@ -154,6 +206,7 @@ public:
 
   const Window& getConformanceWindow() const { return m_picSym.getSPS().getConformanceWindow(); }
   Window        getDefDisplayWindow() const  { return m_picSym.getSPS().getVuiParametersPresentFlag() ? m_picSym.getSPS().getVuiParameters()->getDefaultDisplayWindow() : Window(); }
+  BitDepths     getBitDepths() const         { return m_picSym.getSPS().getBitDepths(); }
 
   Bool          getSAOMergeAvailability(Int currAddr, Int mergeAddr);
 

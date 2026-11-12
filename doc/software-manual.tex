@@ -1,4 +1,4 @@
-\documentclass[a4paper,11pt]{jctvcdoc}
+\documentclass[a4paper,11pt]{jvetdoc}
 
 \usepackage{geometry}[2010/02/12]
 
@@ -21,6 +21,18 @@
 \usepackage{array}
 \usepackage{algorithm2e}
 \usepackage{amsmath}
+
+\urlstyle{same}
+
+% code highlighting
+\usepackage{minted,xcolor}
+\definecolor{bggray}{gray}{0.95}
+\setminted{
+bgcolor=bggray,
+xleftmargin=3ex,
+breaklines=true,
+fontsize=\footnotesize}
+
 
 \usepackage[strings]{underscore}
 \usepackage{csquotes}
@@ -72,7 +84,7 @@
 }
 
 \newenvironment{OptionTableNoShorthand}[2]{%
-	\footnotesize
+	\scriptsize
 	\def\arraystretch{1.8}
 	\clearOptions
 	\begin{longtable}{l<{\makecell[tl]{\optOption}}%
@@ -105,7 +117,7 @@
 }
 
 \newenvironment{SEIListTable}[1]{%
-	\footnotesize
+	\scriptsize
 	\def\arraystretch{1.8}
 	\clearOptions
 	\begin{longtable}{c<{\makecell[tl]{\optOption}}%
@@ -138,7 +150,7 @@
 }
 
 \newenvironment{MacroTable}[1]{%
-	\footnotesize
+	\scriptsize
 	\def\arraystretch{1.3}
 	\clearOptions
 	\begin{longtable}{lcp{0.5\textwidth}}
@@ -174,24 +186,24 @@
 	David Flynn
 	\email{dflynn@blackberry.com}
 	\and
-  Karl Sharman
+	Karl Sharman
 	\email{karl.sharman@eu.sony.com}
 	\and
 	Karsten S\"uhring
 	\email{karsten.suehring@hhi.fraunhofer.de}
 }
 
-\jctvcmeeting{}
-\jctvcdocnum{Software Manual}
-\jctvcdocstatus{Software AHG working document}
-\jctvcdocpurpose{Information}
-\jctvcdocsource{AHG chairs}
+\jvetmeeting{}
+\jvetdocnum{Software Manual}
+\jvetdocstatus{Software AHG working document}
+\jvetdocpurpose{Information}
+\jvetdocsource{AHG chairs}
 
 \begin{document}
 \maketitle
 \begin{abstract}
 This document is a user manual describing usage of reference software
-for the HEVC project. It applies to version 16.15
+for the HEVC project. It applies to version 19.0
 of the software.
 \end{abstract}
 
@@ -217,55 +229,164 @@ This document aims to provide guidance on the usage of the reference
 software. It is widely suspected to be incomplete and suggestions for
 improvements are welcome. Such suggestions and general inquiries may be
 sent to the general JCT-VC email reflector on
-\url{jct-vc@lists.rwth-aachen.de} (registration required).
+\url{https://lists.rwth-aachen.de/postorius/lists/jct-vc.lists.rwth-aachen.de/} 
+(registration required).
 
 \subsection*{Bug reporting}
-Bugs should be reported on the issue tracker set up at
-\url{http://hevc.kw.bbc.co.uk/trac/}
+Bugs should be reported on the issue tracker set up at:
+
+\url{https://hevc.hhi.fraunhofer.de/trac/hevc/}
 
 \section{Installation and compilation}
-The software may be retrieved from one of the following SVN servers
-(mirrored):
-\begin{itemize}
-\item \url{https://hevc.hhi.fraunhofer.de/svn/svn_HEVCSoftware/}
-\item \url{svn://hevc.kw.bbc.co.uk/svn/jctvc-hm/}
-\end{itemize}
+The software may be retrieved from the GitLab server located at:
 
-Table~\ref{tab:project-files} enumerates various project files that are
-provided for development environments.
+\url{https://vcgit.hhi.fraunhofer.de/jct-vc/HM}
+
+Table~\ref{tab:project-files} lists the compiler environments and versions 
+for which building the software is tested.
 
 \begin{table}[ht]
-\footnotesize
-\caption{Available project files}
+\caption{Supported compilers}
 \label{tab:project-files}
 \centering
 \begin{tabular}{ll}
 \hline
- \thead{Environment} &
- \thead{Location of project file} \\
-% Environment          & Location of project file \\
+ \thead{Compiler environment} &
+ \thead{Versions} \\
 \hline
-MS Visual Studio 2008 (VC9)   & build/HM_vc9.sln \\
-MS Visual Studio 2010 (VC10)  & build/HM_vc2010.sln \\
-MS Visual Studio 2012 (VC11)  & build/HM_vc2012.sln \\
-MS Visual Studio 2013 (VC12)  & build/HM_vc2013.sln \\
-Xcode                         & HM.xcodeproj \\
-Eclipse                       & .project .cproject \\
-make/gcc (e.g. Linux)         & build/linux/makefile \\
+MS Visual Studio  & 2017 and 2019 \\
+GCC               & 7.3 and 8.3\\
+Xcode/clang       & latest \\
 \hline
 \end{tabular}
 \end{table}
 
-For encoding large picture sizes (like UHDTV) it is strongly advised to build 64-bit
-binaries and to use a 64-bit OS. This will allow the software to use more than 2GB of RAM.
+By default the software is built as 64-bit binaries to be used on a 64-bit OS. 
+This allows the software to use more than 2GB of RAM.
+
+The software uses CMake to create platform-specific build files. 
+
+\subsection {Dependencies}
+
+For generating and verifying cryptographic signatures using digitally signed content SEI messages, OpenSSL is required in version 1.1.1 or greater.
+Testing is performed on OpenSSL 3.
+If OpenSSL is not found or the version is too low, only parsing of digitally signed content SEI messages will be available.
+
+Detection of OpenSSL can be disabled using the cmake option "-DENABLE_SEARCH_OPENSSL=off"
+
+\subsection {Build instructions for plain CMake (suggested)}
+
+\textbf{Note:} A working CMake installation is required for building the software.
+
+CMake generates configuration files for the compiler environment/development
+environment on each platform. The following is a list of examples for Windows
+(MS Visual Studio), macOS (Xcode) and Linux (make).
+
+Open a command prompt on your system and change into the root directory
+of this project.
+
+Create a build directory in the root directory:
+\begin{minted}{bash}
+mkdir build 
+\end{minted}
+Use one of the following CMake commands, based on your platform. Feel free to change the 
+commands to satisfy your needs.
+
+\textbf{Windows Visual Studio 2015 64 Bit:}
+\begin{minted}{bash}
+cd build
+cmake .. -G "Visual Studio 14 2015 Win64"
+\end{minted}
+Then open the generated solution file in MS Visual Studio.
+
+\textbf{macOS Xcode:}
+\begin{minted}{bash}
+cd build
+cmake .. -G "Xcode"
+\end{minted}
+Then open the generated work space in Xcode.
+
+\textbf{Linux}
+
+For generating Linux Release Makefile:
+\begin{minted}{bash}
+cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+\end{minted}
+For generating Linux Debug Makefile:
+\begin{minted}{bash}
+cd build
+cmake .. -DCMAKE_BUILD_TYPE=Debug
+\end{minted}
+Then type
+\begin{minted}{bash}
+make -j
+\end{minted}
+to build the software.
+
+For more details, refer to the CMake documentation: \url{https://cmake.org/cmake/help/latest/}
+
+\subsection {Build instructions for make}
+
+\textbf{Note:}
+The build instructions in this section require the make tool and Python
+to be installed, which are part of usual Linux and macOS environments. 
+See section \ref{windowsinstall} for installation instruction for Python 
+and GnuWin32 on Windows.
+
+Open a command prompt on your system and change into the root directory
+of this project.
+
+To use the default system compiler simply call:
+\begin{minted}{bash}
+make all
+\end{minted}
+For MSYS2 and MinGW:
+Open an MSYS MinGW 64-Bit terminal and change into the root directory
+of this project.
+
+Call:
+\begin{minted}{bash}
+make all toolset=gcc
+\end{minted}
+
+\subsection{Tool Installation on Windows}
+\label{windowsinstall}
+
+Download CMake: \url{http://www.cmake.org/} and install it.
+
+Python and GnuWin32 are not mandatory, but they simplify the build process for the user.
+
+\begin{table}[ht]
+\footnotesize
+\centering
+\begin{tabular}{ll}
+\hline
+Python     &    \url{https://www.python.org/downloads/release/python-371/} \\
+GnuWin32   &    \url{https://sourceforge.net/projects/getgnuwin32/files/getgnuwin32/0.6.30/GetGnuWin32-0.6.3.exe/download} \\
+\hline
+\end{tabular}
+\end{table}
+
+To use MinGW, install MSYS2:
+\url{http://repo.msys2.org/distrib/msys2-x86_64-latest.exe}
+
+Installation instructions:
+\url{https://www.msys2.org/}
+
+Install the needed toolchains:
+\begin{minted}{bash}
+pacman -S --needed base-devel mingw-w64-i686-toolchain mingw-w64-x86_64-toolchain git subversion mingw-w64-i686-cmake mingw-w64-x86_64-cmake
+\end{minted}
 
 %%%%
 %%%%
 %%%%
 \section{Using the encoder}
-\begin{verbatim}
-TAppEncoder 	[--help] [-c config.cfg] [--parameter=value]
-\end{verbatim}
+
+\begin{minted}{bash}
+TAppEncoder [--help] [-c config.cfg] [--parameter=value]
+\end{minted}
 
 \begin{table}[ht]
 \footnotesize
@@ -559,6 +680,12 @@ Note: When the bit depth of samples is larger than 8, each sample is encoded in
 2 bytes (little endian, LSB-justified).
 \\
 
+\Option{InputPathPrefix (-ipp)} &
+%\ShortOption{-ipp} &
+\Default{\NotSet} &
+Specifies a string to prepend to the input video file string, specified using -i.
+\\
+
 \Option{BitstreamFile (-b)} &
 %\ShortOption{-b} &
 \Default{\NotSet} &
@@ -683,6 +810,12 @@ Specifies the chroma format to use for processing. Permitted values (depending o
 When 0, the PSNR output is a linear average of the frame PSNRs; when 1, additional PSNRs are output which are formed from the average MSE of all the frames. The latter is useful when coding near-losslessly, where occasional frames become lossless.
 \\
 
+\Option{PrintHexPSNR} &
+%\ShortOption{\None} &
+\Default{false} &
+When 1, each POC line will include the 64-bit hexadecimal representation of the PSNR for each channel. This allows some types of simulations to be split into sub-simulations and the results later combined without loss of accuracy.
+\\
+
 \Option{PrintFrameMSE} &
 %\ShortOption{\None} &
 \Default{false} &
@@ -693,6 +826,36 @@ When 1, the Mean Square Error (MSE) values of each frame will also be output alo
 %\ShortOption{\None} &
 \Default{false} &
 When 1, the Mean Square Error (MSE) values of the entire sequence will also be output alongside the default PSNR values.
+\\
+
+\Option{PrintMSSSIM} &
+%\ShortOption{\None} &
+\Default{false} &
+When 1, the multi-scale structural similarity (MS-SSIM) will also be output alongside the PSNR values.
+\\
+
+\Option{xPSNREnableFlag (-xPS} &
+%\ShortOption{\None} &
+\Default{false} &
+When 1, the cross component PSNR is calculated, using the weights provided with xPSNRYWeight, xPSNRCbWeight and xPSNRCrWeight.
+\\
+
+\Option{xPSNRYWeight (-xPS0)} &
+%\ShortOption{\None} &
+\Default{1.0} &
+Specifies the xPSNR weighting factor for Y.
+\\
+
+\Option{xPSNRCbWeight (-xPS1)} &
+%\ShortOption{\None} &
+\Default{1.0} &
+Specifies the xPSNR weighting factor for Cb.
+\\
+
+\Option{xPSNRCrWeight (-xPS2)} &
+%\ShortOption{\None} &
+\Default{1.0} &
+Specifies the xPSNR weighting factor for Cr.
 \\
 
 \Option{SummaryOutFilename} &
@@ -837,12 +1000,15 @@ Specifies the profile to which the encoded bitstream complies.
 Valid HEVC Ver. 1 values are: none, main, main10, main-still-picture
 
 Valid HEVC Ver. 2 (RExt) values are: main-RExt, high-throughput-RExt,
-monochrome, monochrome12, monochrome16, main12, main_422_10,
-main_422_12, main_444, main_444_10, main_444_12, main_444_16,
-main_intra, main_10_intra, main_12_intra, main_422_10_intra, main_422_12_intra,
-main_444_intra, main_444_10_intra, main_444_12_intra, main_444_16_intra.
+monochrome, monochrome12, monochrome16, main12, main_422_10, 
+main_422_12, main_444, main_444_10, main_444_12, main_444_16, 
+main_intra, main_10_intra, main_12_intra, main_422_10_intra, main_422_12_intra, 
+main_444_intra, main_444_10_intra, main_444_12_intra, main_444_16_intra,
+high_throughput_444_16_intra.
 
-When main-RExt is specified, the constraint flags are either manually specified, or calculated via the other supplied settings.
+In addition, the following profiles strings are available: high_throughput_444, high_throughput_444_10, high_throughput_444_14.
+
+When main-RExt or high-throughput-RExt is specified, the constraint flags are either manually specified, or calculated via the other supplied settings.
 
 Compatibility flags are automatically determined according to the profile.
 NB: There is currently only limited validation that the encoder configuration complies with the profile, level and tier constraints.
@@ -989,6 +1155,7 @@ Defines the depth of the TU tree for inter CUs.
 \Default{$-1$} &
 Specifies the intra frame period.
 A value of $-1$ implies an infinite period.
+A value of $-N$ implies a period that is a multiple $N$ based on frame rate $r$: $\mathrm{round}(r / N) \cdot N$.
 \\
 
 \Option{DecodingRefreshType (-dr)} &
@@ -1343,6 +1510,46 @@ For Cb component with BT.2020 container use 1.14; for BT.709 material and 1.04 f
 For Cr component with BT.2020 container use 1.79; for BT.709 material and 1.39 for P3 material.
 \\
 
+\Option{SmoothQPReductionEnable} &
+\Default{0} &
+Enable QP reduction for smooth blocks according to a QP reduction model:
+$Clip3(SmoothQPReductionLimit, 0, SmoothQPReductionModelScale*QP+SmoothQPReductionModelOffset)$.
+The QP reduction model is used when SAD is less than SmoothQPReductionThreshold * number of samples in block.
+Where SAD is defined as the sum of absolute differences between original luma samples and luma samples predicted by a 2nd order polynomial model.
+The model parameters are determined by a least square fit to original luma samples on a granularity of 64x64 samples.
+\\
+
+\Option{SmoothQPReductionThreshold} &
+\Default{3.0} &
+Threshold parameter for smoothness.
+\\
+
+\Option{SmoothQPReductionModelScale} &
+\Default{-1.0} &
+Scale parameter of the QP reduction model.
+\\
+
+\Option{SmoothQPReductionModelOffset} &
+\Default{27.0} &
+Offset parameter of the QP reduction model.
+\\
+
+\Option{SmoothQPReductionLimit} &
+\Default{-16.0} &
+Threshold parameter for controlling amount of QP reduction by the QP reduction model.
+\\
+
+
+\Option{SmoothQPReductionPeriodicity} &
+\Default{1} &
+Periodicity parameter for application of the QP reduction model. 1: all frames, 0: only intra pictures, 2: every second frame, etc.
+\\
+
+\Option{BIM} &
+\Default{false} &
+Enable or disable Block Importance Mapping, QP adaptation depending on estimated propagation of reference samples. Depends on future and past reference frames configured for temporal filter.
+\\
+
 \Option{SliceChromaQPOffsetPeriodicity} &
 \Default{0} &
 Defines the periodicity for inter slices that use the slice-level chroma QP offsets, as defined by SliceCbQpOffsetIntraOrPeriodic and SliceCrQpOffsetIntraOrPeriodic. A value of 0 disables the periodicity. It is intended to be used in low-delay configurations where an regular intra period is not defined.
@@ -1670,10 +1877,10 @@ Enables or disables SAO parameter estimation using non-deblocked pixels
 for LCU bottom and right boundary areas.
 \\
 
-\Option{SAOResetEncoderStateAfterIRAP} &
+\Option{ResetEncoderStateAfterIRAP} &
 %\ShortOption{\None} &
-\Default{false} &
-When true, resets the encoder's SAO state after an IRAP (POC order).
+\Default{true} &
+When true, resets the encoder's decisions after an IRAP (POC order) 
 \\
 
 \Option{ConstrainedIntraPred} &
@@ -1850,6 +2057,49 @@ chroma TUs, instead they are transform-skipped if the four corresponding
 luma TUs are also skipped.
 \par
 This option has no effect if TransformSkip is disabled.
+\\
+\end{OptionTableNoShorthand}
+
+%%
+%% GOP based termporal filter parameters
+%%
+
+\begin{OptionTableNoShorthand}{GOP based temporal filter parameters}{tab:gop-based-temporal-filter}
+
+\Option{TemporalFilter} &
+%\ShortOption{\None} &
+\Default{false} &
+Enable motion-compensated temporal pre-filter. When enabled, at least one of TemporalFilterPastRefs and TemporalFilterFutureRefs
+must be larger than 0.
+\\
+\Option{TemporalFilterPastRefs} &
+ %\ShortOption{\None} &
+\Default{4} &
+Number of past frames used by the temporal filter.
+\\
+\Option{TemporalFilterFutureRefs} &
+%\ShortOption{\None} &
+\Default{4} &
+Number of future frames used by the temporal filter. This may be set to 0 to avoid using future frames.
+\\
+\Option{FirstValidFrame} &
+%\ShortOption{\None} &
+\Default{0} &
+Index of first frame in video sequence that may be used by the temporal filter. If a negative value is given, the index defaults to the value
+of FrameSkip.
+\\
+\Option{LastValidFrame} &
+%\ShortOption{\None} &
+\Default{MAX_INT} &
+Index of last frame in video sequence that may be used by the temporal filter. If a negative value is given, the index defaults to the value
+of FrameSkip + FramesToBeEncoded - 1.
+\\
+\Option{TemporalFilterStrengthFrame*} &
+%\ShortOption{\None} &
+\Default{} &
+Strength for every * frame in GOP based temporal filter, where * is an integer. E.g. --TemporalFilterStrengthFrame8 0.95 will
+enable GOP based temporal filter at every 8th frame with strength 0.95. Longer intervals overrides shorter when there a multiple
+matches.
 \\
 \end{OptionTableNoShorthand}
 
@@ -2178,7 +2428,7 @@ The table below lists the SEI messages defined for Version 1 and Range-Extension
    15 & Picture snapshot                         & (Not handled)\\
    16 & Progressive refinement segment start     & (Not handled)\\
    17 & Progressive refinement segment end       & (Not handled)\\
-   19 & Film grain characteristics               & (Not handled)\\
+   19 & Film grain characteristics               & Table \ref{tab:sei-film-grain} \\
    22 & Post-filter hint                         & (Not handled)\\
    23 & Tone mapping information                 & Table \ref{tab:sei-tone-mapping-info} \\
    45 & Frame packing arrangement                & Table \ref{tab:sei-frame-packing-arrangement} \\
@@ -2200,6 +2450,24 @@ The table below lists the SEI messages defined for Version 1 and Range-Extension
   141 & Knee function information                & Table \ref{tab:sei-knee-function} \\
   142 & Colour remapping information             & Table \ref{tab:sei-colour-remapping}\\
   143 & Deinterlaced field identification        & (Not handled)\\
+  144 & Content light level info                 & Table \ref{tab:sei-content-light-level}\\
+  147 & Alternative transfer characteristics     & Table \ref{tab:sei-alternative-transfer-characteristics}\\
+  148 & Ambient viewing environment              & Table \ref{tab:sei-ambient-viewing-environment}\\
+  149 & Content colour volume                    & Table \ref{tab:sei-content-colour-volume}\\
+  150 & Equirectangular projection               & Table \ref{tab:sei-erp} \\
+  151 & Cubemap projection                     	 & Table \ref{tab:sei-cmp} \\
+  154 & Sphere rotation                          & Table \ref{tab:sei-sphere-rotation} \\
+  155 & Region-wise packing                      & Table \ref{tab:sei-rwp} \\
+  156 & Omni viewport                            & Table \ref{tab:sei-omni-viewport} \\  
+  158 & Motion-constrained tile set extraction information        & Table \ref{tab:sei-mcts-extract} \\
+  200 & SEI manifest                             & Table \ref{tab:sei-sei-manifest} \\
+  201 & SEI prefix indication				 & Table \ref{tab:sei-sei-prefix-indication} \\
+  203 & Shutter interval information             & Table \ref{tab:sei-sii}\\
+  212 & Phase indication                         & Table \ref{tab:sei-phase-indication} \\  
+  216 & Source Picture Timing Information        & Table \ref{tab:sei-source-picture-timing-info} \\
+  218 & Modality Information         & Table \ref{tab:sei-modality-info}\\
+  220/221/222 & Digitally Signed Content SEI messages        & Table \ref{tab:sei-dsc}\\
+  226 & Packed Regions Info                      & Table \ref{tab:sei-pri}\\
 \end{SEIListTable}
 %%
 %% SEI messages
@@ -2233,6 +2501,137 @@ SEI messages. This option has no effect if VuiParametersPresent is disabled.
 \Default{0} &
 Enables or disables the insertion of the Recovery point
 SEI messages.
+\\
+\end{OptionTableNoShorthand}
+
+
+
+\begin{OptionTableNoShorthand}{Film grain characteristics SEI message encoder parameters}{tab:sei-film-grain}
+\Option{SEIFGCEnabled} &
+\Default{0} &
+Enables or disables the insertion of the film grain characteristics SEI message.
+\\
+\Option{SEIFGCAnalysisEnabled} &
+\Default{0} &
+Enable film grain analysis to estimate film grain parameters.
+\\
+\Option{SEIFGCExternalMask} &
+\Default{\NotSet} &
+Read external file with mask for film grain analysis. If empty string, use internally calculated mask.
+\\
+\Option{SEIFGCExternalDenoised} &
+\Default{\NotSet} &
+Read external file with denoised sequence for film grain analysis. If empty string, use MCTF for denoising.
+\\
+\Option{SEIFGCCancelFlag} &
+\Default{0} &
+Specifies the persistence of any previous film grain characteristics SEI message in output order. For SMPTE-RDD5, the value must be 0.
+\\
+\Option{SEIFGCPersistenceFlag} &
+\Default{0} &
+Specifies the persistence of the film grain characteristics SEI message for the current layer. For SMPTE-RDD5, the value must be 0; set to 1 when FGC SEI frequency is once per I-period
+\\
+\Option{SEIFGCPerPictureSEI} &
+\Default{0} &
+Specifies the frequency of inserting the film grain characteristics SEI message. 0: FGC SEI is inserted once per I-period; 1: FGC SEI is inserted once per picture.
+\\
+\Option{SEIFGCModelID} &
+\Default{0} &
+Specifies the film grain simulation model. For SMPTE-RDD5, the value must be 0.
+\par
+\begin{tabular}{cp{0.35\textwidth}}
+  0 & frequency filtering \\
+  1 & auto-regression \\
+\end{tabular}
+\\
+\Option{SEIFGCSepColourDescPresentFlag} &
+\Default{0} &
+Specifies the presence of a distinct colour space description for the film grain characteristics specified in the SEI message. For SMPTE-RDD5, the value must be 0.
+\\
+\Option{SEIFGCBlendingModeID} &
+\Default{0} &
+Specifies the blending mode used to blend the simulated film grain with the decoded images. For SMPTE-RDD5, the value must be 0.
+\par
+\begin{tabular}{cp{0.35\textwidth}}
+  0 & additive \\
+  1 & multiplicative \\
+\end{tabular}
+\\
+\Option{SEIFGCLog2ScaleFactor} &
+\Default{2} &
+Specifies a scale factor used in the film grain characterization equations.
+\\
+\Option{SEIFGCCompModelPresentComp0} &
+\Default{0} &
+Specifies the presence of film grain modelling on colour component 0.
+\\
+\Option{SEIFGCCompModelPresentComp1} &
+\Default{0} &
+Specifies the presence of film grain modelling on colour component 1.
+\\
+\Option{SEIFGCCompModelPresentComp2} &
+\Default{0} &
+Specifies the presence of film grain modelling on colour component 2.
+\\
+\Option{SEIFGCNumIntensityIntervalMinus1Comp0} &
+\Default{0} &
+Specifies the number of intensity intervals minus 1 for comp 0
+\\
+\Option{SEIFGCNumIntensityIntervalMinus1Comp1} &
+\Default{0} &
+Specifies the number of intensity intervals minus 1 for comp 1
+\\
+\Option{SEIFGCNumIntensityIntervalMinus1Comp2} &
+\Default{0} &
+Specifies the number of intensity intervals minus 1 for comp 2
+\\
+\Option{SEIFGCNumModelValuesMinus1Comp0} &
+\Default{0} &
+Specifies the number of model values minus 1 for comp 0
+\\
+\Option{SEIFGCNumModelValuesMinus1Comp1} &
+\Default{0} &
+Specifies the number of model values minus 1 for comp 1
+\\
+\Option{SEIFGCNumModelValuesMinus1Comp2} &
+\Default{0} &
+Specifies the number of model values minus 1 for comp 2
+\\
+\Option{SEIFGCIntensityIntervalLowerBoundComp0} &
+\Default{0} &
+Specifies the lower bound of intensity interval for comp 0 (for SMPTE-RDD5, non-overlapping interval)
+\\
+\Option{SEIFGCIntensityIntervalLowerBoundComp1} &
+\Default{0} &
+Specifies the lower bound of intensity interval for comp 1 (for SMPTE-RDD5, non-overlapping interval)
+\\
+\Option{SEIFGCIntensityIntervalLowerBoundComp2} &
+\Default{0} &
+Specifies the lower bound of intensity interval for comp 2 (for SMPTE-RDD5, non-overlapping interval)
+\\
+\Option{SEIFGCIntensityIntervalUpperBoundComp0} &
+\Default{0} &
+Specifies the upper bound of intensity interval for comp 0 (for SMPTE-RDD5, non-overlapping interval)
+\\
+\Option{SEIFGCIntensityIntervalUpperBoundComp1} &
+\Default{0} &
+Specifies the upper bound of intensity interval for comp 1 (for SMPTE-RDD5, non-overlapping interval)
+\\
+\Option{SEIFGCIntensityIntervalUpperBoundComp2} &
+\Default{0} &
+Specifies the upper bound of intensity interval for comp 2 (for SMPTE-RDD5, non-overlapping interval)
+\\
+\Option{SEIFGCCompModelValuesComp0} &
+\Default{0} &
+Specifies the model values for each intensity interval for comp 0 (sigma, h, v (h,v might be inferred based on number of model value))
+\\
+\Option{SEIFGCCompModelValuesComp1} &
+\Default{0} &
+Specifies the model values for each intensity interval for comp 1 (sigma, h, v (h,v might be inferred based on number of model value))
+\\
+\Option{SEIFGCCompModelValuesComp2} &
+\Default{0} &
+Specifies the model values for each intensity interval for comp 2 (sigma, h, v (h,v might be inferred based on number of model value))
 \\
 \end{OptionTableNoShorthand}
 
@@ -2706,6 +3105,16 @@ If false the SEI applies to the current frame only.
 \Default{false} &
 When true (non-zero), generates example temporal motion constrained tile sets SEI messages.
 \\
+\Option{SEITMCTSTileConstraint} &
+\Default{false} &
+When true (non-zero), the following encoding settings are enabled:
+\begin{itemize}
+\item mc_all_tiles_exact_sample_value_match_flag and each_tile_one_tile_set_flag will be set equal to one int the temporal motion constrained tile sets SEI message
+\item Motion vectors are constrained to not cross tile boundaries
+\item TMVP and merge mode are constrained to not cross tile boundaries
+\item LFCrossTileBoundaryFlag will be disabled
+\end{itemize}
+\\
 \end{OptionTableNoShorthand}
 
 
@@ -2804,6 +3213,922 @@ An example file can be found in cfg/misc/example_colour_remapping_sei_encoder_0.
 \\
 \end{OptionTableNoShorthand}
 
+\begin{OptionTableNoShorthand}{Content light level info SEI message encoder parameters}{tab:sei-content-light-level}
+\Option{SEICLLEnabled} &
+\Default{false} &
+Enables or disables the insertion of the content light level SEI message.
+\\
+\Option{SEICLLMaxContentLightLevel} &
+\Default{4000} &
+When not equal to 0, specifies an upper bound on the maximum light level among all individual samples in a 4:4:4 representation of red, green, and blue colour primary intensities in the linear light domain for the pictures of the CLVS, in units of candelas per square metre. When equal to 0, no such upper bound is indicated.
+\\
+\Option{SEICLLMaxPicAvgLightLevel} &
+\Default{0} &
+When not equal to 0, specifies an upper bound on the maximum average light level among the samples in a 4:4:4 representation of red, green, and blue colour primary intensities in the linear light domain for any individual picture of the CLVS, in units of candelas per square metre. When equal to 0, no such upper bound is indicated.
+\\
+\end{OptionTableNoShorthand}
+
+\begin{OptionTableNoShorthand}{Alternative transfer characteristics SEI message encoder parameters}{tab:sei-alternative-transfer-characteristics}
+\Option{SEIPreferredTransferCharacteristics} &
+\Default{18} &
+Indicates a preferred alternative value for the transfer_characteristics syntax element that is indicated by the colour description syntax of VUI parameters.
+\\
+\end{OptionTableNoShorthand}
+
+
+
+\begin{OptionTableNoShorthand}{Ambient viewing environment SEI message encoder parameters}{tab:sei-ambient-viewing-environment}
+\Option{SEIAVEEnabled} &
+\Default{false} &
+Enables or disables the insertion of the ambient viewing environment SEI message.
+\\
+\Option{SEIAVEAmbientIlluminance} &
+\Default{100000} &
+Specifies the environmental illuminance of the ambient viewing environment in units of 1/10000 lux. The value shall not be 0.
+\\
+\Option{SEIAVEAmbientLightX} &
+\Default{15635} &
+Specifies the x chromaticity coordinate, according to the CIE 1931 definition, of the environmental ambient light in the nominal viewing environment in normalized increments of 1/50000. The value shall be in the range of 0 to 50,000, inclusive.
+\\
+\Option{SEIAVEAmbientLightY} &
+\Default{16450} &
+Specifies the y chromaticity coordinate, according to the CIE 1931 definition, of the environmental ambient light in the nominal viewing environment in normalized increments of 1/50000. The value shall be in the range of 0 to 50,000, inclusive.
+\\
+\end{OptionTableNoShorthand}
+
+
+
+\begin{OptionTableNoShorthand}{Content colour volume SEI message encoder parameters}{tab:sei-content-colour-volume}
+\Option{SEICCVEnabled} &
+\Default{false} &
+Enables or disables the insertion of the content colour volume SEI message.
+\\
+\Option{SEICCVCancelFlag} &
+\Default{false} &
+Specifies the persistence of any previous content colour volume SEI message in output order.
+\\
+\Option{SEICCVPersistenceFlag} &
+\Default{true} &
+Specifies the persistence of the content colour volume SEI message for the current layer.
+\\
+\Option{SEICCVPrimariesPresent} &
+\Default{true} &
+Specifies whether the CCV primaries are present in the content colour volume SEI message.
+\\
+\Option{m_ccvSEIPrimariesX0} &
+\Default{0.300} &
+Specifies the x coordinate, according to the CIE 1931 definition, of the first (green) colour primary component in normalized increments of 1/50000.
+\\
+\Option{m_ccvSEIPrimariesY0} &
+\Default{0.600} &
+Specifies the y coordinate, according to the CIE 1931 definition, of the first (green) colour primary component in normalized increments of 1/50000.
+\\
+\Option{m_ccvSEIPrimariesX1} &
+\Default{0.150} &
+Specifies the x coordinate, according to the CIE 1931 definition, of the second (blue) colour primary component in normalized increments of 1/50000.
+\\
+\Option{m_ccvSEIPrimariesY1} &
+\Default{0.060} &
+Specifies the y coordinate, according to the CIE 1931 definition, of the second (blue) colour primary component in normalized increments of 1/50000.
+\\
+\Option{m_ccvSEIPrimariesX2} &
+\Default{0.640} &
+Specifies the x coordinate, according to the CIE 1931 definition, of the third (red) colour primary component in normalized increments of 1/50000.
+\\
+\Option{m_ccvSEIPrimariesY2} &
+\Default{0.330} &
+Specifies the y coordinate, according to the CIE 1931 definition, of the third (red) colour primary component in normalized increments of 1/50000.
+\\
+\Option{SEICCVMinLuminanceValuePresent} &
+\Default{true} &
+Specifies whether the CCV min luminance value is present in the content colour volume SEI message.
+\\
+\Option{SEICCVMinLuminanceValue} &
+\Default{0.0} &
+specifies the CCV min luminance value in the content colour volume SEI message.
+\\
+\Option{SEICCVMaxLuminanceValuePresent} &
+\Default{1} &
+Specifies whether the CCV max luminance value is present in the content colour volume SEI message.
+\\
+\Option{SEICCVMaxLuminanceValue} &
+\Default{0.1} &
+specifies the CCV max luminance value in the content colour volume SEI message.
+\\
+\Option{SEICCVAvgLuminanceValuePresent} &
+\Default{1} &
+Specifies whether the CCV avg luminance value is present in the content colour volume SEI message.
+\\
+\Option{SEICCVAvgLuminanceValue} &
+\Default{0.01} &
+specifies the CCV avg luminance value in the content colour volume SEI message.
+\\
+\end{OptionTableNoShorthand}
+
+
+
+\begin{OptionTableNoShorthand}{Equirectangular Projection SEI message encoder parameters}{tab:sei-erp}
+\Option{SEIErpEnabled} &
+\Default{false} &
+Enables (true) or disables (false) the insertion of equirectangular projection SEI message.
+\\
+\Option{SEIErpCancelFlag} &
+\Default{true} &
+Indicates that equirectangular projection SEI message cancels the persistence (true) or follows (false).
+\\
+\Option{SEIErpPersistenceFlag} &
+\Default{false} &
+Specifies the persistence of the equirectangular projection SEI message.
+\\
+\Option{SEIErpGuardBandFlag} &
+\Default{false} &
+Indicates the existence of guard band areas in the constituent picture.
+\\
+\Option{SEIErpGuardBandType} &
+\Default{0} &
+Indicates the type of the guard bands.
+\\
+\Option{SEIErpLeftGuardBandWidth} &
+\Default{0} &
+Inicates the width of the guard band on the left side of the onstituent picture.
+\\
+\Option{SEIErpRightGuardBandWidth} &
+\Default{0} &
+Inicates the width of the guard band on the right side of the onstituent picture.
+\\
+\end{OptionTableNoShorthand}
+
+\begin{OptionTableNoShorthand}{Cubemap Projection SEI message encoder parameters}{tab:sei-cmp}
+\Option{SEICmpEnabled} &
+\Default{false} &
+Enables (true) or disables (false) the insertion of cubemap projection SEI message.
+\\
+\Option{SEICmpCancelFlag} &
+\Default{true} &
+Indicates that cubemap projection SEI message cancels the persistence (true) or follows (false).
+\\
+\Option{SEICmpPersistenceFlag} &
+\Default{false} &
+Specifies the persistence of the Cubemap Projection SEI message.
+\\
+\end{OptionTableNoShorthand}
+
+\begin{OptionTableNoShorthand}{Sphere Rotation SEI message encoder parameters}{tab:sei-sphere-rotation}
+\Option{SEISphereRotationEnabled} &
+\Default{false} &
+Enables (true) or disables (false) the insertion of sphere rotation SEI message.
+\\
+\Option{SEISphereRotationCancelFlag} &
+\Default{true} &
+Indicates that the sphere rotation SEI message cancels the persistence (true) or follows (false).
+\\
+\Option{SEISphereRotationPersistenceFlag} &
+\Default{false} &
+Specifies the persistence of the sphere rotation SEI message.
+\\
+\Option{SEISphereRotationYawRotation} &
+\Default{0} &
+Specifies the value of the yaw rotation angle.
+\\
+\Option{SEISphereRotationPitchRotation} &
+\Default{0} &
+Specifies the value of the pitch rotation angle.
+\\
+\Option{SEISphereRotationRollRotation} &
+\Default{0} &
+Specifies the value of the roll rotation angle.
+\\
+\end{OptionTableNoShorthand}
+
+\begin{OptionTableNoShorthand}{Region-wise packing SEI message encoder parameters}{tab:sei-rwp}
+\Option{SEIRwpEnabled} &
+\Default{false} &
+Enables (true) or disables (false) the insertion of region-wise packing SEI message.
+\\
+\Option{SEIRwpCancelFlag} &
+\Default{true} &
+Indicates that RWP SEI message cancels the persistence (true) or follows (false).
+\\
+\Option{SEIRwpPersistenceFlag} &
+\Default{false} &
+Specifies the persistence of the RWP SEI message.
+\\
+\Option{SEIRwpConstituentPictureMatchingFlag} &
+\Default{false} &
+Specifies the RWP SEI message applies individually to each constituent picture (true) or to the projected picture (false).
+\\
+\Option{SEIRwpNumPackedRegions} &
+\Default{0} &
+Specifies the number of packed regions when constituent picture matching flag is equal to 0.
+\\
+\Option{SEIRwpProjPictureWidth} &
+\Default{0} &
+Specifies the width of the projected picture.
+\\
+\Option{SEIRwpProjPictureHeight} &
+\Default{0} &
+Specifies the height of the projected picture.
+\\
+\Option{SEIRwpPackedPictureWidth} &
+\Default{0} &
+Specifies the width of the packed picture.
+\\
+\Option{SEIRwpPackedPictureHeight} &
+\Default{0} &
+Specifies the height of the packed picture.
+\\
+\Option{SEIRwpTransformType} &
+\Default{} &
+An array that specifies the rotation and mirroring to be applied to the packed regions.
+\\
+\Option{SEIRwpGuardBandFlag} &
+\Default{} &
+An array that specifies the existence of guard band in the packed regions.
+\\
+\Option{SEIRwpProjRegionWidth} &
+\Default{} &
+An array that specifies the width of the projected regions.
+\\
+\Option{SEIRwpProjRegionHeight} &
+\Default{} &
+An array that specifies the height of the projected regions.
+\\
+\Option{SEIRwpGuardBandFlag} &
+\Default{} &
+An array that specifies the existence of guard band in the packed regions.
+\\
+\Option{SEIRwpProjRegionTop} &
+\Default{} &
+An array that specifies the top sample row of the projected regions.
+\\
+\Option{SEIRwpProjRegionLeft} &
+\Default{} &
+An array that specifies the left-most sample column of the projected regions. 
+\\
+\Option{SEIRwpPackedRegionWidth} &
+\Default{} &
+An array that specifies the width of the packed regions.
+\\
+\Option{SEIRwpPackedRegionHeight} &
+\Default{} &
+An array that specifies the height of the packed regions.
+\\
+\Option{SEIRwpPackedRegionTop} &
+\Default{} &
+An array that specifies the top luma sample row of the packed regions.
+\\
+\Option{SEIRwpPackedRegionLeft} &
+\Default{} &
+An array that specifies the left-most luma sample column of the packed regions.
+\\
+\Option{SEIRwpLeftGuardBandWidth} &
+\Default{} &
+An array that specifies the width of the guard band on the left side of the packed regions.
+\\
+\Option{SEIRwpRightGuardBandWidth} &
+\Default{} &
+An array that specifies the width of the guard band on the right side of the packed regions.
+\\
+\Option{SEIRwpTopGuardBandHeight} &
+\Default{} &
+An array that specifies the height of the guard band above the packed regions.
+\\
+\Option{SEIRwpBottomGuardBandHeight} &
+\Default{} &
+An array that specifies the height of the guard band below the packed regions.
+\\
+\Option{SEIRwpGuardBandNotUsedForPredFlag} &
+\Default{} &
+An array that specifies if the guard bands is used in the inter prediction process.
+\\
+\Option{SEIRwpGuardBandType} &
+\Default{} &
+An array that specifies the type of the guard bands for the packed regions.
+\\
+\end{OptionTableNoShorthand}
+
+\begin{OptionTableNoShorthand}{Omni Viewport SEI message encoder parameters}{tab:sei-omni-viewport}
+\Option{SEIOmniViewportEnabled} &
+\Default{false} &
+Enables (true) or disables (false) the insertion of omni viewport SEI message.
+\\
+\Option{SEIOmniViewportId} &
+\Default{0} &
+Contains an identifying number that may be used to identify the purpose of the one or more recommended viewport regions.
+\\
+\Option{SEIOmniViewportCancelFlag} &
+\Default{true} &
+Indicates that the omni viewport SEI message cancels the persistence (true) or follows (false).
+\\
+\Option{SEIOmniViewportPersistenceFlag} &
+\Default{false} &
+Specifies the persistence of the omni viewport SEI message.
+\\
+\Option{SEIOmniViewportCntMinus1} &
+\Default{0} &
+Specifies the number of recommended viewport regions minus 1.
+\\
+\Option{SEIOmniViewportAzimuthCentre} &
+\Default{} &
+An array that indicates the centre of the i-th recommended viewport region.
+\\
+\Option{SEIOmniViewportElevationCentre} &
+\Default{} &
+An array that indicates the centre of the i-th recommended viewport region.
+\\
+\Option{SEIOmniViewportTiltCentre} &
+\Default{} &
+An array that indicates the tilt angle of the i-th recommended viewport region.
+\\
+\Option{SEIOmniViewportHorRange} &
+\Default{} &
+An array that indicates the azimuth range of the i-th recommended viewport region.
+\\
+\Option{SEIOmniViewportVerRange} &
+\Default{} &
+An array that indicates the elevation range of the i-th recommended viewport region.
+\\
+\end{OptionTableNoShorthand}
+
+\begin{OptionTableNoShorthand}{Motion-constrained tile sets extraction information sets SEI message encoder parameters}{tab:sei-mcts-extract}
+\Option{SEIMctsExtractInfoSet} &
+\Default{false} &
+When true (non-zero), generates example motion-constrained tile sets extraction information sets SEI message. with the following settings:
+\begin{itemize}
+\item SliceMode will be set to 0 and SliceArgument will be set to 1 (Enforcing one slice per tile).
+\item Extraction Info will be generated applying to each individual MCTS in the bitstream.
+\end{itemize}
+\\
+\end{OptionTableNoShorthand}
+
+\begin{OptionTableNoShorthand}{SEI manifest SEI message encoder parameters}{tab:sei-sei-manifest}
+\Option{SEISEIManifestEnabled} &
+\Default{false} &
+Enables (true) or disables (false) the SEI manifest SEI message.
+\\
+\end{OptionTableNoShorthand}
+
+\begin{OptionTableNoShorthand}{SEI prefix indication SEI message encoder parameters}{tab:sei-sei-prefix-indication}
+\Option{SEISEIPrefixIndicationEnabled} &
+\Default{false} &
+Enables (true) or disables (false) the SEI prefix indication SEI message.
+\\
+\end{OptionTableNoShorthand}
+
+\begin{OptionTableNoShorthand}{Shutter interval info SEI message encoder parameters}{tab:sei-sii}
+\Option{SEIShutterIntervalEnabled} &
+\Default{false} &
+Enables or disables the insertion of the shutter interval info SEI message.
+\\
+\Option{SEISiiNumUnitsInShutterInterval} &
+\Default{1080000} &
+Specifies the number of time units of a clock operating at the frequency sii_time_scale Hz that corresponds to one increment of an shutter clock tick counter. 
+\\
+\Option{SEISiiTimeScale} &
+\Default{27000000} &
+Specifies the number of time units that pass in one second.
+\\
+\Option{SEISiiMaxSubLayersMinus1} &
+\Default{0} &
+The value plus 1 specifies the maximum number of temporal sub-layers that may be present in each CVS referring to the SPS. The value shall be in the range of 0 to 6. 
+\\
+\Option{SEISiiFixedShutterIntervalWithinCVSFlag} &
+\Default{true} &
+Specifies if shutter interval info is the same for all temporal sub-layers in the CVS. 
+\\
+\Option{SEIShutterIntervalPreFilename (-sii)} &
+%\ShortOption{-sii} &
+\Default{\NotSet} &
+Specifies the file name of pre-processed video with shutter interval info SEI message. If empty, not output video.
+\\
+\end{OptionTableNoShorthand}
+
+
+
+\begin{OptionTableNoShorthand}{Phase indication}{tab:sei-phase-indication}
+\Option{SEIPhaseIndicationFullResolution} &
+\Default{false} &
+Control generation of Phase Indication SEI messages for full resolution pictures.
+\\
+\Option{SEIPIHorPhaseNumFullResolution} &
+\Default{0} &
+Specifies the Horizontal Phase Numerator of Phase Indication SEI messages for full resolution pictures.
+\\
+\Option{SEIPIHorPhaseDenMinus1FullResolution} &
+\Default{0} &
+Specifies the Horizontal Phase Denominator minus 1 of Phase Indication SEI messages for full resolution pictures.
+\\
+\Option{SEIPIVerPhaseNumFullResolution} &
+\Default{0} &
+Specifies the Vertical Phase Numerator of Phase Indication SEI messages for full resolution pictures.
+\\
+\Option{SEIPIVerPhaseDenMinus1FullResolution} &
+\Default{0} &
+Specifies the Vertical Phase Denominator minus 1 of Phase Indication SEI messages for full resolution pictures.
+\\
+\end{OptionTableNoShorthand}
+
+\begin{OptionTableNoShorthand}{Modality Information}{tab:sei-modality-info}
+\Option{SEIModalityInfoEnabled} &
+\Default{true} &
+Enables (true) or disables (false) the insertion of modality information SEI message.
+\\
+\Option{SEIMiCancelFlag} &
+\Default{false} &
+Indicates that modality information SEI message cancels the persistence (true) or follows (false).
+\\
+\Option{SEIMiPersistenceFlag} &
+\Default{true} &
+Specifies the persistence of the Modality Information SEI message.
+\\
+\Option{SEIMiModalityType} &
+\Default{1} &
+Specifies the type of modality
+\par
+\begin{tabular}{cp{0.35\textwidth}}
+0 & Unspecified \\
+1 & Visible picture \\
+2 & Infrared Picture \\
+3 & Ultraviolet Picture \\
+\end{tabular}
+\\
+\Option{SEIMiSpectrumRangePresentFlag} &
+\Default{false} &
+Specifies the presence of the spectrum band of the optical radiation wavelength.
+\\
+\Option{SEIMiMinWavelengthMantissa} &
+\Default{0} &
+Specifies the mantissa part of the minimum wavelength indicating the spectral band of optical radiation.
+\\
+\Option{SEIMiMinWavelengthExponentPlus15} &
+\Default{0} &
+Specifies the exponent part of the minimum wavelength indicating the spectral band of optical radiation.
+\\
+\Option{SEIMiMaxWavelengthMantissa} &
+\Default{0} &
+Specifies the mantissa part of the maximum wavelength indicating the spectral band of optical radiation.
+\\
+\Option{SEIMiMaxWavelengthExponentPlus15} &
+\Default{0} &
+Specifies the exponent part of the maximum wavelength indicating the spectral band of optical radiation.
+\\
+\end{OptionTableNoShorthand}
+
+\begin{OptionTableNoShorthand}{Digitally Signed Content SEI messages encoder parameters}{tab:sei-dsc}
+\Option{SEIDSCEnabled} &
+\Default{false} &
+Enables (true) or disables (false) the insertion of Digitally Signed Content Initialisation, Selection and Verification SEI message.
+\\
+\Option{SEIDSCHashMethod} &
+\Default{0} &
+Hash method to be used .
+\par
+  \begin{tabular}{cp{0.46\textwidth}}
+    0 & SHA-1 \\
+    1 & SHA-224 \\
+    2 & SHA-256 \\
+    3 & SHA-384 \\
+    4 & SHA-512 \\
+    5 & SHA-512/224 \\
+    6 & SHA-512/256 \\
+  \end{tabular}
+\\
+\Option{SEIDSCSigningKeyFile} &
+\Default{(empty)} &
+Location of the private key file to be used for signing.
+\\
+\Option{SEIDSCVerificationKeyURI} &
+\Default{(empty)} &
+Certificate URI to be signalled to the decoder. Note, the decoder currently only supports "file://" URIs.
+\\
+\Option{SEIDSCKeyIDEnabled} &
+\Default{0} &
+Indicated whether a key ID is signalled.
+\\
+\Option{SEIDSCKeyID} &
+\Default{0} &
+If SEIDSCKeyIDEnabled is enabled, the value of the key ID.
+\\
+\end{OptionTableNoShorthand}
+
+\begin{OptionTableNoShorthand}{Packed Regions Info SEI message encoder parameters}{tab:sei-pri}
+\Option{SEIPRIEnabled} &
+\Default{false} &
+Specifies whether packet regions info SEI is enabled.
+\\
+\Option{SEIPRICancelFlag} &
+\Default{false} &
+Specifies the persistence of any previous packed regions info SEI message in output order.
+\\
+\Option{SEIPRIPersistenceFlag} &
+\Default{false} &
+Specifies the persistence of the packed regions info SEI message for the current layer.
+\\
+\Option{SEIPRINumRegionsMinus1} &
+\Default{0} &
+Specifies the number of regions minus 1 for which information is signalled.
+\\
+\Option{SEIPRIUseMaxDimensionsFlag} &
+\Default{0} &
+Specifies that max pic dimensions are used in variable calculations.
+\\
+\Option{SEIPRILog2UnitSize} &
+\Default{0} &
+Specifies a unit size used in variable calculations for the region parameters.
+\\
+\Option{SEIPRIRegionSizeLenMinus1} &
+\Default{0} &
+Specifies the number of bits minus 1 used to signal region top-left offsets and region dimensions.
+\\
+\Option{SEIPRIRegionIdPresentFlag} &
+\Default{0} &
+Specifies whether region IDs are signalled.
+\\
+\Option{SEIPRITargetPicParamsPresentFlag} &
+\Default{0} &
+pecifies whether pri_target_region_top_left_x[ i ], pri_target_region_top_left_y[ i ], pri_target_pic_width_minus1, and pri_target_pic_height_minus1 are signalled.
+\\
+\Option{SEIPRITargetPicWidthMinus1} &
+\Default{0} &
+Target output picture width minus 1.
+\\
+\Option{SEIPRITargetPicHeightMinus1} &
+\Default{0} &
+Target output picture height minus 1.
+\\
+\Option{SEIPRINumResamplingRatiosMinus1} &
+\Default{0} &
+Specifies the number resampling ratios minus 1 that are signalled.
+\\
+\Option{SEIPRIResamplingWidthNumMinus1} &
+\Default{""} &
+Specifies a list of numerators minus 1 values for width resampling of the resampling ratio.
+\\
+\Option{SEIPRIResamplingWidthDenomMinus1} &
+\Default{""} &
+Specifies a list of denominators minus 1 values for width resampling of the resampling ratio.
+\\
+\Option{SEIPRIResamplingHeightNumMinus1} &
+\Default{""} &
+Specifies a list of numerators minus 1 values for height resampling of the resampling ratio.
+\\
+\Option{SEIPRIResamplingHeightDenomMinus1} &
+\Default{""} &
+Specifies a list of denominators minus 1 values for height resampling of the resampling ratio.
+\\
+\Option{SEIPRIRegionId} &
+\Default{""} &
+Specifies a list of IDs for the regions.
+\\
+\Option{SEIPRIRegionTopLeftInUnitsX} &
+\Default{""} &
+Specifies a list of horizontal top left positions for the regions.
+\\
+\Option{SEIPRIRegionTopLeftInUnitsY} &
+\Default{""} &
+Specifies a list of vertical top left positions for the regions.
+\\
+\Option{SEIPRIRegionWidthInUnitsMinus1} &
+\Default{""} &
+Specifies a list of widths minus 1 in units for the regions.
+\\
+\Option{SEIPRIRegionHeightInUnitsMinus1} &
+\Default{""} &
+Specifies a list of heights minus 1 in units for the regions.
+\\
+\Option{SEIPRIResamplingRatioIdx} &
+\Default{""} &
+Specifies a list of resampling ration indices for the regions.
+\\
+\Option{SEIPRITargetRegionTopLeftInUnitsX} &
+\Default{""} &
+Specifies a list of horizontal top left postions in units for the regions in reconstructed target picture.
+\\
+\Option{SEIPRITargetRegionTopLeftInUnitsY} &
+\Default{""} &
+Specifies a list of vertical top left postions in units for the regions in reconstructed target picture.
+\\
+\end{OptionTableNoShorthand}
+
+\begin{OptionTableNoShorthand}{Object Mask Information SEI message encoder parameters}{tab:sei-object-mask-information}
+\Option{SEIObjectMaskFileRoot (-omi)} &
+\Default{\NotSet} &
+Specifies the prefix of input Object Mask Information file. Prefix is completed by ``_x.txt'' where x is the  POC number.
+The contents of the file are a list of the SEI message's syntax element names (in decoding order) immediately followed by a `:' and then the associated value.
+An example file can be found in cfg/sei_vui/object_mask_infos/intra/mask_info_0.txt
+\\
+\end{OptionTableNoShorthand}
+
+\begin{OptionTableNoShorthand}{Source picture timing information SEI message encoder parameters}{tab:sei-source-picture-timing-info}
+\Option{SEISourcePictureTimingInfo} &
+\Default{false} &
+Enables (true) or disables (false) the insertion of Source picture timing information SEI message.
+\\
+\Option{SEISPTISourceTimingEqualsOutputTimingFlag} &
+\Default{true} &
+Indicates the timing of source pictures is the same as the timing of corresponding decoded output pictures(true) or indicates the timing of source pictures might not be the same as the timing of corresponding decoded output pictures(false).
+\\
+\Option{SEISPTISourceType} &
+\Default{0} &
+Indicates the timing relationship between source pictures and corresponding decoded output pictures.
+\\
+\Option{SEISPTITimeScale} &
+\Default{27000000} &
+Specifies the number of time units that pass in one second.
+\\
+\Option{SEISPTINumUnitsInElementalInterval} &
+\Default{1080000} &
+Specifies the number of time units of a clock operating at the frequency spti_time_scale Hz that corresponds to the indicated elemental source picture interval of consecutive pictures in output order in the CLVS.
+\\
+\Option{SEISPTIDirectionFlag} &
+\Default{false} &
+Indicates the direction of the signalled source picture intervals. spti_direction_flag equal to 0 indicates that source picture intervals are expressed relative to previous output pictures. spti_direction_flag equal to 1 indicates that source picture intervals are expressed relative to future output pictures.
+\\
+\end{OptionTableNoShorthand}
+
+
+
+\begin{OptionTableNoShorthand}{Generative face video SEI message encoder parameters}
+{tab:sei-gfv}
+  \Option{--} &
+  \Default{--} &
+  \textbf{The configuration files for generative face video SEI message can be generated by the AhG16 GFVC common software in https://vcgit.hhi.fraunhofer.de/jvet-ahg-gfvc/gfvc_v1/-/blob/AhG16_GFVC_Software_v3/source/GFVC/codecs_utils.py. }
+  \\
+  \Option{SEIGenerativeFaceVideoEnabled} &
+  \Default{false} &
+  Enables (true) or disables (false) the insertion of generative face video (GFV) information SEI message.
+  \\
+  \Option{SEIGenerativeFaceVideoNumber} &
+  \Default{0} &
+  Controls how many generative face video (GFV) information SEI message to be carried by one base picture.
+  \\
+  \Option{SEIGenerativeFaceVideoBasePicFlag} &
+  \Default{false} &
+  When true, indicates the current decoded output picture corresponds to a base picture. When false, indicates the current decoded output picture does not correspond to a base picture. 
+  \\
+  \Option{SEIGenerativeFaceVideoNNPresentFlag} &
+  \Default{false} &
+  When true, indicates a neural network that may be used as a TranslatorNN( ) is contained or indicated by the SEI message. When false, indicates a neural network that may be used as a TranslatorNN( ) is not contained or indicated by the SEI message.
+  \\
+  \Option{SEIGenerativeFaceVideoNNModeIdc} &
+  \Default{0} &
+  Specifies a neural network that may be used as a TranslatorNN() and has the same syntax and semantics with nnpfc_mode_idc of neural network post-filter.
+  \\
+  \Option{SEIGenerativeFaceVideoNNTagURI} &
+  \Default{``''} &
+  Specifies a neural network that may be used as a TranslatorNN() and has the same syntax and semantics with nnpfc_tag_uri of neural network post-filter identified by a specified tag URI.
+  \\
+  \Option{SEIGenerativeFaceVideoNNURI} &
+  \Default{``''} &
+  Specifies a neural network that may be used as a TranslatorNN() and has the same syntax and semantics with nnpfc_uri of neural network post-filter information URI.
+  \\
+  \Option{SEIGenerativeFaceVideoId} &
+  \Default{``0''} &
+  contains an identifying number that may be used to identify face feature information and specify a neural network that may be used as TranslatorNN( ). The valid range for SEIGenerativeFaceVideoId is from \(0\) to \(2^{32} - 2\) (inclusive). Please note that values from \(256\) to \(511\) and from \(2^{31}\) to \(2^{32} - 2\) are reserved for future use, and decoders encountering these values should ignore the corresponding SEI message. List of identifying numbers with the corresponding number of specified SEIGenerativeFaceVideoNumber.
+  \\
+  \Option{SEIGenerativeFaceVideoCnt} &
+  \Default{``''} &
+  Specifies a GFV SEI message instance count value for this gfv_id value within a picture unit. List of count numbers with the corresponding number of specified SEIGenerativeFaceVideoNumber.
+  \\ \Option{SEIGenerativeFaceVideoChromaKeyInfoPresentFlag} &
+  \Default{0} &
+   When present, equal to 1 indicates that the syntax elements gfv_chroma_key_value_present_flag[c] and gfv_chroma_key_thr_present_flag[i] are present and the syntax elements and gfv_chroma_key_value[c] and gfv_chroma_key_thr_value[i] might be present.
+  \\  \Option{SEIGenerativeFaceVideoChromaKeyValuePresentFlag} &
+  \Default{``''} &
+   When present, equal to 1 indicates that the syntax element gfv_chroma_key_value[c] is present.
+  \\
+  \Option{SEIGenerativeFaceVideoChromaKeyValue} &
+  \Default{``''} &
+   Specifies the chroma key value corresponding to the c-th colour component.   
+  \\
+  \Option{SEIGenerativeFaceVideoChromaKeyThrPresentFlag} &
+  \Default{``''} &
+   When present, equal to 1 indicates that the syntax element gfv_chroma_thr_value[ i ] is present.
+  \\
+  \Option{SEIGenerativeFaceVideoChromaKeyThrValue} &
+  \Default{``''} &
+   When present, specifies the i-th chroma key threshold value.  
+  \\
+  \Option{SEIGenerativeFaceVideoDrivePicFusionFlag} &
+  \Default{``''} &
+  When present, equal to 1 indicates the current decoded picture, which corresponds to a driving picture that may be used for fusion, may be input to GenerativeNN( ). gfv_drive_pic_fusion_flag equal to 0 indicates the current decoded picture should not be input to GenerativeNN( ). List of fusion flags  with the corresponding number of specified SEIGenerativeFaceVideoNumber. 
+  \\
+  \Option{SEIGenerativeFaceVideoLowConfidenceFaceParameterFlag} &
+  \Default{``''} &
+  When present, indicates the facial parameters have been derived with low confidence. When false, indicates the confidence information of the facial parameters is not specified. List of low confidence faceParameter flags with the corresponding number of specified SEIGenerativeFaceVideoNumber.     
+  \\
+  \Option{SEIGenerativeFaceVideoCoordinatePresentFlag} &
+  \Default{``''} &
+    When true, indicates that coordinate information of keypoints is present. When false, indicates that coordinate information of keypoints is not present. List of coordinate present flags with the corresponding number of specified SEIGenerativeFaceVideoNumber.
+  \\
+  \Option{SEIGenerativeFaceVideoCoordinateQuantizationFactor} &
+  \Default{``''} &
+  Specifies the precision factor (the length \& in bits,) to process the facial coordinate parameters. The value range may not exceed 32. List of coordinate quantization factors with the corresponding number of specified SEIGenerativeFaceVideoNumber.
+  \\ 
+  \Option{SEIGenerativeFaceVideoCoordinatePredFlag} &
+  \Default{``''} &
+  Determines whether the coordinate parameter is inter-predicted. List of coordinate prediction factors with the corresponding number of specified SEIGenerativeFaceVideoNumber.
+  \\ 
+  \Option{SEIGenerativeFaceVideo3DCoordinateFlag} &
+  \Default{``''} &
+  When true, specifies 3D coordinate-type paramters; otherwise 2D coordinate-type parameters. List of 3D coordinate factors with the corresponding number of specified SEIGenerativeFaceVideoNumber.
+  \\  
+  \Option{SEIGenerativeFaceVideoCoordinatePointNum} &
+  \Default{``''} &
+  Specifies the number of facial coordinate parameters. List of coordinate  numbers with the corresponding number of specified SEIGenerativeFaceVideoNumber.
+  \\  
+  \Option{SEIGenerativeFaceVideoXCoordinate} &
+  \Default{``''} &
+  List of the x-axis coordinate with the floating type.
+  \\   
+  \Option{SEIGenerativeFaceVideoYCoordinate} &
+  \Default{``''} &
+  List of the y-axis coordinate with the floating type.
+  \\   
+  \Option{SEIGenerativeFaceVideoZCoordinateMaxValue} &
+  \Default{``''} &
+  Indicates the maximum absolute value of z-axis coordinates of keypoints.  List of z-axis coordinate maximum values  with the corresponding number of specified SEIGenerativeFaceVideoNumber.
+  \\    
+  \Option{SEIGenerativeFaceVideoZCoordinate} &
+  \Default{``''} &
+  List of the z-axis coordinate with the floating type.
+  \\   
+  \Option{SEIGenerativeFaceVideoMatrixPresentFlag} &
+  \Default{``''} &
+  When true, indicates that information of  matrix parameters is present. When false, indicates that cinformation of  matrix parameters is not present. List of matrix present flags with the corresponding number of specified SEIGenerativeFaceVideoNumber.
+  \\
+  \Option{SEIGenerativeFaceVideoMatrixElementPrecisionFactor} &
+  \Default{``''} &
+  Specifies the precision factor (the length \& in bits,) to process the facial matrix parameters. The value range may not exceed 32. List of matrix quantization factors with the corresponding number of specified SEIGenerativeFaceVideoNumber.
+  \\ 
+  \Option{SEIGenerativeFaceVideoMatrixPredFlag} &
+  \Default{``''} &
+  Determines whether the matrix parameter is inter-predicted. List of matrix prediction factors with the corresponding number of specified SEIGenerativeFaceVideoNumber.
+  \\
+  \Option{SEIGenerativeFaceVideoNumMatrixType} &
+  \Default{``''} &
+  Indicates the number of matrix types signalled in the SEI message. List of NumMatrixType with the corresponding number of specified SEIGenerativeFaceVideoNumber.
+  \\
+   \Option{SEIGenerativeFaceVideoMatrixTypeIdx} &
+  \Default{``''} &
+  Indicates the index of the i-th matrix type. List of MatrixTypeIdx with the corresponding number of specified SEIGenerativeFaceVideoNumMatrixType.
+  \par
+  \begin{tabular}{cp{0.43\textwidth}}
+    0 & Affine translation matrix with the size of 2$\times$2 or 3$\times$3.  \\
+    1 & Covariance matrix with size of 2$\times$2 or 3$\times$3. \\
+    2 & Mouth matrix representing mouth motion. \\
+    3 & Eye matrix representing the open-close status and level of eyes. \\ 
+    4 & Head rotation parameters with the size of 2$\times$2 or 3$\times$3 representing the head rotation in 2D space or 3D space. \\
+    5 &  Head translation matrix with the size of 1$\times$2 or 1$\times$3 representing head translation in 2D space or 3D space.  \\
+    6 &      Head location matrix with size of 1$\times$2 or 1$\times$3 representing the head location in 2D space or 3D space.  \\
+    7 &      Compact feature matrix with the size being specified by gfv_matrix_width_minus1[i] and gfv_matrix_height_minus1[i].  \\
+    8$\sim$31 &      Other matrix that may be used as determined by the application with the size being specified by gfv_matrix_width_minus1[i] and gfv_matrix_height_minus1[i].  \\
+    32$\sim$64 &      Reserved  \\
+  \end{tabular}		
+  \\ 
+  \Option{SEIGenerativeFaceVideoNumMatricestoNumKpsFlag} &
+  \Default{``''} &
+  When true, indicates that the number of matrices of the i-th matrix type is equal to  cooridnation number. When false, indicates the number of matrices of the i-th matrix type is not equal to cooridnation number. List of this flag with the corresponding number of specified SEIGenerativeFaceVideoNumMatrixType.
+  \\
+  \Option{SEIGenerativeFaceVideoNumMatricesInfo} &
+  \Default{``''} &
+  Provides information to derive the number of the matrices of the i-th matrix type. List of this NumMatricesInfo with the corresponding number of specified SEIGenerativeFaceVideoNumMatrixType.
+  \\
+  \Option{SEIGenerativeFaceVideoMatrix3DSpaceFlag} &
+  \Default{``''} &
+  When true, indicates the matrix of the i-th matrix type is a matrix defined in 3D space. When false, indicates the matrix of the i-th matrix type is a matrix defined in 2D space. List of 3D Space Flags with the corresponding number of specified SEIGenerativeFaceVideoNumMatrixType.
+  \\
+  \Option{SEIGenerativeFaceVideoNumMatrices} &
+  \Default{``''} &
+  Indicates the number of matrices of the i-th matrix type. List of i-th matrix type with the corresponding number of specified SEIGenerativeFaceVideoNumMatrixType.
+  \\
+  \Option{SEIGenerativeFaceVideoMatrixWidth} &
+  \Default{``''} &
+  Indicates  the matrix width of the i-th matrix type. List of i-th matrix width with the corresponding number of specified SEIGenerativeFaceVideoNumMatrixType.
+  \\
+  \Option{SEIGenerativeFaceVideoMatrixHeight} &
+  \Default{``''} &
+  Indicates the matrix height of the i-th matrix type. List of i-th matrix height with the corresponding number of specified SEIGenerativeFaceVideoNumMatrixType.
+  \\
+  \Option{SEIGenerativeFaceVideoMatrixElement} &
+  \Default{``''} &
+  List of matrix parameters with the floating type.
+  \\
+  \Option{SEIGenerativeFaceVideoPayloadFilename} &
+  \Default{""} &
+  Specifies the NNR bitstream of the generative neural network and has the same syntax and semantics with nnpfc_payload_byte of neural network post-filter information URI.
+  \\
+\end{OptionTableNoShorthand}
+
+
+\begin{OptionTableNoShorthand}{Generative face video enhancement SEI message encoder parameters}
+{tab:sei-gfv}
+  \Option{--} &
+  \Default{--} &
+  \textbf{The configuration files for generative face video enhancement SEI message can be generated by the AhG16 GFVC common software in https://vcgit.hhi.fraunhofer.de/jvet-ahg-gfvc/gfvc_v1/-/blob/AhG16_GFVC_Software_v3/source/GFVC/codecs_utils.py. }
+  \\
+  \Option{SEIGenerativeFaceVideoEnhancementEnabled} &
+  \Default{false} &
+  Enables (true) or disables (false) the insertion of generative face video enhancement (GFVE) information SEI message.
+  \\
+  \Option{SEIGenerativeFaceVideoEnhancementNumber} &
+  \Default{0} &
+  Controls how many generative face video enhancement (GFVE) information SEI message to be carried by one base picture.
+  \\
+  \Option{SEIGenerativeFaceVideoEnhancementBasePicFlag} &
+  \Default{false} &
+  When true, indicates that the current decoded output picture corresponds to a base picture and this SEI message specifies syntax elements for a base picture. When false, indicates that the current decoded output picture does not correspond to a base picture or this SEI message does not specify syntax elements for a base picture. 
+  \\
+  \Option{SEIGenerativeFaceVideoEnhancementNNPresentFlag} &
+  \Default{false} &
+  When true, indicates a neural network that may be used as a EnhancerNN( ) is contained or indicated by the SEI message. When false, indicates a neural network that may be used as a EnhancerNN( ) is not contained or indicated by the SEI message.
+  \\
+  \Option{SEIGenerativeFaceVideoEnhancementNNModeIdc} &
+  \Default{0} &
+  Specifies a neural network that may be used as a EnhancerNN() and has the same syntax and semantics with nnpfc_mode_idc of neural network post-filter.
+  \\
+  \Option{SEIGenerativeFaceVideoEnhancementNNTagURI} &
+  \Default{``''} &
+  Specifies a neural network that may be used as a EnhancerNN() and has the same syntax and semantics with nnpfc_tag_uri of neural network post-filter identified by a specified tag URI.
+  \\
+  \Option{SEIGenerativeFaceVideoEnhancementNNURI} &
+  \Default{``''} &
+  Specifies a neural network that may be used as a EnhancerNN() and has the same syntax and semantics with nnpfc_uri of neural network post-filter information URI.
+  \\
+  \Option{SEIGenerativeFaceVideoEnhancementId} &
+  \Default{`` ''} &
+  contains an identifying number that may be used to identify face feature information and specify a neural network that may be used as EnhancerNN( ). The valid range is from \(0\) to \(2^{32} - 2\) (inclusive). Please note that values from \(256\) to \(511\) and from \(2^{31}\) to \(2^{32} - 2\) are reserved for future use, and decoders encountering these values should ignore the corresponding SEI message. Decoders conforming to this edition of this document encountering a GFVE SEI message with gfve\_id in the range of 256 to 511, inclusive, or in the range of \(2^{31}\) to \(2^{32} - 2\) , inclusive, shall ignore the SEI message. List of identifying numbers with the corresponding number of specified SEIGenerativeFaceVideoEnhancementNumber.
+  \\
+  \Option{SEIGenerativeFaceVideoEnhancementGFVId} &
+  \Default{`` ''} &
+  specifies gfv\_id and gfv\_cnt of the associated GFV SEI message. The associated GFV SEI message is a GFV SEI message in the same picture unit with the GFVE SEI message having gfv\_id equal to gfve\_gfv\_id, gfv\_cnt equal to gfve\_gfv\_cnt. The GFVE message is used to enhance the picture generated with the associated GFV SEI message. List of identifying numbers with the corresponding number of specified SEIGenerativeFaceVideoEnhancementNumber.
+  \\  
+  \Option{SEIGenerativeFaceVideoEnhancementGFVCnt} &
+  \Default{`` ''} &
+  specifies gfv\_id and gfv\_cnt of the associated GFV SEI message. The associated GFV SEI message is a GFV SEI message in the same picture unit with the GFVE SEI message having gfv\_id equal to gfve\_gfv\_id, gfv\_cnt equal to gfve\_gfv\_cnt. The GFVE message is used to enhance the picture generated with the associated GFV SEI message. List of identifying numbers with the corresponding number of specified SEIGenerativeFaceVideoEnhancementNumber.
+  \\    
+  \Option{SEIGenerativeFaceVideoEnhancementMatrixPresentFlag} &
+  \Default{`` ''} &
+  When true, indicates that matrix parameters are present. When False, indicates that matrix parameters are not present. List of identifying numbers with the corresponding number of specified SEIGenerativeFaceVideoEnhancementNumber.
+  \\   
+  \Option{SEIGenerativeFaceVideoEnhancementMatrixPredFlag} &
+  \Default{`` ''} &
+  Determines whether the enhancement matrix parameter is inter-predicted. List of matrix prediction factors with the corresponding number of specified SEIGenerativeFaceVideoEnhancementNumber.
+  \\   
+ \Option{SEIGenerativeFaceVideoEnhancement\\MatrixElementPrecisionFactor} &
+  \Default{`` ''} &
+  Specifies the precision factor (the length \& in bits,) to process the enhancement matrix parameters. The value range may not exceed 32. List of matrix quantization factors with the corresponding number of specified SEIGenerativeFaceVideoEnhancementNumber.
+  \\   
+  \Option{SEIGenerativeFaceVideoEnhancementNumMatrices} &
+  \Default{``''} &
+   Specifies the number of matrices signalled in the SEI message. 
+  \\
+  \Option{SEIGenerativeFaceVideoEnhancementMatrixWidth} &
+  \Default{``''} &
+  Indicates the matrix width of the i-th matrix type. List of i-th matrix width with the corresponding number of specified SEIGenerativeFaceVideoEnhancementNumMatrices.
+  \\
+  \Option{SEIGenerativeFaceVideoEnhancementMatrixHeight} &
+  \Default{``''} &
+  Indicates the matrix height of the i-th matrix type. List of i-th matrix height with the corresponding number of specified SEIGenerativeFaceVideoEnhancementNumMatrices.
+  \\
+  \Option{SEIGenerativeFaceVideoEnhancementMatrixElement} &
+  \Default{``''} &
+  List of enhancement matrix parameters with the floating type.
+  \\
+
+  \Option{SEIGenerativeFaceVideoEnhancementPupilPresentIdx} &
+  \Default{``''} &
+  Equal to 0 indicates the pupil coordinate is not present. Equal to 1 indicates the pupil coordinate information of the left eye is present. Equal to 2 indicates the pupil coordinate information of the right eye is present. Equal to 3 indicates pupil coordinate information of both the left eye and the right eye is present. 
+  \\
+  \Option{SEIGenerativeFaceVideoEnhancementPupilPresentIdx} &
+  \Default{``''} &
+  Equal to 0 indicates the pupil coordinate is not present. Equal to 1 indicates the pupil coordinate information of the left eye is present. Equal to 2 indicates the pupil coordinate information of the right eye is present. Equal to 3 indicates pupil coordinate information of both the left eye and the right eye is present. 
+  \\    
+  \Option{SEIGenerativeFaceVideoEnhancement \\PupilCoordinatePrecisionFactor} &
+  \Default{""} &
+  Specifies the precision factor (the length \& in bits,) to process the pupil coordinates. The value range may not exceed 32. List of pupil coordinates quantization factors with the corresponding number of specified SEIGenerativeFaceVideoEnhancementNumber.
+  \\
+  \Option{SEIGenerativeFaceVideoEnhancement\\PupilLeftEyeCoordinateX} &
+  \Default{""} &
+  specifies the x-axis coordinate of left eye with the floating type.
+  \\
+  \Option{SEIGenerativeFaceVideoEnhancement\\PupilLeftEyeCoordinateY} &
+  \Default{""} &
+  specifies the y-axis coordinate of left eye with the floating type.
+  \\
+  \Option{SEIGenerativeFaceVideoEnhancement\\PupilRightEyeCoordinateX} &
+  \Default{""} &
+  specifies the x-axis coordinate of right eye with the floating type.
+  \\
+  \Option{SEIGenerativeFaceVideoEnhancement\\PupilRightEyeCoordinateY} &
+  \Default{""} &
+  specifies the y-axis coordinate of right eye with the floating type.
+  \\  
+\end{OptionTableNoShorthand}
+
+
+
+
+
 
 
 %\Option{SEITimeCode} &
@@ -2890,9 +4215,9 @@ Numerous constants that guard individual adoptions are defined within
 \clearpage
 \section{Using the decoder}
 \subsection{General}
-\begin{verbatim}
+\begin{minted}{bash}
 TAppDecoder -b str.bin -o dec.yuv [options]
-\end{verbatim}
+\end{minted}
 
 \begin{OptionTableNoShorthand}{Decoder options}{tab:decoder-options}
 \Option{(--help)} &
@@ -3024,6 +4349,29 @@ When true, do not output frames for which there is an SEI NoDisplay message.
 If 1 then clip output video to the Rec. 709 Range on saving when OutputBitDepth is less than InternalBitDepth.
 \\
 
+\Option{TMCTSCheck} &
+%\ShortOption{\None} &
+\Default{0} &
+Enables checking of temporal motion constraints (Merge/TMVP, motion vectors) at tile boundaries. Checks are enabled, if
+\begin{itemize}
+\item a temporal motion constraint SEI is present in the bitstream
+\item the SEI message contains mc_all_tiles_exact_sample_value_match_flag and each_tile_one_tile_set_flag equal to 1
+\item TMCTSCheck is equal to 1
+\end{itemize}
+If violations are found, an error message is printed to stderr.
+\\
+
+\Option{KeyStoreDir} &
+%\ShortOption{\None} &
+\Default{"keystore/pub"} &
+If Digitally Signed Content SEIs are present in the bitstream and support for verifying digital signatures is enabled in the software, KeyStoreDir specifies the directory for pre-stored content provider certificates. When a "file://" URI is provided, the decoder searches for the specifies file name in this directory.
+\\
+
+\Option{TrustStoreDir} &
+%\ShortOption{\None} &
+\Default{"keystore/ca"} &
+If Digitally Signed Content SEIs are present in the bitstream and support for verifying digital signatures is enabled in the software, KeyStoreDir specifies the directory for pre-stored content provider certificates. The content provider certificate is verified against all CA certificated in this folder. Note, when adding new CA certificates, run "openssl rehash <directory>" to create the necessary hash links.\\
+
 \end{OptionTableNoShorthand}
 
 
@@ -3031,5 +4379,53 @@ If 1 then clip output video to the Rec. 709 Range on saving when OutputBitDepth 
 If the decoder is compiled with the macro RExt__DECODER_DEBUG_BIT_STATISTICS defined as 1 (either externally, or by editing TypeDef.h), the decoder will gather fractional bit counts associated with the different syntax elements, producing a table of the number of bits per syntax element, and where appropriate, according to block size and colour component/channel.
 The Linux makefile will compile both the analyser and standard version when the `all' or `everything' target is used (where the latter will also build  high-bit-depth executables).
 
+
+
+%%
+%%
+%%
+\clearpage
+\section{Using additional tools}
+\subsection{MCTS extractor application}
+\subsubsection{General}
+\begin{minted}{bash}
+TAppMCTSExtractor -i str_in.bin -b str_in.bin [options]
+\end{minted}
+
+\begin{OptionTableNoShorthand}{MCTS Extractor options}{tab:mcts-extractor-options}
+\Option{(--help)} &
+%\ShortOption{\None} &
+\Default{\None} &
+Prints usage information.
+\\
+
+\Option{InputBitstreamFile (-i)} &
+%\ShortOption{-i} &
+\Default{\NotSet} &
+Defines the input bitstream file name.
+\\
+
+\Option{OutputBitstreamFile (-b)} &
+%\ShortOption{-b} &
+\Default{\NotSet} &
+Defines the output sub-bitstream file name.
+\\
+
+\Option{TargetMCTSIdx (-d)} &
+%\ShortOption{-d} &
+\Default{0} &
+ Target MCTS index to be extracted from input bitstream to output sub-bitstream. 
+\\
+
+\end{OptionTableNoShorthand}
+
+\subsubsection{Usage example}
+
+The MCTS extractor application allows extraction of MCTS sub-bitstreams from bitstreams containing the Temporal motion-constrained tile sets SEI message syntax and the Motion-constrained tile sets extraction information sets SEI message. In order to generate such a bitstream with TAppEncoder, the following parameters need to be set.
+\begin{verbatim}
+--SEITempMotionConstrainedTileSets=1 
+--SEITMCTSTileConstraint=1 
+--SEITMCTSExtractionInfo=1
+\end{verbatim}
 
 \end{document}

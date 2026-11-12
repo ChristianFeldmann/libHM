@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -1009,6 +1009,11 @@ Void TComSlice::applyReferencePictureSet( TComList<TComPic*>& rcListPic, const T
 
     if(!rpcPic->getSlice( 0 )->isReferenced())
     {
+      // Remove output non reference picture from DPB
+      if(!rpcPic->getOutputMark())
+      {
+        rpcPic->setReconMark(false);
+      }
       continue;
     }
 
@@ -1054,6 +1059,11 @@ Void TComSlice::applyReferencePictureSet( TComList<TComPic*>& rcListPic, const T
       rpcPic->getSlice( 0 )->setReferenced( false );
       rpcPic->setUsedByCurr(0);
       rpcPic->setIsLongTerm(0);
+    }
+    // Remove output non reference picture from DPB
+    if(!isReference && !rpcPic->getOutputMark())
+    {
+      rpcPic->setReconMark(false);
     }
     //check that pictures of higher temporal layers are not used
     assert(rpcPic->getSlice( 0 )->isReferenced()==0||rpcPic->getUsedByCurr()==0||rpcPic->getTLayer()<=this->getTLayer());
@@ -1615,6 +1625,12 @@ TComPPS::TComPPS()
 , m_cabacInitPresentFlag             (false)
 , m_sliceHeaderExtensionPresentFlag  (false)
 , m_loopFilterAcrossSlicesEnabledFlag(false)
+, m_deblockingFilterControlPresentFlag(false)
+, m_deblockingFilterOverrideEnabledFlag(false)
+, m_ppsDeblockingFilterDisabledFlag  (false)
+, m_deblockingFilterBetaOffsetDiv2   (0)
+, m_deblockingFilterTcOffsetDiv2     (0)
+, m_scalingListPresentFlag           (false)
 , m_listsModificationPresentFlag     (0)
 , m_numExtraSliceHeaderBits          (0)
 {
@@ -1788,6 +1804,8 @@ TComScalingList::TComScalingList()
     for(UInt listId = 0; listId < SCALING_LIST_NUM; listId++)
     {
       m_scalingListCoef[sizeId][listId].resize(min<Int>(MAX_MATRIX_COEF_NUM,(Int)g_scalingListSize[sizeId]));
+      m_scalingListDC[sizeId][listId] = 0;
+      m_refMatrixId[sizeId][listId] = 0;
     }
   }
 }

@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,9 +44,30 @@
 
 #include <vector>
 #include <utility>
+#include <iostream>
+#include <sstream>
+
 
 //! \ingroup TLibCommon
 //! \{
+#define JCTVC_AD0021_SEI_MANIFEST                         1  // JCTVC_AD0021(JVET-T0056): SEI manifest SEI message
+#define JCTVC_AD0021_SEI_PREFIX_INDICATION                1  // JCTVC_AD0021(JVET-T0056): SEI prefix indication SEI message
+#define JVET_X0079_MODIFIED_BITRATES                      1 // JVET-X0079: Addition of level 6.3
+
+#define JVET_V0078                                        1 // JVET-V0078: QP control for very smooth blocks
+#define JVET_Y0077_BIM                                    1 // JVET-Y0077: Block Importance Mapping
+
+#define JVET_Y0105_SW_AND_QDF                             1 // An adaptive smooth window (SW) size and extension of quality dependency factor (QDF) to low frame rate in rate control 
+
+
+#define JVET_AK0194_DSC_SEI_DECODER_SYNTAX                1 // read the Digitally Signed Content SEIs at the decoder
+
+// Keep the following define. Can be switched off by CMake, when OpenSSL is not found
+#ifndef JVET_AK0194_DSC_SEI
+#define JVET_AK0194_DSC_SEI   1                      // Digitally signed content signing and verification (requires OpenSSL v3)
+#endif
+
+#define JVET_AK0140_PACKED_REGIONS_INFORMATION_SEI        1
 
 // ====================================================================================================================
 // Debugging
@@ -75,26 +96,51 @@
 
 #define PRINT_RPS_INFO                                    0 ///< Enable/disable the printing of bits used to send the RPS.
 
+#define MCTS_EXTRACTION                                   1 ///< Additional project for MCTS Extraction as in JCTVC-AC1005
+
 // ====================================================================================================================
 // Tool Switches - transitory (these macros are likely to be removed in future revisions)
 // ====================================================================================================================
 
-#define DECODER_CHECK_SUBSTREAM_AND_SLICE_TRAILING_BYTES  1 ///< TODO: integrate this macro into a broader conformance checking system.
-#define X0038_LAMBDA_FROM_QP_CAPABILITY                   1 ///< This approach derives lambda from QP+QPoffset+QPoffset2. QPoffset2 is derived from QP+QPoffset using a linear model that is clipped between 0 and 3.
-                                                            // To use this capability enable config parameter LambdaFromQpEnable
-#define JCTVC_Y0038_PARAMS                                1
+#define JVET_V0056_MCTF                                   1 // JVET-V0056: Changes to MCTF
 
-#define JVET_E0059_FLOATING_POINT_QP_FIX                  1 ///< Replace floating point QP with a source-file frame number.
-
-#ifndef EXTENSION_360_VIDEO
-#define EXTENSION_360_VIDEO                               0   ///< extension for 360/spherical video coding support; this macro should be controlled by makefile, as it would be used to control whether the library is built and linked
+#define JVET_K0390_RATE_CTRL                              1
+#if JVET_K0390_RATE_CTRL
+#define JVET_M0600_RATE_CTRL                              1
 #endif
+#define DECODER_CHECK_SUBSTREAM_AND_SLICE_TRAILING_BYTES  1 ///< TODO: integrate this macro into a broader conformance checking system.
+#define MCTS_ENC_CHECK                                    1  ///< Temporal MCTS encoder constraint and decoder checks. Also requires SEITMCTSTileConstraint to be enabled to enforce constraint
+#define SHUTTER_INTERVAL_SEI_MESSAGE                      1  ///< support for shutter interval SEI message 
+#define NNPFC_SEI_MESSAGE                                 1  ///< support for NNPFC SEI message
+#define NNPFA_SEI_MESSAGE                                 1  ///< support for NNPFA SEI message
+#define JVET_AE0101_PHASE_INDICATION_SEI_MESSAGE          1  ///< support for phase indication SEI message
+#define SEI_ENCODER_CONTROL                               1  ///< add encoder control for the following SEI: film grain characteristics, content light level, ambient viewing environment
+#define DPB_ENCODER_USAGE_CHECK                           1 ///< Adds DPB encoder usage check.
+#define JVET_X0048_X0103_FILM_GRAIN                       1 ///< JVET-X0048-X0103: SMPTE RDD-5 based film grain analysis and synthesis model for film grain characterstics (FGC) SEI
+#define JVET_AL0062_AI_USAGE_RESTRICTIONS_SEI             1 ///< support for AI usage restrictions SEI message
+#define JVET_AL0339_SPATIAL_RESOLUTION_FOR_FGC_SEI        1 ///< JVET-AL0339: Spatial resolution for film grain characteristics SEI message.
+
+#define JVET_T0050_ANNOTATED_REGIONS_SEI                  1 ///< Detect static objects and use it in Annotated Regions SEI message
+
+#define JVET_AL0061_ENCODER_OPTIMIZATION_INFORMATION_SEI   1 ///< Support for encoder optimization information SEI message
+
+#if SHUTTER_INTERVAL_SEI_MESSAGE
+#define SHUTTER_INTERVAL_SEI_PROCESSING                   1 ///< JCTVC-AM0024: pre-/post-processing to use shutter interval SEI
+#endif
+#define JVET_AK0107_MODALITY_INFORMATION                  1 // Implementation of Modality Information SEI message
+#define JVET_AJ0207_GFV                                   1 //generative face video (GFV) SEI
+#define JVET_AK0239_GEFV                                  1 //generative enhancement face video (GEFV) SEI
+#define JVET_AK2006_SPTI_SEI_MESSAGE                      1 // Implementation of Source Picture Timing Information SEI message
 
 // ====================================================================================================================
 // Tool Switches
 // ====================================================================================================================
 
 // Please also refer to "TDecConformance.h" for DECODER_PARTIAL_CONFORMANCE_CHECK
+
+#ifndef EXTENSION_360_VIDEO
+#define EXTENSION_360_VIDEO                               0   ///< extension for 360/spherical video coding support; this macro should be controlled by makefile, as it would be used to control whether the library is built and linked
+#endif
 
 #define REDUCED_ENCODER_MEMORY                            1 ///< When 1, the encoder will allocate TComPic memory when required and release it when no longer required.
 
@@ -143,7 +189,7 @@
 #define FULL_NBIT                                         1 ///< When enabled, use distortion measure derived from all bits of source data, otherwise discard (bitDepth - 8) least-significant bits of distortion
 #define RExt__HIGH_PRECISION_FORWARD_TRANSFORM            1 ///< 0 use original 6-bit transform matrices for both forward and inverse transform, 1 (default) = use original matrices for inverse transform and high precision matrices for forward transform
 #else
-#define FULL_NBIT                                         0 ///< When enabled, use distortion measure derived from all bits of source data, otherwise discard (bitDepth - 8) least-significant bits of distortion
+#define FULL_NBIT                                         1 ///< When enabled, use distortion measure derived from all bits of source data, otherwise discard (bitDepth - 8) least-significant bits of distortion
 #define RExt__HIGH_PRECISION_FORWARD_TRANSFORM            0 ///< 0 (default) use original 6-bit transform matrices for both forward and inverse transform, 1 = use original matrices for inverse transform and high precision matrices for forward transform
 #endif
 
@@ -286,6 +332,20 @@ enum ChromaFormat
   CHROMA_444        = 3,
   NUM_CHROMA_FORMAT = 4
 };
+
+#if NNPFC_SEI_MESSAGE
+enum Chroma420LocType
+{
+  LEFT,
+  CENTER,
+  TOP_LEFT,
+  TOP,
+  BOTTOM_LEFT,
+  BOTTOM,
+  UNSPECIFIED,
+  NUM,
+};
+#endif
 
 enum ChannelType
 {
@@ -559,7 +619,38 @@ enum SAOEOClasses
   SAO_CLASS_EO_FULL_PEAK   = 4,
   NUM_SAO_EO_CLASSES,
 };
+#if JVET_AL0061_ENCODER_OPTIMIZATION_INFORMATION_SEI
 
+enum EOI_OptimizationType
+{
+  UNDEFINED = 0,
+  OBJECT_BASED_OPTIMIZATION = 1,
+  TEMPORAL_RESAMPLING = 2,
+  SPATIAL_RESAMPLING = 4,
+  TEMPORAL_QUALITY_OPTIMIZATION = 8,
+  SPATIAL_QUALITY_OPTIMIZATION = 16,
+  PRIVACY_PROTECTION_OPTIMIZATION = 32,
+};
+
+enum EOI_PRIVACY_PROTECTION
+{
+  BLURRING = 1,
+  REPLACING = 2,
+  MASKING = 4,
+  PIXELATION = 8
+};
+
+enum EOI_OBJECT_BASED
+{
+  BLURRED = 1,
+  COARSER_QUANTIZATION = 2,
+  OVERWRITTEN_CONSTANT = 4,
+  OVERWRITTEN_NONCONSTANT = 8,
+  SIZE_BASED = 16
+};
+
+
+#endif
 #define NUM_SAO_BO_CLASSES_LOG2  5
 #define NUM_SAO_BO_CLASSES       (1<<NUM_SAO_BO_CLASSES_LOG2)
 
@@ -602,6 +693,9 @@ namespace Level
     LEVEL6   = 180,
     LEVEL6_1 = 183,
     LEVEL6_2 = 186,
+#if JVET_X0079_MODIFIED_BITRATES
+    LEVEL6_3 = 189,
+#endif
     LEVEL8_5 = 255,
   };
 }
@@ -736,6 +830,58 @@ enum LumaLevelToDQPMode
   LUMALVL_TO_DQP_NUM_MODES  = 3
 };
 
+// ---------------------------------------------------------------------------
+// exception class
+// ---------------------------------------------------------------------------
+
+class Exception : public std::exception
+{
+public:
+  Exception( const std::string& _s ) : m_str( _s ) { }
+  Exception( const Exception& _e ) : std::exception( _e ), m_str( _e.m_str ) { }
+  virtual ~Exception() noexcept { };
+  virtual const char* what() const noexcept { return m_str.c_str(); }
+  Exception& operator=( const Exception& _e ) { std::exception::operator=( _e ); m_str = _e.m_str; return *this; }
+  template<typename T> Exception& operator<<( T t ) { std::ostringstream oss; oss << t; m_str += oss.str(); return *this; }
+private:
+  std::string m_str;
+};
+
+#define THROW(x)            throw( Exception( "\nERROR: In function \"" ) << __FUNCTION__ << "\" in " << __FILE__ << ":" << __LINE__ << ": " << x )
+#define CHECK(c,x)          if(c){ THROW(x); }
+#define EXIT(x)             throw( Exception( "\n" ) << x << "\n" )
+#define CHECK_NULLPTR(_ptr) CHECK( !( _ptr ), "Accessing an empty pointer pointer!" )
+
+#if NNPFC_SEI_MESSAGE
+enum NNPC_PaddingType
+{
+  ZERO_PADDING = 0,
+  REPLICATION_PADDING = 1,
+  REFLECTION_PADDING = 2,
+  WRAP_AROUND_PADDING = 3,
+  FIXED_PADDING = 4
+};
+
+enum NNPC_PurposeType
+{
+  UNKONWN                    = 0,
+  VISUAL_QUALITY_IMPROVEMENT = 1,
+  CHROMA_UPSAMPLING          = 2,
+  RESOLUTION_UPSAMPLING      = 4,
+  FRAME_RATE_UPSAMPLING      = 8,
+  BIT_DEPTH_UPSAMPLING       = 16,
+  COLOURIZATION              = 32,
+  TEMPORAL_EXTRAPOLATION     = 64,
+  SPATIAL_EXTRAPOLATION      = 128
+};
+
+enum POST_FILTER_MODE
+{
+  ISO_IEC_15938_17 = 0,
+  URI = 1
+};
+#endif
+
 // ====================================================================================================================
 // Type definition
 // ====================================================================================================================
@@ -775,6 +921,9 @@ private:
 
 struct BitDepths
 {
+#if JVET_X0048_X0103_FILM_GRAIN
+  const int &operator[](const ChannelType ch) const { return recon[ch]; }
+#endif
 #if O0043_BEST_EFFORT_DECODING
   Int recon[MAX_NUM_CHANNEL_TYPE]; ///< the bit depth used for reconstructing the video
   Int stream[MAX_NUM_CHANNEL_TYPE];///< the bit depth used indicated in the SPS
@@ -893,6 +1042,108 @@ struct WCGChromaQPControl
   Double chromaQpOffset;  ///< Chroma QP Offset (0.0:default)
 };
 
+struct TComSEIFisheyeVideoInfo
+{
+  struct ActiveAreaInfo
+  {
+    UInt m_fisheyeCircularRegionCentreX;
+    UInt m_fisheyeCircularRegionCentreY;
+    UInt m_fisheyeRectRegionTop;
+    UInt m_fisheyeRectRegionLeft;
+    UInt m_fisheyeRectRegionWidth;
+    UInt m_fisheyeRectRegionHeight;
+    UInt m_fisheyeCircularRegionRadius;
+    UInt m_fisheyeSceneRadius;
+
+    Int  m_fisheyeCameraCentreAzimuth;
+    Int  m_fisheyeCameraCentreElevation;
+    Int  m_fisheyeCameraCentreTilt;
+    UInt m_fisheyeCameraCentreOffsetX;
+    UInt m_fisheyeCameraCentreOffsetY;
+    UInt m_fisheyeCameraCentreOffsetZ;
+    UInt m_fisheyeFieldOfView;
+    std::vector<Int> m_fisheyePolynomialCoeff;
+  };
+
+  Bool  m_fisheyeCancelFlag;
+  Bool  m_fisheyePersistenceFlag;
+  UInt  m_fisheyeViewDimensionIdc;
+  std::vector<ActiveAreaInfo> m_fisheyeActiveAreas;
+  TComSEIFisheyeVideoInfo() : m_fisheyeCancelFlag(false), m_fisheyePersistenceFlag(false), m_fisheyeViewDimensionIdc(0), m_fisheyeActiveAreas() { }
+};
+
+class Window
+{
+private:
+  Bool m_enabledFlag;
+  Int  m_winLeftOffset;
+  Int  m_winRightOffset;
+  Int  m_winTopOffset;
+  Int  m_winBottomOffset;
+public:
+  Window()
+  : m_enabledFlag    (false)
+  , m_winLeftOffset  (0)
+  , m_winRightOffset (0)
+  , m_winTopOffset   (0)
+  , m_winBottomOffset(0)
+  { }
+
+  Bool getWindowEnabledFlag() const   { return m_enabledFlag;                          }
+  Int  getWindowLeftOffset() const    { return m_enabledFlag ? m_winLeftOffset : 0;    }
+  Void setWindowLeftOffset(Int val)   { m_winLeftOffset = val; m_enabledFlag = true;   }
+  Int  getWindowRightOffset() const   { return m_enabledFlag ? m_winRightOffset : 0;   }
+  Void setWindowRightOffset(Int val)  { m_winRightOffset = val; m_enabledFlag = true;  }
+  Int  getWindowTopOffset() const     { return m_enabledFlag ? m_winTopOffset : 0;     }
+  Void setWindowTopOffset(Int val)    { m_winTopOffset = val; m_enabledFlag = true;    }
+  Int  getWindowBottomOffset() const  { return m_enabledFlag ? m_winBottomOffset: 0;   }
+  Void setWindowBottomOffset(Int val) { m_winBottomOffset = val; m_enabledFlag = true; }
+
+  Void setWindow(Int offsetLeft, Int offsetRight, Int offsetTop, Int offsetBottom)
+  {
+    m_enabledFlag     = (offsetLeft || offsetRight || offsetTop || offsetBottom);
+    m_winLeftOffset   = offsetLeft;
+    m_winRightOffset  = offsetRight;
+    m_winTopOffset    = offsetTop;
+    m_winBottomOffset = offsetBottom;
+  }
+  Bool operator == (const Window &rhs) const
+  {
+    return ( m_enabledFlag && rhs.m_enabledFlag && 
+      m_winLeftOffset == rhs.m_winLeftOffset &&
+      m_winRightOffset == rhs.m_winRightOffset &&
+      m_winTopOffset == rhs.m_winTopOffset &&
+      m_winBottomOffset == rhs.m_winBottomOffset
+      );
+  }
+};
+
+class RNSEIWindow : public Window
+{
+private:
+  UInt m_regionId;
+public:
+  RNSEIWindow() : Window(), m_regionId(0) {}
+  Int  getRegionId() const     { return getWindowEnabledFlag() ? m_regionId : 0;    }
+  Void setRegionId(UInt const val)   { m_regionId = val; }
+  // Check two RNSEIWindows are identical
+  Bool operator == (RNSEIWindow const &rhs) const
+  {
+    return ( (m_regionId == rhs.m_regionId) &&
+      Window(*this) == Window(rhs) );
+  }
+  // Check if two windows are identical, even though regions may be different
+  Bool checkSameRegion(RNSEIWindow const &rhs) const
+  {
+    return ( Window(*this) == Window(rhs) );
+  }
+  Bool checkSameID(RNSEIWindow const &rhs) const
+  {
+    return ( m_regionId == rhs.m_regionId );
+  }
+  friend std::ostream& operator<<(std::ostream  &os, RNSEIWindow const &region);
+};
+typedef std::vector<RNSEIWindow> RNSEIWindowVec;
 //! \}
 
 #endif

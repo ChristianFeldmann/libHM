@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -119,7 +119,6 @@ Void TEncSampleAdaptiveOffset::createEncData(Bool isPreDBFSamplesUsed)
   }
 
   ::memset(m_saoDisabledRate, 0, sizeof(m_saoDisabledRate));
-  m_lastIRAPPoc = MAX_INT;
 
   for(Int typeIdc=0; typeIdc < NUM_SAO_NEW_TYPES; typeIdc++)
   {
@@ -238,8 +237,7 @@ Void TEncSampleAdaptiveOffset::initRDOCabacCoder(TEncSbac* pcRDGoOnSbacCoder, TC
 }
 
 
-
-Void TEncSampleAdaptiveOffset::SAOProcess(TComPic* pPic, Bool* sliceEnabled, const Double *lambdas, const Bool bTestSAODisableAtPictureLevel, const Double saoEncodingRate, const Double saoEncodingRateChroma, const Bool isPreDBFSamplesUsed, const Bool bResetStateAfterIRAP )
+Void TEncSampleAdaptiveOffset::SAOProcess(TComPic* pPic, Bool* sliceEnabled, const Double *lambdas, const Bool bTestSAODisableAtPictureLevel, const Double saoEncodingRate, const Double saoEncodingRateChroma, const Bool isPreDBFSamplesUsed )
 {
   TComPicYuv* orgYuv= pPic->getPicYuvOrg();
   TComPicYuv* resYuv= pPic->getPicYuvRec();
@@ -257,8 +255,7 @@ Void TEncSampleAdaptiveOffset::SAOProcess(TComPic* pPic, Bool* sliceEnabled, con
   }
 
   //slice on/off
-  decidePicParams(sliceEnabled, pPic, saoEncodingRate, saoEncodingRateChroma, bResetStateAfterIRAP);
-
+  decidePicParams(sliceEnabled, pPic, saoEncodingRate, saoEncodingRateChroma);
   //block on/off
   SAOBlkParam* reconParams = new SAOBlkParam[m_numCTUsPic]; //temporary parameter buffer for storing reconstructed SAO parameters
   decideBlkParams(pPic, sliceEnabled, m_statData, srcYuv, resYuv, reconParams, pPic->getPicSym()->getSAOBlkParam(), bTestSAODisableAtPictureLevel, saoEncodingRate, saoEncodingRateChroma);
@@ -331,23 +328,19 @@ Void TEncSampleAdaptiveOffset::getStatistics(SAOStatData*** blkStats, TComPicYuv
   }
 }
 
-Void TEncSampleAdaptiveOffset::decidePicParams(Bool* sliceEnabled, const TComPic* pic, const Double saoEncodingRate, const Double saoEncodingRateChroma, const Bool bResetStateAfterIRAP)
+Void TEncSampleAdaptiveOffset::resetEncoderDecisions()
 {
-  if (pic->getSlice(0)->isIRAP())
+  for (Int compIdx = 0; compIdx < MAX_NUM_COMPONENT; compIdx++)
   {
-    m_lastIRAPPoc = pic->getSlice(0)->getPOC();
-  }
-  if (bResetStateAfterIRAP && pic->getSlice(0)->getPOC() > m_lastIRAPPoc)
-  { // reset
-    for (Int compIdx = 0; compIdx < MAX_NUM_COMPONENT; compIdx++)
+    for (Int tempLayer = 1; tempLayer < MAX_TLAYER; tempLayer++)
     {
-      for (Int tempLayer = 1; tempLayer < MAX_TLAYER; tempLayer++)
-      {
-        m_saoDisabledRate[compIdx][tempLayer] = 0.0;
-      }
+      m_saoDisabledRate[compIdx][tempLayer] = 0.0;
     }
-    m_lastIRAPPoc = MAX_INT;
   }
+}
+
+Void TEncSampleAdaptiveOffset::decidePicParams(Bool* sliceEnabled, const TComPic* pic, const Double saoEncodingRate, const Double saoEncodingRateChroma)
+{
   const Int picTempLayer = pic->getSlice(0)->getDepth();
 
   //decide sliceEnabled[compIdx]

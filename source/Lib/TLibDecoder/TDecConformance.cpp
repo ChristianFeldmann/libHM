@@ -3,7 +3,7 @@
 * and contributor rights, including patent rights, and no such rights are
 * granted under this license.
 *
-* Copyright (c) 2010-2017, ITU/ISO/IEC
+* Copyright (c) 2010-2026, ITU/ISO/IEC
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
@@ -42,6 +42,7 @@
 #include "NALread.h"
 #include <math.h>
 
+#if !DPB_ENCODER_USAGE_CHECK
 UInt
 LevelTierFeatures::getMaxPicWidthInLumaSamples()  const
 {
@@ -53,6 +54,7 @@ LevelTierFeatures::getMaxPicHeightInLumaSamples() const
 {
   return UInt(sqrt(maxLumaPs*8.0));
 }
+#endif
 
 UInt
 TDecConformanceCheck::getMinLog2CtbSize(const TComPTL &ptl,
@@ -72,15 +74,24 @@ TDecConformanceCheck::getMaxLog2CtbSize(const TComPTL &/*ptl*/,
 
 
 TDecConformanceCheck::TDecConformanceCheck()
+#if MCTS_ENC_CHECK
+  :m_tmctsCheckEnabled(false)
 #if DECODER_PARTIAL_CONFORMANCE_CHECK
-  : m_numberOfSlicesInPicture(0),
-    m_bytesInPicture(0)
+  , m_numberOfSlicesInPicture(0)
+  , m_bytesInPicture(0)
+#endif
+#else
+#if DECODER_PARTIAL_CONFORMANCE_CHECK
+  : m_numberOfSlicesInPicture(0)
+  , m_bytesInPicture(0)
+#endif
 #endif
 {
 }
 
 #if DECODER_PARTIAL_CONFORMANCE_CHECK != 0
 
+#if !DPB_ENCODER_USAGE_CHECK
 static const UInt64 MAX_CNFUINT64 = std::numeric_limits<UInt64>::max();
 
 static const LevelTierFeatures mainLevelTierInfo[] =
@@ -131,6 +142,7 @@ static const ProfileFeatures validProfiles[] =
     { Profile::HIGHTHROUGHPUTREXT, "High Throughput 4:4:4 16 Intra", 16, CHROMA_444, true , false, OPTIONAL, OPTIONAL, OPTIONAL, OPTIONAL, ENABLED , HBR_12_OR_24 , true , 256, 64, false,   4000,   4400,     6000,    5    , mainLevelTierInfo },
     { Profile::NONE, 0 }
 };
+#endif
 
 
 
@@ -248,7 +260,7 @@ checkPPS(const TComSPS &sps,
   checkTiles(sps, pps, pic, features);
 }
 
-
+#if !DPB_ENCODER_USAGE_CHECK
 Void
 ProfileLevelTierFeatures::activate(const TComSPS &sps)
 {
@@ -298,6 +310,7 @@ ProfileLevelTierFeatures::activate(const TComSPS &sps)
   }
 
 }
+#endif
 
 
 static Void
@@ -305,10 +318,17 @@ checkToolAvailability(const TComSPS &sps,
                       const TComPPS &pps,
                       const ProfileLevelTierFeatures &features)
 {
+#if DPB_ENCODER_USAGE_CHECK
+  const ProfileFeatures::TRISTATE rextToolsEnabled = features.getProfileFeatures()->generalRExtToolsEnabled;
+  if ( rextToolsEnabled != ProfileFeatures::OPTIONAL)
+  {
+    const Bool bWantedFlagState = rextToolsEnabled == ProfileFeatures::ENABLED;
+#else
   const TRISTATE rextToolsEnabled = features.getProfileFeatures()->generalRExtToolsEnabled;
   if ( rextToolsEnabled != OPTIONAL)
   {
     const Bool bWantedFlagState = rextToolsEnabled == ENABLED;
+#endif
     std::string flags;
     if (sps.getSpsRangeExtension().getTransformSkipRotationEnabledFlag()      != bWantedFlagState) flags+=", transform_skip_rotation_enabled_flag";
     if (sps.getSpsRangeExtension().getTransformSkipContextEnabledFlag()       != bWantedFlagState) flags+=", transform_skip_context_enabled_flag";
@@ -316,7 +336,11 @@ checkToolAvailability(const TComSPS &sps,
     if (sps.getSpsRangeExtension().getRdpcmEnabledFlag(RDPCM_SIGNAL_EXPLICIT) != bWantedFlagState) flags+=", explicit_rdpcm_enabled_flag";
     if (sps.getSpsRangeExtension().getIntraSmoothingDisabledFlag()            != bWantedFlagState) flags+=", intra_smoothing_disabled_flag";
     if (sps.getSpsRangeExtension().getPersistentRiceAdaptationEnabledFlag()   != bWantedFlagState) flags+=", persistent_rice_adaptation_enabled_flag";
+#if DPB_ENCODER_USAGE_CHECK
+    if (pps.getPpsRangeExtension().getLog2MaxTransformSkipBlockSize()         != 2 && rextToolsEnabled==ProfileFeatures::DISABLED ) flags+=", log2_max_transform_skip_block_size_minus2";
+#else
     if (pps.getPpsRangeExtension().getLog2MaxTransformSkipBlockSize()         != 2 && rextToolsEnabled==DISABLED ) flags+=", log2_max_transform_skip_block_size_minus2";
+#endif
 
     if (!flags.empty())
     {
@@ -329,9 +353,15 @@ checkToolAvailability(const TComSPS &sps,
     TDecConformanceCheck::checkRange<UInt>(pps.getPpsRangeExtension().getLog2MaxTransformSkipBlockSize()-2, "log2_max_transform_skip_block_size_minus2", 0, sps.getQuadtreeTULog2MaxSize()-2);
   }
 
+#if DPB_ENCODER_USAGE_CHECK
+  if (features.getProfileFeatures()->extendedPrecisionProcessingFlag != ProfileFeatures::OPTIONAL)
+  {
+    const Bool bWantedFlagState = features.getProfileFeatures()->extendedPrecisionProcessingFlag == ProfileFeatures::ENABLED;
+#else
   if (features.getProfileFeatures()->extendedPrecisionProcessingFlag != OPTIONAL)
   {
     const Bool bWantedFlagState = features.getProfileFeatures()->extendedPrecisionProcessingFlag == ENABLED;
+#endif
     if (sps.getSpsRangeExtension().getExtendedPrecisionProcessingFlag() != bWantedFlagState)
     {
       TDecConformanceCheck::getStream() << "extended_precision_processing_flag must be " << (bWantedFlagState ? "1" : "0") << " in the profile '" << features.getProfileFeatures()->pNameString << "' conformance point\n";
@@ -339,9 +369,15 @@ checkToolAvailability(const TComSPS &sps,
     }
   }
 
+#if DPB_ENCODER_USAGE_CHECK
+  if (features.getProfileFeatures()->chromaQpOffsetListEnabledFlag != ProfileFeatures::OPTIONAL)
+  {
+    const Bool bWantedFlagState = features.getProfileFeatures()->chromaQpOffsetListEnabledFlag == ProfileFeatures::ENABLED;
+#else
   if (features.getProfileFeatures()->chromaQpOffsetListEnabledFlag != OPTIONAL)
   {
     const Bool bWantedFlagState = features.getProfileFeatures()->chromaQpOffsetListEnabledFlag == ENABLED;
+#endif
     if (pps.getPpsRangeExtension().getChromaQpOffsetListEnabledFlag() != bWantedFlagState)
     {
       TDecConformanceCheck::getStream() << "chroma_qp_offset_list_enabled_flag must be " << (bWantedFlagState ? "1" : "0") << " in the profile '" << features.getProfileFeatures()->pNameString << "' conformance point\n";
@@ -353,9 +389,15 @@ checkToolAvailability(const TComSPS &sps,
     TDecConformanceCheck::checkRange<UInt>(pps.getPpsRangeExtension().getDiffCuChromaQpOffsetDepth(), "diff_cu_chroma_qp_offset_depth", 0, sps.getLog2DiffMaxMinCodingBlockSize());
   }
 
+#if DPB_ENCODER_USAGE_CHECK
+  if (features.getProfileFeatures()->cabacBypassAlignmentEnabledFlag != ProfileFeatures::OPTIONAL)
+  {
+    const Bool bWantedFlagState = features.getProfileFeatures()->cabacBypassAlignmentEnabledFlag == ProfileFeatures::ENABLED;
+#else
   if (features.getProfileFeatures()->cabacBypassAlignmentEnabledFlag != OPTIONAL)
   {
     const Bool bWantedFlagState = features.getProfileFeatures()->cabacBypassAlignmentEnabledFlag == ENABLED;
+#endif
     if (sps.getSpsRangeExtension().getCabacBypassAlignmentEnabledFlag() != bWantedFlagState)
     {
       TDecConformanceCheck::getStream() << "cabac_bypass_alignment_enabled_flag must be " << (bWantedFlagState ? "1" : "0") << " in the profile '" << features.getProfileFeatures()->pNameString << "' conformance point\n";

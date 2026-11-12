@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -38,6 +38,9 @@
 
 #include "SyntaxElementWriter.h"
 #include "TLibCommon/SEI.h"
+#if JVET_AK0194_DSC_SEI
+#include "TLibCommon/SEIDigitallySignedContent.h"
+#endif
 
 class TComBitIf;
 
@@ -46,39 +49,197 @@ class TComBitIf;
 class SEIWriter:public SyntaxElementWriter
 {
 public:
-  SEIWriter() {};
+  SEIWriter()
+#if JVET_AL0339_SPATIAL_RESOLUTION_FOR_FGC_SEI
+    : m_SeiExtensionBitsPresentFlag(false)
+#endif
+  {};
   virtual ~SEIWriter() {};
 
   Void writeSEImessages(TComBitIf& bs, const SEIMessages &seiList, const TComSPS *sps, Bool isNested);
 
 protected:
-  Void xWriteSEIuserDataUnregistered(const SEIuserDataUnregistered &sei);
-  Void xWriteSEIActiveParameterSets(const SEIActiveParameterSets& sei);
-  Void xWriteSEIDecodingUnitInfo(const SEIDecodingUnitInfo& sei, const TComSPS *sps);
-  Void xWriteSEIDecodedPictureHash(const SEIDecodedPictureHash& sei);
-  Void xWriteSEIBufferingPeriod(const SEIBufferingPeriod& sei, const TComSPS *sps);
-  Void xWriteSEIPictureTiming(const SEIPictureTiming& sei, const TComSPS *sps);
-  Void xWriteSEIRecoveryPoint(const SEIRecoveryPoint& sei);
-  Void xWriteSEIFramePacking(const SEIFramePacking& sei);
-  Void xWriteSEISegmentedRectFramePacking(const SEISegmentedRectFramePacking& sei);
-  Void xWriteSEIDisplayOrientation(const SEIDisplayOrientation &sei);
-  Void xWriteSEITemporalLevel0Index(const SEITemporalLevel0Index &sei);
-  Void xWriteSEIGradualDecodingRefreshInfo(const SEIGradualDecodingRefreshInfo &sei);
-  Void xWriteSEINoDisplay(const SEINoDisplay &sei);
-  Void xWriteSEIToneMappingInfo(const SEIToneMappingInfo& sei);
-  Void xWriteSEISOPDescription(const SEISOPDescription& sei);
-  Void xWriteSEIScalableNesting(TComBitIf& bs, const SEIScalableNesting& sei, const TComSPS *sps);
-  Void xWriteSEITempMotionConstrainedTileSets(const SEITempMotionConstrainedTileSets& sei);
-  Void xWriteSEITimeCode(const SEITimeCode& sei);
-  Void xWriteSEIChromaResamplingFilterHint(const SEIChromaResamplingFilterHint& sei);
-  Void xWriteSEIKneeFunctionInfo(const SEIKneeFunctionInfo &sei);
-  Void xWriteSEIColourRemappingInfo(const SEIColourRemappingInfo& sei);
-  Void xWriteSEIMasteringDisplayColourVolume( const SEIMasteringDisplayColourVolume& sei);
-  Void xWriteSEIAlternativeTransferCharacteristics(const SEIAlternativeTransferCharacteristics& sei);
-  Void xWriteSEIGreenMetadataInfo(const SEIGreenMetadataInfo &sei);
+  Void xWriteSEImessage                           (TComBitIf& bs, const SEI *sei, const TComSPS *sps);
 
-  Void xWriteSEIpayloadData(TComBitIf& bs, const SEI& sei, const TComSPS *sps);
+  Void xWriteSEIBufferingPeriod                   (const SEIBufferingPeriod& sei, const TComSPS *sps);
+  Void xWriteSEIPictureTiming                     (const SEIPictureTiming& sei, const TComSPS *sps);
+  Void xWriteSEIPanScanRect                       (const SEIPanScanRect& sei);
+  Void xWriteSEIFillerPayload                     (const SEIFillerPayload& sei);
+  Void xWriteSEIUserDataRegistered                (const SEIUserDataRegistered& sei);
+  Void xWriteSEIUserDataUnregistered              (const SEIUserDataUnregistered &sei);
+  Void xWriteSEIRecoveryPoint                     (const SEIRecoveryPoint& sei);
+  Void xWriteSEISceneInfo                         (const SEISceneInfo& sei);
+  Void xWriteSEIPictureSnapshot                   (const SEIPictureSnapshot& sei);
+  Void xWriteSEIProgressiveRefinementSegmentStart (const SEIProgressiveRefinementSegmentStart& sei);
+  Void xWriteSEIProgressiveRefinementSegmentEnd   (const SEIProgressiveRefinementSegmentEnd& sei);
+  Void xWriteSEIFilmGrainCharacteristics          (const SEIFilmGrainCharacteristics& sei);
+  Void xWriteSEIPostFilterHint                    (const SEIPostFilterHint& sei, const TComSPS *sps);
+  Void xWriteSEIToneMappingInfo                   (const SEIToneMappingInfo& sei);
+  Void xWriteSEIFramePacking                      (const SEIFramePacking& sei
+#if JCTVC_AD0021_SEI_PREFIX_INDICATION
+    , Int SEIPrefixIndicationIdx = 0
+#endif
+  );
+  Void xWriteSEIDisplayOrientation                (const SEIDisplayOrientation &sei);
+  Void xWriteSEIGreenMetadataInfo                 (const SEIGreenMetadataInfo &sei);
+  Void xWriteSEISOPDescription                    (const SEISOPDescription& sei);
+  Void xWriteSEIActiveParameterSets               (const SEIActiveParameterSets& sei);
+  Void xWriteSEIDecodingUnitInfo                  (const SEIDecodingUnitInfo& sei, const TComSPS *sps);
+  Void xWriteSEITemporalLevel0Index               (const SEITemporalLevel0Index &sei);
+  Void xWriteSEIDecodedPictureHash                (const SEIDecodedPictureHash& sei);
+  Void xWriteSEIScalableNesting                   (TComBitIf& bs, const SEIScalableNesting& sei, const TComSPS *sps);
+  Void xWriteSEIRegionRefreshInfo                 (const SEIRegionRefreshInfo &sei);
+  Void xWriteSEINoDisplay                         (const SEINoDisplay &sei);
+  Void xWriteSEITimeCode                          (const SEITimeCode& sei);
+  Void xWriteSEIMasteringDisplayColourVolume      (const SEIMasteringDisplayColourVolume& sei);
+  Void xWriteSEISegmentedRectFramePacking         (const SEISegmentedRectFramePacking& sei);
+  Void xWriteSEITempMotionConstrainedTileSets     (const SEITempMotionConstrainedTileSets& sei);
+#if MCTS_EXTRACTION
+  Void xWriteSEIMCTSExtractionInfoSet             (const SEIMCTSExtractionInfoSet& sei);
+#endif
+  Void xWriteSEIChromaResamplingFilterHint        (const SEIChromaResamplingFilterHint& sei);
+  Void xWriteSEIKneeFunctionInfo                  (const SEIKneeFunctionInfo &sei);
+  Void xWriteSEIContentColourVolume               (const SEIContentColourVolume &sei);
+  Void xWriteSEIEquirectangularProjection         (const SEIEquirectangularProjection &sei
+#if JCTVC_AD0021_SEI_PREFIX_INDICATION
+    , Int SEIPrefixIndicationIdx = 0
+#endif  
+  );
+  Void xWriteSEISphereRotation                    (const SEISphereRotation &sei
+#if JCTVC_AD0021_SEI_PREFIX_INDICATION
+    , Int SEIPrefixIndicationIdx = 0
+#endif
+  );
+  Void xWriteSEIOmniViewport                      (const SEIOmniViewport& sei);
+  Void xWriteSEICubemapProjection                 (const SEICubemapProjection &sei);
+  Void xWriteSEIRegionWisePacking                 (const SEIRegionWisePacking &sei
+#if JCTVC_AD0021_SEI_PREFIX_INDICATION
+    , Int SEIPrefixIndicationIdx = 0
+#endif
+  );
+  Void xWriteSEIFisheyeVideoInfo                  (const SEIFisheyeVideoInfo &sei);
+  Void xWriteSEIColourRemappingInfo               (const SEIColourRemappingInfo& sei);
+  Void xWriteSEIDeinterlaceFieldIdentification    (const SEIDeinterlaceFieldIdentification& sei);
+  Void xWriteSEIContentLightLevelInfo             (const SEIContentLightLevelInfo& sei);
+  Void xWriteSEIDependentRAPIndication            (const SEIDependentRAPIndication& sei);
+  Void xWriteSEICodedRegionCompletion             (const SEICodedRegionCompletion& sei);
+  Void xWriteSEIAlternativeTransferCharacteristics(const SEIAlternativeTransferCharacteristics& sei);
+  Void xWriteSEIAmbientViewingEnvironment         (const SEIAmbientViewingEnvironment& sei);
+  Void xWriteSEIRegionalNesting                   (TComBitIf& bs, const SEIRegionalNesting& sei, const TComSPS *sps);
+
+  Void xWriteSEIAnnotatedRegions                  (const SEIAnnotatedRegions& sei, const TComSPS *sps);
+#if JCTVC_AD0021_SEI_MANIFEST
+  //SEI manifest
+  Void xWriteSEISEIManifest(const SEIManifest& sei);
+#endif
+#if JCTVC_AD0021_SEI_PREFIX_INDICATION
+  //SEI prefix indication
+  Void xWriteSEISEIPrefixIndication(TComBitIf& bs, const SEIPrefixIndication& sei, const TComSPS* sps);
+  Void xWriteSEIPrefixIndicationByteAlign();
+  UInt getBitsUe(UInt x)
+  {
+    UInt n = 0;
+    x += 1;
+    for (Int s = 4; s >= 0; s--)
+    {
+      Int b = 1 << s;
+      UInt m = (1u << b) - 1u;
+      if ((x & ~m) != 0)
+      {
+        x >>= b;
+        n += b;
+      }
+    }
+    return 2 * n + 1;
+  }
+#endif 
+
+#if JVET_AL0062_AI_USAGE_RESTRICTIONS_SEI
+  void xWriteSEIAIUsageRestrictions(const SEIAIUsageRestrictions &sei);
+#endif 
+
+#if JVET_AL0061_ENCODER_OPTIMIZATION_INFORMATION_SEI
+  void xWriteSEIEncoderOptimizationInfo           (const SEIEncoderOptimizationInfo &sei);
+#endif
+
+#if JVET_AK0194_DSC_SEI
+  void xWriteSEIDigitallySignedContentInitialization(const SEIDigitallySignedContentInitialization &sei);
+  void xWriteSEIDigitallySignedContentSelection(const SEIDigitallySignedContentSelection &sei);
+  void xWriteSEIDigitallySignedContentVerification(const SEIDigitallySignedContentVerification &sei);
+#endif
+#if JVET_AJ0207_GFV
+  void xWriteSEIGenerativeFaceVideo(const SEIGenerativeFaceVideo& sei);
+  std::vector<double>  prevcoordinateXRec;
+  std::vector<double>  prevcoordinateYRec;
+  std::vector<double>  prevcoordinateZRec;
+  std::vector<double>  baseCoordinateXRec;
+  std::vector<double>  baseCoordinateYRec;
+  std::vector<double>  baseCoordinateZRec;
+  std::vector<std::vector<std::vector<std::vector<double>>>> prevMatrixRec;
+  std::vector<std::vector<std::vector<std::vector<double>>>> baseMatrixRec;
+  std::vector<uint32_t> baseMatrixWidthVec;
+  std::vector<uint32_t> baseMatrixHeightVec;
+  std::vector<uint32_t> baseNumMatricesVec;
+  bool doUpdateGFVcoordinate = false;
+  bool doUpdateGFVmatrix = false;
+#endif
+#if JVET_AK0239_GEFV
+  Void xWriteSEIGenerativeFaceVideoEnhancement(const SEIGenerativeFaceVideoEnhancement& sei);
+  double xWriteSEIPupilCoordinate(double coordinate, double refCoordinate, int precisionFactor, const char* eye, const char* axis);
+  std::vector<std::vector<std::vector<double>>> prevGfveMatrixRec;
+  std::vector<std::vector<std::vector<double>>> baseGfveMatrixRec;
+  std::vector<uint32_t> baseGfveMatrixWidthVec;
+  std::vector<uint32_t> baseGfveMatrixHeightVec;
+  uint32_t baseGfveNumMatrices;
+  uint32_t baseMatrixElementPrecisionFactor;
+  bool   doUpdateGFVEmatrix = false;
+  double prevgfveLeftPupilCoordinateX;
+  double prevgfveLeftPupilCoordinateY;
+  double prevgfveRightPupilCoordinateX;
+  double prevgfveRightPupilCoordinateY;
+  double basegfveLeftPupilCoordinateX;
+  double basegfveLeftPupilCoordinateY;
+  double basegfveRightPupilCoordinateX;
+  double basegfveRightPupilCoordinateY;
+  bool   checkBasePicPupilPresentIdx = false;
+  bool   doUpdateGFVPupilCoordinate = false;
+#endif
+#if JVET_AK0140_PACKED_REGIONS_INFORMATION_SEI
+  void xWriteSEIPackedRegionsInfo(const SEIPackedRegionsInfo& sei);
+#endif
+
+
+#if SHUTTER_INTERVAL_SEI_MESSAGE
+  void xWriteSEIShutterInterval                   (const SEIShutterIntervalInfo& sei);
+#endif
+#if NNPFC_SEI_MESSAGE
+  Void xWriteSEINeuralNetworkPostFilterCharacteristics(const SEINeuralNetworkPostFilterCharacteristics& sei);
+#endif
+#if NNPFA_SEI_MESSAGE
+  Void xWriteSEINeuralNetworkPostFilterActivation (const SEINeuralNetworkPostFilterActivation &sei);
+#endif
+#if JVET_AE0101_PHASE_INDICATION_SEI_MESSAGE
+  void xWriteSEIPhaseIndication                   (const SEIPhaseIndication&sei);
+#endif
+#if JVET_AK0107_MODALITY_INFORMATION
+  Void xWriteSEIModalityInfo(const SEIModalityInfo &sei);
+#endif
+  Void xWriteSEIpayloadData(TComBitIf& bs, const SEI& sei, const TComSPS *sps
+#if JCTVC_AD0021_SEI_PREFIX_INDICATION
+    , Int SEIPrefixIndicationIdx = 0
+#endif
+  );
+
+  Void  xTraceSEIHeader();
+  Void  xTraceSEIMessageType(SEI::PayloadType payloadType);
   Void xWriteByteAlign();
+
+#if JVET_AL0339_SPATIAL_RESOLUTION_FOR_FGC_SEI
+  Bool m_SeiExtensionBitsPresentFlag;
+#endif
+#if JVET_AK2006_SPTI_SEI_MESSAGE
+  void xWriteSEISourcePictureTimingInfo(const SEISourcePictureTimingInfo &sei);
+#endif
 };
 
 //! \}

@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,35 +46,40 @@
 #include "TDecConformance.h"
 
 #if DECODER_PARTIAL_CONFORMANCE_CHECK!=0
-#define READ_CODE_CHK(length, code, name, minValIncl, maxValIncl) xReadCodeChk ( length, code, name, minValIncl, maxValIncl )
-#define READ_UVLC_CHK(        code, name, minValIncl, maxValIncl) xReadUvlcChk (         code, name, minValIncl, maxValIncl )
-#define READ_SVLC_CHK(        code, name, minValIncl, maxValIncl) xReadSvlcChk (         code, name, minValIncl, maxValIncl )
-#define READ_FLAG_CHK(        code, name, minValIncl, maxValIncl) xReadFlagChk (         code, name, minValIncl, maxValIncl )
+#define READ_SCODE_CHK(length, code, name, minValIncl, maxValIncl) xReadSCodeChk ( length, code, name, minValIncl, maxValIncl )
+#define READ_CODE_CHK(length, code, name, minValIncl, maxValIncl)  xReadCodeChk  ( length, code, name, minValIncl, maxValIncl )
+#define READ_UVLC_CHK(        code, name, minValIncl, maxValIncl)  xReadUvlcChk  (         code, name, minValIncl, maxValIncl )
+#define READ_SVLC_CHK(        code, name, minValIncl, maxValIncl)  xReadSvlcChk  (         code, name, minValIncl, maxValIncl )
+#define READ_FLAG_CHK(        code, name, minValIncl, maxValIncl)  xReadFlagChk  (         code, name, minValIncl, maxValIncl )
 #elif RExt__DECODER_DEBUG_BIT_STATISTICS || ENC_DEC_TRACE
-#define READ_CODE_CHK(length, code, name, minValIncl, maxValIncl) xReadCode ( length, code, name )
-#define READ_UVLC_CHK(        code, name, minValIncl, maxValIncl) xReadUvlc (         code, name )
-#define READ_SVLC_CHK(        code, name, minValIncl, maxValIncl) xReadSvlc (         code, name )
-#define READ_FLAG_CHK(        code, name, minValIncl, maxValIncl) xReadFlag (         code, name )
+#define READ_SCODE_CHK(length, code, name, minValIncl, maxValIncl) xReadSCode ( length, code, name )
+#define READ_CODE_CHK(length, code, name, minValIncl, maxValIncl)  xReadCode  ( length, code, name )
+#define READ_UVLC_CHK(        code, name, minValIncl, maxValIncl)  xReadUvlc  (         code, name )
+#define READ_SVLC_CHK(        code, name, minValIncl, maxValIncl)  xReadSvlc  (         code, name )
+#define READ_FLAG_CHK(        code, name, minValIncl, maxValIncl)  xReadFlag  (         code, name )
 #else
-#define READ_CODE_CHK(length, code, name, minValIncl, maxValIncl) xReadCode ( length, code )
-#define READ_UVLC_CHK(        code, name, minValIncl, maxValIncl) xReadUvlc (         code )
-#define READ_SVLC_CHK(        code, name, minValIncl, maxValIncl) xReadSvlc (         code )
-#define READ_FLAG_CHK(        code, name, minValIncl, maxValIncl) xReadFlag (         code )
+#define READ_SCODE_CHK(length, code, name, minValIncl, maxValIncl) xReadSCode ( length, code )
+#define READ_CODE_CHK(length, code, name, minValIncl, maxValIncl)  xReadCode  ( length, code )
+#define READ_UVLC_CHK(        code, name, minValIncl, maxValIncl)  xReadUvlc  (         code )
+#define READ_SVLC_CHK(        code, name, minValIncl, maxValIncl)  xReadSvlc  (         code )
+#define READ_FLAG_CHK(        code, name, minValIncl, maxValIncl)  xReadFlag  (         code )
 #endif
 
 
 #if RExt__DECODER_DEBUG_BIT_STATISTICS || ENC_DEC_TRACE
-#define READ_CODE(length, code, name)     xReadCode ( length, code, name )
-#define READ_UVLC(        code, name)     xReadUvlc (         code, name )
-#define READ_SVLC(        code, name)     xReadSvlc (         code, name )
-#define READ_FLAG(        code, name)     xReadFlag (         code, name )
-
+#define READ_SCODE(length, code, name)    xReadSCode ( length, code, name )
+#define READ_CODE(length, code, name)     xReadCode  ( length, code, name )
+#define READ_UVLC(        code, name)     xReadUvlc  (         code, name )
+#define READ_SVLC(        code, name)     xReadSvlc  (         code, name )
+#define READ_FLAG(        code, name)     xReadFlag  (         code, name )
+#define READ_STRING(      code, name)     xReadString (         code, name )
 #else
-#define READ_CODE(length, code, name)     xReadCode ( length, code )
-#define READ_UVLC(        code, name)     xReadUvlc (         code )
-#define READ_SVLC(        code, name)     xReadSvlc (         code )
-#define READ_FLAG(        code, name)     xReadFlag (         code )
-
+#define READ_SCODE(length, code, name)    xReadSCode ( length, code )
+#define READ_CODE(length, code, name)     xReadCode  ( length, code )
+#define READ_UVLC(        code, name)     xReadUvlc  (         code )
+#define READ_SVLC(        code, name)     xReadSvlc  (         code )
+#define READ_FLAG(        code, name)     xReadFlag  (         code )
+#define READ_STRING(      code, name)     xReadString (         code )
 #endif
 
 //! \ingroup TLibDecoder
@@ -95,22 +100,27 @@ protected:
   virtual ~SyntaxElementParser() {};
 
 #if DECODER_PARTIAL_CONFORMANCE_CHECK!=0
-  Void  xReadCodeChk ( UInt   length, UInt& val, const TChar *pSymbolName, const UInt minValIncl, const UInt maxValIncl );
-  Void  xReadUvlcChk ( UInt&  val, const TChar *pSymbolName, const UInt minValIncl, const UInt maxValIncl );
-  Void  xReadSvlcChk ( Int&   val, const TChar *pSymbolName, const Int  minValIncl, const Int  maxValIncl );
-  Void  xReadFlagChk ( UInt&  val, const TChar *pSymbolName, const UInt minValIncl, const UInt maxValIncl );
+  Void  xReadSCodeChk ( UInt   length, Int& val, const TChar *pSymbolName, const Int minValIncl, const Int maxValIncl );
+  Void  xReadCodeChk  ( UInt   length, UInt& val, const TChar *pSymbolName, const UInt minValIncl, const UInt maxValIncl );
+  Void  xReadUvlcChk  ( UInt&  val, const TChar *pSymbolName, const UInt minValIncl, const UInt maxValIncl );
+  Void  xReadSvlcChk  ( Int&   val, const TChar *pSymbolName, const Int  minValIncl, const Int  maxValIncl );
+  Void  xReadFlagChk  ( UInt&  val, const TChar *pSymbolName, const UInt minValIncl, const UInt maxValIncl );
 #endif
 
 #if RExt__DECODER_DEBUG_BIT_STATISTICS || ENC_DEC_TRACE
+  Void  xReadSCode   ( UInt   length, Int& val, const TChar *pSymbolName );
   Void  xReadCode    ( UInt   length, UInt& val, const TChar *pSymbolName );
   Void  xReadUvlc    ( UInt&  val, const TChar *pSymbolName );
   Void  xReadSvlc    ( Int&   val, const TChar *pSymbolName );
   Void  xReadFlag    ( UInt&  val, const TChar *pSymbolName );
+  Void  xReadString  ( std::string& val, const TChar *symbolName );
 #else
+  Void  xReadSCode   ( UInt   length, Int& val );
   Void  xReadCode    ( UInt   length, UInt& val );
   Void  xReadUvlc    ( UInt&  val );
   Void  xReadSvlc    ( Int&   val );
   Void  xReadFlag    ( UInt&  val );
+  Void  xReadString  ( std::string& val );
 #endif
 public:
   Void  setBitstream ( TComInputBitstream* p )   { m_pcBitstream = p; }
@@ -118,6 +128,7 @@ public:
 
 protected:
   Void xReadRbspTrailingBits();
+  bool isByteAligned() { return (m_pcBitstream->getNumBitsUntilByteAligned() == 0 ); }
 };
 
 class AUDReader: public SyntaxElementParser

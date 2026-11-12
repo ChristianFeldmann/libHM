@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -600,4 +600,22 @@ TComTile::TComTile()
 TComTile::~TComTile()
 {
 }
+
+#if MCTS_ENC_CHECK
+
+Void getTilePosition(const TComDataCU* const pcCU, UInt &tileXPosInCtus, UInt &tileYPosInCtus, UInt &tileWidthtInCtus, UInt &tileHeightInCtus)
+{
+  const UInt       currentTileIdx = pcCU->getPic()->getPicSym()->getTileIdxMap(pcCU->getCtuRsAddr());
+  const TComTile    *pCurrentTile = pcCU->getPic()->getPicSym()->getTComTile(currentTileIdx);
+  const UInt     frameWidthInCtus = pcCU->getPic()->getPicSym()->getFrameWidthInCtus();
+  const UInt firstCtuRsAddrOfTile = pcCU->getPic()->getPicSym()->getTComTile(pcCU->getPic()->getPicSym()->getTileIdxMap(pcCU->getCtuRsAddr()))->getFirstCtuRsAddr();
+
+  tileXPosInCtus = firstCtuRsAddrOfTile % frameWidthInCtus;
+  tileYPosInCtus = firstCtuRsAddrOfTile / frameWidthInCtus;
+  tileWidthtInCtus = pCurrentTile->getTileWidthInCtus();
+  tileHeightInCtus = pCurrentTile->getTileHeightInCtus();
+}
+
+#endif
+
 //! \}

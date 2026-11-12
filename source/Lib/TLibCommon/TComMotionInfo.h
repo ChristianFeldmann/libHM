@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -55,6 +55,9 @@ typedef struct _AMVPInfo
 {
   TComMv m_acMvCand[ AMVP_MAX_NUM_CANDS ];  ///< array of motion vector predictor candidates
   Int    iN;                                ///< number of motion vector predictor candidates
+#if MCTS_ENC_CHECK
+  UInt   numSpatialMVPCandidates;
+#endif
 } AMVPInfo;
 
 // ====================================================================================================================

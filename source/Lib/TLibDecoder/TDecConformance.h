@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -50,6 +50,10 @@
 #endif // _MSC_VER > 1000
 
 #include "TLibCommon/CommonDef.h"
+#if DPB_ENCODER_USAGE_CHECK
+#include "TLibCommon/ProfileLevelTierFeatures.h"
+#endif
+#include <stdio.h>
 #include <iostream>
 #if DECODER_PARTIAL_CONFORMANCE_CHECK == 2
 #include <stdlib.h>
@@ -58,12 +62,15 @@
 
 // Forward declarations
 class TComSlice;
+#if !DPB_ENCODER_USAGE_CHECK
 class TComSPS;
 class TComPPS;
+#endif
 class InputNALUnit;
 class TComPTL;
 class TComPic;
 
+#if !DPB_ENCODER_USAGE_CHECK
 typedef enum TRISTATE
 {
   DISABLED=0,
@@ -152,11 +159,15 @@ class ProfileLevelTierFeatures
     Double getMinCr()                    const { return (m_pLevelTier!=0 && m_pProfile!=0) ? (m_pProfile->minCrScaleFactorx10 * m_pLevelTier->minCrBase[m_tier?1:0])/10.0 : 0.0 ; }   // currently not used for checking
     UInt getMaxRawCtuBits()              const { return m_maxRawCtuBits; }
 };
+#endif
 
 
 class TDecConformanceCheck
 {
 private:
+#if MCTS_ENC_CHECK
+  Bool m_tmctsCheckEnabled;
+#endif
 #if DECODER_PARTIAL_CONFORMANCE_CHECK
   UInt  m_numberOfSlicesInPicture;
   UInt64 m_bytesInPicture;
@@ -246,6 +257,14 @@ public:
   checkCtuDecoding(const UInt numUsedBits);
 #endif
 
+#if MCTS_ENC_CHECK
+  Void enableTMctsCheck(Bool enabled) { m_tmctsCheckEnabled = enabled; };
+  Bool getTMctsCheck() const { return m_tmctsCheckEnabled;  }
+  Void flagTMctsError(const char *error)
+  {
+    fprintf(stderr, "TMCTS check error: %s\n", error);
+  }
+#endif
 };
 
 

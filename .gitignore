@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 ﻿################################################################################
 # This .gitignore file was automatically created by Microsoft(R) Visual Studio.
 ################################################################################
@@ -18,3 +19,18 @@
 /build/HM_vc10.VC.VC.opendb
 /build/HM_vc10.VC.db
 /build/.vs/HM_vc10/v14/.suo
+=======
+dec.yuv
+rec.yuv
+str.bin
+/build/
+/bin/
+/lib/
+core
+deploy
+*.sdf
+*.suo
+*.pyc
+.vs/
+.vscode/
+>>>>>>> originalSoftware

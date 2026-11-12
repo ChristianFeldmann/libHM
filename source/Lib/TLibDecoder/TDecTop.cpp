@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -39,6 +39,10 @@
 #include "TDecTop.h"
 #include "TDecConformance.h"
 
+#if JVET_AK0194_DSC_SEI || JVET_AK0194_DSC_SEI_DECODER_SYNTAX
+#include "SEIDigitallySignedContent.h"
+#endif
+
 //! \ingroup TLibDecoder
 //! \{
 
@@ -65,8 +69,14 @@ TDecTop::TDecTop()
   , m_cSAO()
   , m_pcPic(NULL)
   , m_prevPOC(MAX_INT)
+  , m_prevNut(NAL_UNIT_INVALID)
   , m_prevTid0POC(0)
   , m_bFirstSliceInPicture(true)
+#if JVET_X0048_X0103_FILM_GRAIN
+  , m_bFirstPictureInSequence(true)
+  , m_grainCharacteristic()
+  , m_grainBuf()
+#endif
   , m_bFirstSliceInSequence(true)
   , m_prevSliceSkipped(false)
   , m_skippedPOC(0)
@@ -74,11 +84,15 @@ TDecTop::TDecTop()
   , m_lastPOCNoOutputPriorPics(-1)
   , m_isNoOutputPriorPics(false)
   , m_craNoRaslOutputFlag(false)
+  , m_noRaslOutputFlag(true)
 #if O0043_BEST_EFFORT_DECODING
   , m_forceDecodeBitDepth(8)
 #endif
   , m_pDecodedSEIOutputStream(NULL)
   , m_warningMessageSkipPicture(false)
+#if MCTS_ENC_CHECK
+  , m_tmctsCheckEnabled(false)
+#endif
   , m_prefixSEINALUs()
 {
 #if ENC_DEC_TRACE
@@ -135,7 +149,11 @@ Void TDecTop::init()
   // initialize ROM
   m_cGopDecoder.init( &m_cEntropyDecoder, &m_cSbacDecoder, &m_cBinCABAC, &m_cCavlcDecoder, &m_cSliceDecoder, &m_cLoopFilter, &m_cSAO);
   m_cSliceDecoder.init( &m_cEntropyDecoder, &m_cCuDecoder, &m_conformanceCheck );
+#if MCTS_ENC_CHECK
+  m_cEntropyDecoder.init(&m_cPrediction, &m_conformanceCheck );
+#else
   m_cEntropyDecoder.init(&m_cPrediction);
+#endif
 }
 
 Void TDecTop::deletePicBuffer ( )
@@ -167,9 +185,23 @@ Void TDecTop::xGetNewPicBuffer ( const TComSPS &sps, const TComPPS &pps, TComPic
     rpcPic = new TComPic();
 
 #if REDUCED_ENCODER_MEMORY
-    rpcPic->create ( sps, pps, false, true, &romScan );
+    rpcPic->create ( sps, pps, false, true, &romScan
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+                    , getShutterFilterFlag()
+#endif
+#if JVET_X0048_X0103_FILM_GRAIN
+                    , false
+#endif
+                    );
 #else
-    rpcPic->create ( sps, pps, true, &romScan );
+    rpcPic->create ( sps, pps, true, &romScan
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+                    , getShutterFilterFlag()
+#endif
+#if JVET_X0048_X0103_FILM_GRAIN
+                    , false
+#endif
+                    );
 #endif
 
     m_cListPic.pushBack( rpcPic );
@@ -208,12 +240,93 @@ Void TDecTop::xGetNewPicBuffer ( const TComSPS &sps, const TComPPS &pps, TComPic
   }
   rpcPic->destroy();
 #if REDUCED_ENCODER_MEMORY
-  rpcPic->create ( sps, pps, false, true, &romScan );
+  rpcPic->create ( sps, pps, false, true, &romScan
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+                  , getShutterFilterFlag()
+#endif
+#if JVET_X0048_X0103_FILM_GRAIN
+                  , false
+#endif
+                  );
 #else
-  rpcPic->create ( sps, pps, true, &romScan );
+  rpcPic->create ( sps, pps, true, &romScan
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+                  , getShutterFilterFlag()
+#endif
+#if JVET_X0048_X0103_FILM_GRAIN
+                  , false
+#endif
+                  );
 #endif
 }
 
+#if JVET_AK0194_DSC_SEI
+void TDecTop::xInitDscSubstreamManager(SEIMessages &SEIs)
+{
+  SEIMessages dscInitSEIs = getSeisByType( SEIs, SEI::PayloadType::DIGITALLY_SIGNED_CONTENT_INITIALIZATION);
+  if (!dscInitSEIs.empty())
+  {
+    if (dscInitSEIs.size()>1)
+    {
+      printf ("Warning: received more than one Digitally Signed Content Initialization SEI message at a time. Using first only.\n");
+    }
+    SEIDigitallySignedContentInitialization* dsci = (SEIDigitallySignedContentInitialization*) dscInitSEIs.front();
+    m_dscSubstreamManagerMap[dsci->dsciId].initDscSubstreamManager(dsci->dsciNumVerificationSubstreams, dsci->dsciHashMethodType, dsci->dsciKeySourceUri,
+                                                  dsci->dsciContentUuidPresentFlag, dsci->dsciContentUuid, dsci->dsciRefSubstreamFlag, dsci->dsciVSSImplicitAssociationModeFlag, dsci->dsciSEISigningFlag, dsci->dsciSignedContentStartFlag);
+    if (!m_dscSubstreamManagerMap[dsci->dsciId].initVerificator(m_keyStoreDir, m_trustStoreDir))
+    {
+      printf("Error: Cannot initialize Digitally Signed Content verification\n");
+    }
+  }
+}
+
+void TDecTop::xStoreNALUnitForSignature(InputNALUnit &nalu)
+{
+  std::ostringstream rbspPayload;
+  binNalUnit binNalu;
+  binNalu.nalUnitType = nalu.m_nalUnitType;
+  binNalu.length  = nalu.getBitstream().getOrigFifo().size();
+  binNalu.data = new uint8_t [binNalu.length];
+
+  std::memcpy(binNalu.data, nalu.getBitstream().getOrigFifo().data(), binNalu.length);
+
+  m_signedContentNalUnitBuffer.push_back(binNalu);
+  nalu.getBitstream().clearOrigFifo();
+}
+
+void TDecTop::xRemoveLastNalUnitFromSignature()
+{
+  binNalUnit nalu = m_signedContentNalUnitBuffer.back();
+  free (nalu.data);
+  m_signedContentNalUnitBuffer.pop_back();
+}
+
+
+void TDecTop::xProcessStoredNALUnitsForSignature(uint8_t dscId, int substreamId)
+{
+  if (m_dscSubstreamManagerMap.find(dscId) == m_dscSubstreamManagerMap.end())
+  {
+    printf ("DSC ID %i not initialized, ignoring DSC selection for this ID", dscId);
+    return;
+  }
+  const bool verificationActive = m_dscSubstreamManagerMap[dscId].isVerificationActive();
+  for (auto nalu: m_signedContentNalUnitBuffer)
+  {
+    if (verificationActive)
+    {
+      m_dscSubstreamManagerMap[dscId].addToSubstream(substreamId, (char*)nalu.data, nalu.length);
+    }
+  }
+}
+void TDecTop::xClearStoredNALUnitsForSignature()
+{
+  for (auto nalu: m_signedContentNalUnitBuffer)
+  {
+    delete[] (nalu.data);
+  }
+  m_signedContentNalUnitBuffer.clear();
+}
+#endif
 Void TDecTop::executeLoopFilters(Int& poc, TComList<TComPic*>*& rpcListPic)
 {
   if (!m_pcPic)
@@ -249,10 +362,7 @@ Void TDecTop::checkNoOutputPriorPics (TComList<TComPic*>* pcListPic)
   while (iterPic != pcListPic->end())
   {
     TComPic* pcPicTmp = *(iterPic++);
-    if (m_lastPOCNoOutputPriorPics != pcPicTmp->getPOC())
-    {
-      pcPicTmp->setOutputMark(false);
-    }
+    pcPicTmp->setOutputMark(false);
   }
 }
 
@@ -300,8 +410,11 @@ Void TDecTop::xCreateLostPicture(Int iLostPoc)
   }
 }
 
-
+#if MCTS_EXTRACTION
+Void TDecTop::xActivateParameterSets(Bool bSkipCabacAndReconstruction)
+#else
 Void TDecTop::xActivateParameterSets()
+#endif
 {
   if (m_bFirstSliceInPicture)
   {
@@ -321,6 +434,9 @@ Void TDecTop::xActivateParameterSets()
     }
 
     xParsePrefixSEImessages();
+#if MCTS_ENC_CHECK
+    xAnalysePrefixSEImessages();
+#endif
 
 #if RExt__HIGH_BIT_DEPTH_SUPPORT==0
     if (sps->getSpsRangeExtension().getExtendedPrecisionProcessingFlag() || sps->getBitDepth(CHANNEL_TYPE_LUMA)>12 || sps->getBitDepth(CHANNEL_TYPE_CHROMA)>12 )
@@ -338,7 +454,11 @@ Void TDecTop::xActivateParameterSets()
     //  Get a new picture buffer. This will also set up m_pcPic, and therefore give us a SPS and PPS pointer that we can use.
     xGetNewPicBuffer (*(sps), *(pps), m_pcPic, m_apcSlicePilot->getTLayer());
     m_apcSlicePilot->applyReferencePictureSet(m_cListPic, m_apcSlicePilot->getRPS());
-
+#if JVET_X0048_X0103_FILM_GRAIN
+    // Initialization of film grain synthesizer 
+    m_pcPic->createGrainSynthesizer(m_bFirstPictureInSequence, &m_grainCharacteristic, &m_grainBuf, sps);
+    m_bFirstPictureInSequence = false;
+#endif
     // make the slice-pilot a real slice, and set up the slice-pilot for the next slice
     assert(m_pcPic->getNumAllocatedSlice() == (m_uiSliceIdx + 1));
     m_apcSlicePilot = m_pcPic->getPicSym()->swapSliceObject(m_apcSlicePilot, m_uiSliceIdx);
@@ -378,14 +498,24 @@ Void TDecTop::xActivateParameterSets()
     // transfer any SEI messages that have been received to the picture
     m_pcPic->setSEIs(m_SEIs);
     m_SEIs.clear();
+#if MCTS_EXTRACTION
+  if (!bSkipCabacAndReconstruction)
+  {
+#endif
+      // Recursive structure
+      m_cCuDecoder.create ( sps->getMaxTotalCUDepth(), sps->getMaxCUWidth(), sps->getMaxCUHeight(), sps->getChromaFormatIdc() );
+  #if MCTS_ENC_CHECK
+      m_cCuDecoder.init   ( &m_cEntropyDecoder, &m_cTrQuant, &m_cPrediction, &m_conformanceCheck );
+  #else
+      m_cCuDecoder.init(&m_cEntropyDecoder, &m_cTrQuant, &m_cPrediction);
+  #endif
+      m_cTrQuant.init     ( sps->getMaxTrSize() );
 
-    // Recursive structure
-    m_cCuDecoder.create ( sps->getMaxTotalCUDepth(), sps->getMaxCUWidth(), sps->getMaxCUHeight(), sps->getChromaFormatIdc() );
-    m_cCuDecoder.init   ( &m_cEntropyDecoder, &m_cTrQuant, &m_cPrediction );
-    m_cTrQuant.init     ( sps->getMaxTrSize() );
-
-    m_cSliceDecoder.create();
+      m_cSliceDecoder.create();
+    }
+#if MCTS_EXTRACTION
   }
+#endif
   else
   {
     // make the slice-pilot a real slice, and set up the slice-pilot for the next slice
@@ -411,7 +541,9 @@ Void TDecTop::xActivateParameterSets()
     }
 
     xParsePrefixSEImessages();
-
+#if MCTS_ENC_CHECK
+    xAnalysePrefixSEImessages();
+#endif
     // Check if any new SEI has arrived
      if(!m_SEIs.empty())
      {
@@ -442,14 +574,76 @@ Void TDecTop::xParsePrefixSEImessages()
   while (!m_prefixSEINALUs.empty())
   {
     InputNALUnit &nalu=*m_prefixSEINALUs.front();
+#if JVET_AK0194_DSC_SEI
+    SEIMessages::iterator newSEI = m_seiReader.parseSEImessage( &(nalu.getBitstream()), m_SEIs, nalu.m_nalUnitType, m_parameterSetManager.getActiveSPS(), m_pDecodedSEIOutputStream );
+    bool naluStored = false;
+    bool managerInitialized = false;
+
+    // Loop through ALL parsed SEI messages belonging to this NAL unit
+    for (auto it = newSEI; it != m_SEIs.end(); ++it)
+    {
+      if ((*it)->payloadType() == SEI::PayloadType::DIGITALLY_SIGNED_CONTENT_SELECTION)
+      {
+        if (!managerInitialized)
+        {
+          xInitDscSubstreamManager(m_SEIs);
+          managerInitialized = true;
+        }
+        auto dscsSei = reinterpret_cast<SEIDigitallySignedContentSelection*>(*it);
+
+        if (m_dscSubstreamManagerMap.find(dscsSei->dscsId) == m_dscSubstreamManagerMap.end())
+        {
+          printf ("DSC ID %i not initialized, ignoring DSC selection for this ID", dscsSei->dscsId);
+        }
+        else if (!m_dscSubstreamManagerMap[dscsSei->dscsId].getSeiSigningFlag())
+        {
+          printf ("DSCI SEI signing flag is 0, this SEI NALU is not included in signing");
+        }
+        else if (!naluStored)
+        {
+          xStoreNALUnitForSignature(nalu);
+          naluStored = true;
+        }
+      }
+    }
+    (void)newSEI;
+#else
     m_seiReader.parseSEImessage( &(nalu.getBitstream()), m_SEIs, nalu.m_nalUnitType, m_parameterSetManager.getActiveSPS(), m_pDecodedSEIOutputStream );
+#endif
     delete m_prefixSEINALUs.front();
     m_prefixSEINALUs.pop_front();
   }
 }
 
+#if MCTS_ENC_CHECK
+Void TDecTop::xAnalysePrefixSEImessages()
+{
+  if (m_tmctsCheckEnabled)
+  {
+    SEIMessages mctsSEIs = getSeisByType(m_SEIs, SEI::TEMP_MOTION_CONSTRAINED_TILE_SETS);
+    for (SEIMessages::iterator it = mctsSEIs.begin(); it != mctsSEIs.end(); it++)
+    {
+      SEITempMotionConstrainedTileSets *mcts = (SEITempMotionConstrainedTileSets*)(*it);
+      if (!mcts->m_each_tile_one_tile_set_flag)
+      {
+        printf("cannot (yet) check Temporal constrained MCTS if each_tile_one_tile_set_flag is not enabled\n");
+        exit(1);
+      }
+      else
+      {
+        printf("MCTS check enabled!\n");
+        m_conformanceCheck.enableTMctsCheck(true);
+      }
+    }
+  }
+}
+#endif
 
-Bool TDecTop::xDecodeSlice(InputNALUnit &nalu, Int &iSkipFrame, Int iPOCLastDisplay )
+#if MCTS_EXTRACTION
+Bool TDecTop::xDecodeSlice(InputNALUnit &nalu, Int &iSkipFrame, Int iPOCLastDisplay, Bool bSkipCabacAndReconstruction)
+#else
+Bool TDecTop::xDecodeSlice(InputNALUnit &nalu, Int &iSkipFrame, Int iPOCLastDisplay)
+#endif
 {
   m_apcSlicePilot->initSlice(); // the slice pilot is an object to prepare for a new slice
                                 // it is not associated with picture, sps or pps structures.
@@ -576,12 +770,24 @@ Bool TDecTop::xDecodeSlice(InputNALUnit &nalu, Int &iSkipFrame, Int iPOCLastDisp
   // exit when a new picture is found
   if (!m_apcSlicePilot->getDependentSliceSegmentFlag() && (m_apcSlicePilot->getSliceCurStartCtuTsAddr() == 0 && !m_bFirstSliceInPicture) )
   {
-    if (m_prevPOC >= m_pocRandomAccess)
+    if (m_prevPOC >= m_pocRandomAccess || m_pocRandomAccess != m_pocCRA ||
+      (m_prevNut == NAL_UNIT_CODED_SLICE_RADL_N ||
+       m_prevNut == NAL_UNIT_CODED_SLICE_RADL_R) ||
+      ((m_prevNut == NAL_UNIT_CODED_SLICE_RASL_N ||
+        m_prevNut == NAL_UNIT_CODED_SLICE_RASL_R) && !m_noRaslOutputFlag))
     {
       m_prevPOC = m_apcSlicePilot->getPOC();
+      m_prevNut = m_apcSlicePilot->getNalUnitType();
+      if(m_apcSlicePilot->isIRAP())
+      {
+        m_noRaslOutputFlag = m_apcSlicePilot->getNoRaslOutputFlag();
+      }
 #if ENC_DEC_TRACE
       //rewind the trace counter since we didn't actually decode the slice
       g_nSymbolCounter = originalSymbolCount;
+#endif
+#if JVET_AK0194_DSC_SEI
+      xRemoveLastNalUnitFromSignature();
 #endif
       return true;
     }
@@ -600,10 +806,54 @@ Bool TDecTop::xDecodeSlice(InputNALUnit &nalu, Int &iSkipFrame, Int iPOCLastDisp
   if (!m_apcSlicePilot->getDependentSliceSegmentFlag())
   {
     m_prevPOC = m_apcSlicePilot->getPOC();
+    m_prevNut = m_apcSlicePilot->getNalUnitType();
   }
 
   // actual decoding starts here
+#if MCTS_EXTRACTION
+  xActivateParameterSets(bSkipCabacAndReconstruction);
+#else
   xActivateParameterSets();
+#endif
+
+#if JVET_AK0194_DSC_SEI
+  SEIMessages dscSelectionSEIs = getSeisByType(m_pcPic->getSEIs(), SEI::PayloadType::DIGITALLY_SIGNED_CONTENT_SELECTION);
+  // iterate over all DSC IDs for which a initialization was received
+  for (auto& [dscId, dscSubstreamManager]: m_dscSubstreamManagerMap)
+  {
+    SEIMessages currentSEIs;
+    // find the SEIs that are assiciated with the current DSC ID
+    for (auto *sei: dscSelectionSEIs)
+    {
+      if (((SEIDigitallySignedContentSelection*) sei)->dscsId == dscId )
+      {
+        currentSEIs.push_back(sei);
+      }
+    }
+    // If there is a DSCS message, use the explicitly sigalled substream ID
+    if (!currentSEIs.empty())
+    {
+      if (currentSEIs.size()>1)
+      {
+        printf ("Warming: received more than one Digitally Signed Content Selection SEI message at a time for DSC ID %i. Using first only.\n", dscId);
+      }
+      SEIDigitallySignedContentSelection* dscs = (SEIDigitallySignedContentSelection*) dscSelectionSEIs.front();
+      xProcessStoredNALUnitsForSignature(dscId, dscs->dscsVerificationSubstreamId);
+    }
+    else
+    {
+      // inference of substream ID
+      int32_t dscsVSSID = 0;
+      if( m_dscSubstreamManagerMap[dscId].getDscAssociationModeFlag() )
+      {
+        const TComVPS *vps = m_parameterSetManager.getActiveVPS();
+        dscsVSSID = vps->getMaxLayers()*nalu.m_nuhLayerId + nalu.m_temporalId;
+      }
+      xProcessStoredNALUnitsForSignature(dscId, dscsVSSID);
+    }
+    xClearStoredNALUnitsForSignature();
+  }
+#endif
 
 
   TComSlice* pcSlice = m_pcPic->getPicSym()->getSlice(m_uiSliceIdx);
@@ -630,7 +880,15 @@ Bool TDecTop::xDecodeSlice(InputNALUnit &nalu, Int &iSkipFrame, Int iPOCLastDisp
 
   if (!pcSlice->getDependentSliceSegmentFlag())
   {
-    pcSlice->checkCRA(pcSlice->getRPS(), m_pocCRA, m_associatedIRAPType, m_cListPic );
+    pcSlice->checkCRA(pcSlice->getRPS(), m_pocCRA, m_associatedIRAPType, m_cListPic);
+#if MCTS_EXTRACTION
+    if (bSkipCabacAndReconstruction)
+    {
+      m_bFirstSliceInPicture = false;
+      m_uiSliceIdx++;
+      return false;
+    }
+#endif
     // Set reference list
     pcSlice->setRefPicList( m_cListPic, true );
 
@@ -741,7 +999,11 @@ Void TDecTop::xDecodePPS(const std::vector<UChar> &naluData)
   m_parameterSetManager.storePPS( pps, naluData);
 }
 
+#if MCTS_EXTRACTION
+Bool TDecTop::decode(InputNALUnit& nalu, Int& iSkipFrame, Int& iPOCLastDisplay, Bool bSkipCabacAndReconstruction)
+#else
 Bool TDecTop::decode(InputNALUnit& nalu, Int& iSkipFrame, Int& iPOCLastDisplay)
+#endif
 {
   // ignore all NAL units of layers > 0
   if (nalu.m_nuhLayerId > 0)
@@ -757,13 +1019,22 @@ Bool TDecTop::decode(InputNALUnit& nalu, Int& iSkipFrame, Int& iPOCLastDisplay)
   {
     case NAL_UNIT_VPS:
       xDecodeVPS(nalu.getBitstream().getFifo());
+#if JVET_AK0194_DSC_SEI
+      xStoreNALUnitForSignature(nalu);
+#endif
       return false;
 
     case NAL_UNIT_SPS:
+#if JVET_AK0194_DSC_SEI
+      xStoreNALUnitForSignature(nalu);
+#endif
       xDecodeSPS(nalu.getBitstream().getFifo());
       return false;
 
     case NAL_UNIT_PPS:
+#if JVET_AK0194_DSC_SEI
+      xStoreNALUnitForSignature(nalu);
+#endif
       xDecodePPS(nalu.getBitstream().getFifo());
       return false;
 
@@ -773,16 +1044,62 @@ Bool TDecTop::decode(InputNALUnit& nalu, Int& iSkipFrame, Int& iPOCLastDisplay)
       return false;
 
     case NAL_UNIT_SUFFIX_SEI:
-      if (m_pcPic)
       {
-        m_seiReader.parseSEImessage( &(nalu.getBitstream()), m_pcPic->getSEIs(), nalu.m_nalUnitType, m_parameterSetManager.getActiveSPS(), m_pDecodedSEIOutputStream );
-      }
-      else
-      {
-        printf ("Note: received suffix SEI but no picture currently active.\n");
-      }
-      return false;
+        if (m_pcPic)
+        {
+#if JVET_AK0194_DSC_SEI
+          SEIMessages::iterator newSEI = m_seiReader.parseSEImessage( &(nalu.getBitstream()), m_pcPic->getSEIs(), nalu.m_nalUnitType,
+                                                                    m_parameterSetManager.getActiveSPS(), m_pDecodedSEIOutputStream );
 
+          // Loop through ALL parsed suffix SEI messages belonging to this NAL unit
+          for (auto it = newSEI; it != m_pcPic->getSEIs().end(); ++it)
+          {
+            if ((*it)->payloadType() == SEI::PayloadType::DIGITALLY_SIGNED_CONTENT_SELECTION)
+            {
+              auto dscsSei = reinterpret_cast<SEIDigitallySignedContentSelection*>(*it);
+              if (m_dscSubstreamManagerMap.find(dscsSei->dscsId) == m_dscSubstreamManagerMap.end())
+              {
+                printf ("DSC ID %i not initialized, ignoring DSC selection for this ID\n", dscsSei->dscsId);
+              }
+              else if (!m_dscSubstreamManagerMap[dscsSei->dscsId].getSeiSigningFlag())
+              {
+                printf ("DSCI SEI signing flag is 0, this SEI NALU is not included in signing\n");
+              }
+              else
+              {
+                m_dscSubstreamManagerMap[dscsSei->dscsId].addToSubstream(dscsSei->dscsVerificationSubstreamId, (char*)nalu.getBitstream().getOrigFifo().data(), nalu.getBitstream().getOrigFifo().size());
+              }
+            }
+          }
+
+          SEIMessages dscVerifySEIs = getSeisByType( m_pcPic->getSEIs(), SEI::PayloadType::DIGITALLY_SIGNED_CONTENT_VERIFICATION);
+          if (!dscVerifySEIs.empty())
+          {
+            for (auto dscvsei:dscVerifySEIs)
+            {
+              SEIDigitallySignedContentVerification *sei = (SEIDigitallySignedContentVerification*) dscvsei;
+              const uint8_t dscId = sei->dscvId;
+              if (m_dscSubstreamManagerMap.find(dscId) != m_dscSubstreamManagerMap.end())
+              {
+                m_dscSubstreamManagerMap[dscId].verifySubstream(sei->dscvVerificationSubstreamId, sei->dscvSignedContentEndFlag, sei->dscvSignature );
+              }
+              else
+              {
+                printf ("Received DSC verification SEI message for ID %i without previous DSC initialization", dscId);
+              }
+            }
+          }
+#else
+          m_seiReader.parseSEImessage( &(nalu.getBitstream()), m_pcPic->getSEIs(), nalu.m_nalUnitType,
+                                        m_parameterSetManager.getActiveSPS(), m_pDecodedSEIOutputStream );
+#endif
+        }
+        else
+        {
+          printf ("Note: received suffix SEI but no picture currently active.\n");
+        }
+        return false;
+      }
     case NAL_UNIT_CODED_SLICE_TRAIL_R:
     case NAL_UNIT_CODED_SLICE_TRAIL_N:
     case NAL_UNIT_CODED_SLICE_TSA_R:
@@ -799,7 +1116,14 @@ Bool TDecTop::decode(InputNALUnit& nalu, Int& iSkipFrame, Int& iPOCLastDisplay)
     case NAL_UNIT_CODED_SLICE_RADL_R:
     case NAL_UNIT_CODED_SLICE_RASL_N:
     case NAL_UNIT_CODED_SLICE_RASL_R:
+#if JVET_AK0194_DSC_SEI
+      xStoreNALUnitForSignature(nalu);
+#endif
+#if MCTS_EXTRACTION
+      return xDecodeSlice(nalu, iSkipFrame, iPOCLastDisplay, bSkipCabacAndReconstruction);
+#else
       return xDecodeSlice(nalu, iSkipFrame, iPOCLastDisplay);
+#endif
       break;
 
     case NAL_UNIT_EOS:
@@ -951,7 +1275,10 @@ Bool TDecTop::isRandomAccessSkipPicture(Int& iSkipFrame,  Int& iPOCLastDisplay)
     }
   }
   // skip the reordered pictures, if necessary
-  else if (m_apcSlicePilot->getPOC() < m_pocRandomAccess && (m_apcSlicePilot->getNalUnitType() == NAL_UNIT_CODED_SLICE_RASL_R || m_apcSlicePilot->getNalUnitType() == NAL_UNIT_CODED_SLICE_RASL_N))
+  else if (m_apcSlicePilot->getPOC() < m_pocRandomAccess &&
+      (m_apcSlicePilot->getNalUnitType() == NAL_UNIT_CODED_SLICE_RASL_R ||
+       m_apcSlicePilot->getNalUnitType() == NAL_UNIT_CODED_SLICE_RASL_N) &&
+      m_noRaslOutputFlag) // Skip only when NoRaslOutputFlag = 1
   {
     iPOCLastDisplay++;
     return true;

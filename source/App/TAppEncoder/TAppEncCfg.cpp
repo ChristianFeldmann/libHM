@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -36,14 +36,24 @@
 */
 
 #include <stdio.h>
+
 #include <stdlib.h>
 #include <cassert>
 #include <cstring>
 #include <string>
 #include <limits>
+#include <map>
+
 #include "TLibCommon/TComRom.h"
+#if DPB_ENCODER_USAGE_CHECK
+#include "TLibCommon/ProfileLevelTierFeatures.h"
+#endif
+
+template <class T1, class T2>
+static inline std::istream& operator >> (std::istream &in, std::map<T1, T2> &map);
+
 #include "TAppEncCfg.h"
-#include "TAppCommon/program_options_lite.h"
+#include "Utilities/program_options_lite.h"
 #include "TLibEncoder/TEncRateCtrl.h"
 #ifdef WIN32
 #define strdup _strdup
@@ -53,47 +63,55 @@
 #define MACRO_TO_STRING(val) MACRO_TO_STRING_HELPER(val)
 
 using namespace std;
-namespace po = df::program_options_lite;
 
-
-
-enum ExtendedProfileName // this is used for determining profile strings, where multiple profiles map to a single profile idc with various constraint flag combinations
+enum UIProfileName // this is used for determining profile strings, where multiple profiles map to a single profile idc with various constraint flag combinations
 {
-  NONE = 0,
-  MAIN = 1,
-  MAIN10 = 2,
-  MAIN10_STILL_PICTURE=10002,
-  MAINSTILLPICTURE = 3,
-  MAINREXT = 4,
-  HIGHTHROUGHPUTREXT = 5, // Placeholder profile for development
+  UI_NONE = 0,
+  UI_MAIN = 1,
+  UI_MAIN10 = 2,
+  UI_MAIN10_STILL_PICTURE=10002,
+  UI_MAINSTILLPICTURE = 3,
+  UI_MAINREXT = 4,
+  UI_HIGHTHROUGHPUTREXT = 5,
   // The following are RExt profiles, which would map to the MAINREXT profile idc.
   // The enumeration indicates the bit-depth constraint in the bottom 2 digits
   //                           the chroma format in the next digit
-  //                           the intra constraint in the next digit
+  //                           the intra constraint in the next digit (1 for no intra constraint, 2 for intra constraint)
   //                           If it is a RExt still picture, there is a '1' for the top digit.
-  MONOCHROME_8      = 1008,
-  MONOCHROME_12     = 1012,
-  MONOCHROME_16     = 1016,
-  MAIN_12           = 1112,
-  MAIN_422_10       = 1210,
-  MAIN_422_12       = 1212,
-  MAIN_444          = 1308,
-  MAIN_444_10       = 1310,
-  MAIN_444_12       = 1312,
-  MAIN_444_16       = 1316, // non-standard profile definition, used for development purposes
-  MAIN_INTRA        = 2108,
-  MAIN_10_INTRA     = 2110,
-  MAIN_12_INTRA     = 2112,
-  MAIN_422_10_INTRA = 2210,
-  MAIN_422_12_INTRA = 2212,
-  MAIN_444_INTRA    = 2308,
-  MAIN_444_10_INTRA = 2310,
-  MAIN_444_12_INTRA = 2312,
-  MAIN_444_16_INTRA = 2316,
-  MAIN_444_STILL_PICTURE = 11308,
-  MAIN_444_16_STILL_PICTURE = 12316
+  UI_MONOCHROME_8      = 1008,
+  UI_MONOCHROME_12     = 1012,
+  UI_MONOCHROME_16     = 1016,
+  UI_MAIN_12           = 1112,
+  UI_MAIN_422_10       = 1210,
+  UI_MAIN_422_12       = 1212,
+  UI_MAIN_444          = 1308,
+  UI_MAIN_444_10       = 1310,
+  UI_MAIN_444_12       = 1312,
+  UI_MAIN_444_16       = 1316, // non-standard profile definition, used for development purposes
+  UI_MAIN_INTRA        = 2108,
+  UI_MAIN_10_INTRA     = 2110,
+  UI_MAIN_12_INTRA     = 2112,
+  UI_MAIN_422_10_INTRA = 2210,
+  UI_MAIN_422_12_INTRA = 2212,
+  UI_MAIN_444_INTRA    = 2308,
+  UI_MAIN_444_10_INTRA = 2310,
+  UI_MAIN_444_12_INTRA = 2312,
+  UI_MAIN_444_16_INTRA = 2316,
+  UI_MAIN_444_STILL_PICTURE = 11308,
+  UI_MAIN_444_16_STILL_PICTURE = 12316,
+  // The following are high throughput profiles, which would map to the HIGHTHROUGHPUTREXT profile idc.
+  // The enumeration indicates the bit-depth constraint in the bottom 2 digits
+  //                           the chroma format in the next digit
+  //                           the intra constraint in the next digit
+  //                           There is a '2' for the top digit to indicate it is high throughput profile
+  
+  UI_HIGHTHROUGHPUT_444     = 21308,
+  UI_HIGHTHROUGHPUT_444_10  = 21310,
+  UI_HIGHTHROUGHPUT_444_14  = 21314,
+  UI_HIGHTHROUGHPUT_444_16_INTRA  = 22316
 };
 
+constexpr int TF_DEFAULT_REFS = 4;
 
 //! \ingroup TAppEncoder
 //! \{
@@ -152,10 +170,8 @@ std::istringstream &operator>>(std::istringstream &in, GOPEntry &entry)     //in
   in>>entry.m_sliceType;
   in>>entry.m_POC;
   in>>entry.m_QPOffset;
-#if X0038_LAMBDA_FROM_QP_CAPABILITY
   in>>entry.m_QPOffsetModelOffset;
   in>>entry.m_QPOffsetModelScale;
-#endif
   in>>entry.m_CbQPoffset;
   in>>entry.m_CrQPoffset;
   in>>entry.m_QPFactor;
@@ -215,64 +231,74 @@ strToProfile[] =
   {"high-throughput-RExt", Profile::HIGHTHROUGHPUTREXT }
 };
 
-static const struct MapStrToExtendedProfile
+static const struct MapStrToUIProfileName
 {
   const TChar* str;
-  ExtendedProfileName value;
+  UIProfileName value;
 }
-strToExtendedProfile[] =
+strToUIProfileName[] =
 {
-    {"none",                      NONE             },
-    {"main",                      MAIN             },
-    {"main10",                    MAIN10           },
-    {"main10_still_picture",      MAIN10_STILL_PICTURE },
-    {"main10-still-picture",      MAIN10_STILL_PICTURE },
-    {"main_still_picture",        MAINSTILLPICTURE },
-    {"main-still-picture",        MAINSTILLPICTURE },
-    {"main_RExt",                 MAINREXT         },
-    {"main-RExt",                 MAINREXT         },
-    {"main_rext",                 MAINREXT         },
-    {"main-rext",                 MAINREXT         },
-    {"high_throughput_RExt",      HIGHTHROUGHPUTREXT },
-    {"high-throughput-RExt",      HIGHTHROUGHPUTREXT },
-    {"high_throughput_rext",      HIGHTHROUGHPUTREXT },
-    {"high-throughput-rext",      HIGHTHROUGHPUTREXT },
-    {"monochrome",                MONOCHROME_8     },
-    {"monochrome12",              MONOCHROME_12    },
-    {"monochrome16",              MONOCHROME_16    },
-    {"main12",                    MAIN_12          },
-    {"main_422_10",               MAIN_422_10      },
-    {"main_422_12",               MAIN_422_12      },
-    {"main_444",                  MAIN_444         },
-    {"main_444_10",               MAIN_444_10      },
-    {"main_444_12",               MAIN_444_12      },
-    {"main_444_16",               MAIN_444_16      },
-    {"main_intra",                MAIN_INTRA       },
-    {"main_10_intra",             MAIN_10_INTRA    },
-    {"main_12_intra",             MAIN_12_INTRA    },
-    {"main_422_10_intra",         MAIN_422_10_INTRA},
-    {"main_422_12_intra",         MAIN_422_12_INTRA},
-    {"main_444_intra",            MAIN_444_INTRA   },
-    {"main_444_still_picture",    MAIN_444_STILL_PICTURE },
-    {"main_444_10_intra",         MAIN_444_10_INTRA},
-    {"main_444_12_intra",         MAIN_444_12_INTRA},
-    {"main_444_16_intra",         MAIN_444_16_INTRA},
-    {"main_444_16_still_picture", MAIN_444_16_STILL_PICTURE }
+    {"none",                      UI_NONE             },
+    {"main",                      UI_MAIN             },
+    {"main10",                    UI_MAIN10           },
+    {"main10_still_picture",      UI_MAIN10_STILL_PICTURE },
+    {"main10-still-picture",      UI_MAIN10_STILL_PICTURE },
+    {"main_still_picture",        UI_MAINSTILLPICTURE },
+    {"main-still-picture",        UI_MAINSTILLPICTURE },
+    {"main_RExt",                 UI_MAINREXT         },
+    {"main-RExt",                 UI_MAINREXT         },
+    {"main_rext",                 UI_MAINREXT         },
+    {"main-rext",                 UI_MAINREXT         },
+    {"high_throughput_RExt",      UI_HIGHTHROUGHPUTREXT },
+    {"high-throughput-RExt",      UI_HIGHTHROUGHPUTREXT },
+    {"high_throughput_rext",      UI_HIGHTHROUGHPUTREXT },
+    {"high-throughput-rext",      UI_HIGHTHROUGHPUTREXT },
+    {"monochrome",                UI_MONOCHROME_8     },
+    {"monochrome12",              UI_MONOCHROME_12    },
+    {"monochrome16",              UI_MONOCHROME_16    },
+    {"main12",                    UI_MAIN_12          },
+    {"main_422_10",               UI_MAIN_422_10      },
+    {"main_422_12",               UI_MAIN_422_12      },
+    {"main_444",                  UI_MAIN_444         },
+    {"main_444_10",               UI_MAIN_444_10      },
+    {"main_444_12",               UI_MAIN_444_12      },
+    {"main_444_16",               UI_MAIN_444_16      },
+    {"main_intra",                UI_MAIN_INTRA       },
+    {"main_10_intra",             UI_MAIN_10_INTRA    },
+    {"main_12_intra",             UI_MAIN_12_INTRA    },
+    {"main_422_10_intra",         UI_MAIN_422_10_INTRA},
+    {"main_422_12_intra",         UI_MAIN_422_12_INTRA},
+    {"main_444_intra",            UI_MAIN_444_INTRA   },
+    {"main_444_still_picture",    UI_MAIN_444_STILL_PICTURE },
+    {"main_444_10_intra",         UI_MAIN_444_10_INTRA},
+    {"main_444_12_intra",         UI_MAIN_444_12_INTRA},
+    {"main_444_16_intra",         UI_MAIN_444_16_INTRA},
+    {"main_444_16_still_picture", UI_MAIN_444_16_STILL_PICTURE },
+    {"high_throughput_444",       UI_HIGHTHROUGHPUT_444    },
+    {"high_throughput_444_10",    UI_HIGHTHROUGHPUT_444_10 },
+    {"high_throughput_444_14",    UI_HIGHTHROUGHPUT_444_14 },
+    {"high_throughput_444_16_intra", UI_HIGHTHROUGHPUT_444_16_INTRA }
 };
 
-static const ExtendedProfileName validRExtProfileNames[2/* intraConstraintFlag*/][4/* bit depth constraint 8=0, 10=1, 12=2, 16=3*/][4/*chroma format*/]=
+static const UIProfileName validRExtHighThroughPutProfileNames[2/* intraConstraintFlag*/][4/* bit depth constraint 8=0, 10=1, 12=2, 16=3*/]=
+{
+    { UI_HIGHTHROUGHPUT_444,          UI_HIGHTHROUGHPUT_444_10,          UI_HIGHTHROUGHPUT_444_14,         UI_NONE                         }, // intraConstraintFlag 0 - 8-bit,10-bit,14-bit and 16-bit
+    { UI_NONE,                        UI_NONE,                           UI_NONE,                          UI_HIGHTHROUGHPUT_444_16_INTRA  }  // intraConstraintFlag 1 - 8-bit,10-bit,14-bit and 16-bit
+};
+
+static const UIProfileName validRExtProfileNames[2/* intraConstraintFlag*/][4/* bit depth constraint 8=0, 10=1, 12=2, 16=3*/][4/*chroma format*/]=
 {
     {
-        { MONOCHROME_8,  NONE,          NONE,              MAIN_444          }, // 8-bit  inter for 400, 420, 422 and 444
-        { NONE,          NONE,          MAIN_422_10,       MAIN_444_10       }, // 10-bit inter for 400, 420, 422 and 444
-        { MONOCHROME_12, MAIN_12,       MAIN_422_12,       MAIN_444_12       }, // 12-bit inter for 400, 420, 422 and 444
-        { MONOCHROME_16, NONE,          NONE,              MAIN_444_16       }  // 16-bit inter for 400, 420, 422 and 444 (the latter is non standard used for development)
+        { UI_MONOCHROME_8,  UI_NONE,          UI_NONE,              UI_MAIN_444          }, // 8-bit  inter for 400, 420, 422 and 444
+        { UI_NONE,          UI_NONE,          UI_MAIN_422_10,       UI_MAIN_444_10       }, // 10-bit inter for 400, 420, 422 and 444
+        { UI_MONOCHROME_12, UI_MAIN_12,       UI_MAIN_422_12,       UI_MAIN_444_12       }, // 12-bit inter for 400, 420, 422 and 444
+        { UI_MONOCHROME_16, UI_NONE,          UI_NONE,              UI_MAIN_444_16       }  // 16-bit inter for 400, 420, 422 and 444 (the latter is non standard used for development)
     },
     {
-        { NONE,          MAIN_INTRA,    NONE,              MAIN_444_INTRA    }, // 8-bit  intra for 400, 420, 422 and 444
-        { NONE,          MAIN_10_INTRA, MAIN_422_10_INTRA, MAIN_444_10_INTRA }, // 10-bit intra for 400, 420, 422 and 444
-        { NONE,          MAIN_12_INTRA, MAIN_422_12_INTRA, MAIN_444_12_INTRA }, // 12-bit intra for 400, 420, 422 and 444
-        { NONE,          NONE,          NONE,              MAIN_444_16_INTRA }  // 16-bit intra for 400, 420, 422 and 444
+        { UI_NONE,          UI_MAIN_INTRA,    UI_NONE,              UI_MAIN_444_INTRA    }, // 8-bit  intra for 400, 420, 422 and 444
+        { UI_NONE,          UI_MAIN_10_INTRA, UI_MAIN_422_10_INTRA, UI_MAIN_444_10_INTRA }, // 10-bit intra for 400, 420, 422 and 444
+        { UI_NONE,          UI_MAIN_12_INTRA, UI_MAIN_422_12_INTRA, UI_MAIN_444_12_INTRA }, // 12-bit intra for 400, 420, 422 and 444
+        { UI_NONE,          UI_NONE,          UI_NONE,              UI_MAIN_444_16_INTRA }  // 16-bit intra for 400, 420, 422 and 444
     }
 };
 
@@ -308,15 +334,29 @@ strToLevel[] =
   {"6",   Level::LEVEL6},
   {"6.1", Level::LEVEL6_1},
   {"6.2", Level::LEVEL6_2},
+#if JVET_X0079_MODIFIED_BITRATES
+  {"6.3", Level::LEVEL6_3},
+#endif
   {"8.5", Level::LEVEL8_5},
 };
 
+#if !DPB_ENCODER_USAGE_CHECK
+#if JVET_X0079_MODIFIED_BITRATES
+UInt g_uiMaxCpbSize[2][28] =
+{
+  //            LEVEL1,          LEVEL2,  LEVEL2_1,      LEVEL3,  LEVEL3_1,       LEVEL4,   LEVEL4_1,       LEVEL5,    LEVEL5_1,  LEVEL5_2,     LEVEL6,    LEVEL6_1,  LEVEL6_2,  LEVEL6_3
+  { 0, 0, 0, 0, 350000, 0, 0, 0, 1500000, 3000000, 0, 0, 6000000, 10000000, 0, 0, 12000000, 20000000, 0, 0,  25000000,  40000000,  60000000, 0,  60000000, 120000000, 240000000,  240000000 },
+  { 0, 0, 0, 0,      0, 0, 0, 0,       0,       0, 0, 0,       0,        0, 0, 0, 30000000, 50000000, 0, 0, 100000000, 160000000, 240000000, 0, 240000000, 480000000, 800000000, 1600000000 }
+};
+#else
 UInt g_uiMaxCpbSize[2][21] =
 {
   //         LEVEL1,        LEVEL2,LEVEL2_1,     LEVEL3, LEVEL3_1,      LEVEL4, LEVEL4_1,       LEVEL5,  LEVEL5_1,  LEVEL5_2,    LEVEL6,  LEVEL6_1,  LEVEL6_2 
   { 0, 0, 0, 350000, 0, 0, 1500000, 3000000, 0, 6000000, 10000000, 0, 12000000, 20000000, 0,  25000000,  40000000,  60000000,  60000000, 120000000, 240000000 },
   { 0, 0, 0,      0, 0, 0,       0,       0, 0,       0,        0, 0, 30000000, 50000000, 0, 100000000, 160000000, 240000000, 240000000, 480000000, 800000000 }
 };
+#endif
+#endif
 
 static const struct MapStrToCostMode
 {
@@ -365,25 +405,25 @@ static istream& readStrToEnum(P map[], UInt mapLen, istream &in, T &val)
   string str;
   in >> str;
 
-  for (UInt i = 0; i < mapLen; i++)
+  UInt i=0;
+  for (; i < mapLen && str!=map[i].str; i++);
+
+  if (i < mapLen)
   {
-    if (str == map[i].str)
-    {
-      val = map[i].value;
-      goto found;
-    }
+    val = map[i].value;
   }
-  /* not found */
-  in.setstate(ios::failbit);
-found:
+  else
+  {
+    in.setstate(ios::failbit);
+  }
   return in;
 }
 
 //inline to prevent compiler warnings for "unused static function"
 
-static inline istream& operator >> (istream &in, ExtendedProfileName &profile)
+static inline istream& operator >> (istream &in, UIProfileName &profile)
 {
-  return readStrToEnum(strToExtendedProfile, sizeof(strToExtendedProfile)/sizeof(*strToExtendedProfile), in, profile);
+  return readStrToEnum(strToUIProfileName, sizeof(strToUIProfileName)/sizeof(*strToUIProfileName), in, profile);
 }
 
 namespace Level
@@ -409,6 +449,7 @@ static inline istream& operator >> (istream &in, ScalingListMode &mode)
   return readStrToEnum(strToScalingListMode, sizeof(strToScalingListMode)/sizeof(*strToScalingListMode), in, mode);
 }
 
+#if !JVET_X0048_X0103_FILM_GRAIN
 template <class T>
 struct SMultiValueInput
 {
@@ -430,6 +471,7 @@ struct SMultiValueInput
 
   istream& readValues(std::istream &in);
 };
+#endif
 
 template <class T>
 static inline istream& operator >> (std::istream &in, SMultiValueInput<T> &values)
@@ -437,44 +479,20 @@ static inline istream& operator >> (std::istream &in, SMultiValueInput<T> &value
   return values.readValues(in);
 }
 
-template<>
-UInt SMultiValueInput<UInt>::readValue(const TChar *&pStr, Bool &bSuccess)
+template <class T>
+T SMultiValueInput<T>::readValue(const char *&pStr, bool &bSuccess)
 {
-  TChar *eptr;
-  UInt val=strtoul(pStr, &eptr, 0);
-  pStr=eptr;
-  bSuccess=!(*eptr!=0 && !isspace(*eptr) && *eptr!=',') && !(val<minValIncl || val>maxValIncl);
+  T val=T();
+  std::string s(pStr);
+  std::replace(s.begin(), s.end(), ',', ' '); // make comma separated into space separated
+  std::istringstream iss(s);
+  iss>>val;
+  bSuccess=!iss.fail() // check nothing has gone wrong
+           && !(val<minValIncl || val>maxValIncl) // check value is within range
+           && (int)iss.tellg() !=  0 // check we've actually read something
+           && (iss.eof() || iss.peek()==' '); // check next character is a space, or eof
+  pStr+= (iss.eof() ? s.size() : (std::size_t)iss.tellg());
   return val;
-}
-
-template<>
-Int SMultiValueInput<Int>::readValue(const TChar *&pStr, Bool &bSuccess)
-{
-  TChar *eptr;
-  Int val=strtol(pStr, &eptr, 0);
-  pStr=eptr;
-  bSuccess=!(*eptr!=0 && !isspace(*eptr) && *eptr!=',') && !(val<minValIncl || val>maxValIncl);
-  return val;
-}
-
-template<>
-Double SMultiValueInput<Double>::readValue(const TChar *&pStr, Bool &bSuccess)
-{
-  TChar *eptr;
-  Double val=strtod(pStr, &eptr);
-  pStr=eptr;
-  bSuccess=!(*eptr!=0 && !isspace(*eptr) && *eptr!=',') && !(val<minValIncl || val>maxValIncl);
-  return val;
-}
-
-template<>
-Bool SMultiValueInput<Bool>::readValue(const TChar *&pStr, Bool &bSuccess)
-{
-  TChar *eptr;
-  Int val=strtol(pStr, &eptr, 0);
-  pStr=eptr;
-  bSuccess=!(*eptr!=0 && !isspace(*eptr) && *eptr!=',') && !(val<Int(minValIncl) || val>Int(maxValIncl));
-  return val!=0;
 }
 
 template <class T>
@@ -524,7 +542,6 @@ istream& SMultiValueInput<T>::readValues(std::istream &in)
   return in;
 }
 
-#if JVET_E0059_FLOATING_POINT_QP_FIX
 template <class T>
 static inline istream& operator >> (std::istream &in, TAppEncCfg::OptionalValue<T> &value)
 {
@@ -540,7 +557,25 @@ static inline istream& operator >> (std::istream &in, TAppEncCfg::OptionalValue<
   }
   return in;
 }
-#endif
+
+template <class T1, class T2>
+static inline istream& operator >> (std::istream &in, std::map<T1, T2> &map)
+{
+  T1 key;
+  T2 value;
+  try
+  {
+    in >> key;
+    in >> value;
+  }
+  catch (...)
+  {
+    in.setstate(ios::failbit);
+  }
+
+  map[key] = value;
+  return in;
+}
 
 static Void
 automaticallySelectRExtProfile(const Bool bUsingGeneralRExtTools,
@@ -639,7 +674,8 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
   Int tmpSliceSegmentMode;
   Int tmpDecodedPictureHashSEIMappedType;
   string inputColourSpaceConvert;
-  ExtendedProfileName extendedProfile;
+  string inputPathPrefix;
+  UIProfileName UIProfile;
   Int saoOffsetBitShift[MAX_NUM_CHANNEL_TYPE];
 
   // Multi-value input fields:                                // minval, maxval (incl), min_entries, max_entries (incl) [, default values, number of default values]
@@ -659,6 +695,7 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
 
   const UInt defaultInputKneeCodes[3]  = { 600, 800, 900 };
   const UInt defaultOutputKneeCodes[3] = { 100, 250, 450 };
+  Int cfg_kneeSEINumKneePointsMinus1=0;
   SMultiValueInput<UInt> cfg_kneeSEIInputKneePointValue      (1,  999, 0, 999, defaultInputKneeCodes,  sizeof(defaultInputKneeCodes )/sizeof(UInt));
   SMultiValueInput<UInt> cfg_kneeSEIOutputKneePointValue     (0, 1000, 0, 999, defaultOutputKneeCodes, sizeof(defaultOutputKneeCodes)/sizeof(UInt));
   const Int defaultPrimaryCodes[6]     = { 0,50000, 0,0, 50000,0 };
@@ -681,8 +718,138 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
   SMultiValueInput<Bool> cfg_timeCodeSeiHoursFlag            (0,  1, 0, MAX_TIMECODE_SEI_SETS);
   SMultiValueInput<Int>  cfg_timeCodeSeiTimeOffsetLength     (0, 31, 0, MAX_TIMECODE_SEI_SETS);
   SMultiValueInput<Int>  cfg_timeCodeSeiTimeOffsetValue      (std::numeric_limits<Int>::min(), std::numeric_limits<Int>::max(), 0, MAX_TIMECODE_SEI_SETS);
-  Int warnUnknowParameter = 0;
+#if JVET_X0048_X0103_FILM_GRAIN
+  // default values used for FGC SEI parameter parsing
+  SMultiValueInput<UInt>  cfg_FgcSEIIntensityIntervalLowerBoundComp[3]={SMultiValueInput<UInt> (0, 255, 0, 256), SMultiValueInput<UInt> (0, 255, 0, 256), SMultiValueInput<UInt> (0, 255, 0, 256)};
+  SMultiValueInput<UInt>  cfg_FgcSEIIntensityIntervalUpperBoundComp[3]={SMultiValueInput<UInt> (0, 255, 0, 256), SMultiValueInput<UInt> (0, 255, 0, 256), SMultiValueInput<UInt> (0, 255, 0, 256)};
+  SMultiValueInput<UInt>  cfg_FgcSEICompModelValueComp[3]={SMultiValueInput<UInt> (0, 65535, 0, 256 * 6), SMultiValueInput<UInt> (0, 65535, 0, 256 * 6), SMultiValueInput<UInt> (0, 65535, 0, 256 * 6)};
+#endif
+  SMultiValueInput<Int>  cfg_omniViewportSEIAzimuthCentre    (-11796480, 11796479, 0, 15);
+  SMultiValueInput<Int>  cfg_omniViewportSEIElevationCentre  ( -5898240,  5898240, 0, 15);
+  SMultiValueInput<Int>  cfg_omniViewportSEITiltCentre       (-11796480, 11796479, 0, 15);
+  SMultiValueInput<UInt> cfg_omniViewportSEIHorRange         (        1, 23592960, 0, 15);
+  SMultiValueInput<UInt> cfg_omniViewportSEIVerRange         (        1, 11796480, 0, 15);
+  SMultiValueInput<UInt>   cfg_rwpSEIRwpTransformType                 (0, 7, 0, std::numeric_limits<UChar>::max());
+  SMultiValueInput<Bool>   cfg_rwpSEIRwpGuardBandFlag                 (0, 1, 0, std::numeric_limits<UChar>::max()); 
+  SMultiValueInput<UInt>   cfg_rwpSEIProjRegionWidth                  (0, std::numeric_limits<UInt>::max(), 0, std::numeric_limits<UChar>::max());
+  SMultiValueInput<UInt>   cfg_rwpSEIProjRegionHeight                 (0, std::numeric_limits<UInt>::max(), 0, std::numeric_limits<UChar>::max());
+  SMultiValueInput<UInt>   cfg_rwpSEIRwpSEIProjRegionTop              (0, std::numeric_limits<UInt>::max(), 0, std::numeric_limits<UChar>::max());
+  SMultiValueInput<UInt>   cfg_rwpSEIProjRegionLeft                   (0, std::numeric_limits<UInt>::max(), 0, std::numeric_limits<UChar>::max());
+  SMultiValueInput<UInt>   cfg_rwpSEIPackedRegionWidth                (0, std::numeric_limits<UShort>::max(), 0, std::numeric_limits<UChar>::max());
+  SMultiValueInput<UInt>   cfg_rwpSEIPackedRegionHeight               (0, std::numeric_limits<UShort>::max(), 0, std::numeric_limits<UChar>::max());
+  SMultiValueInput<UInt>   cfg_rwpSEIPackedRegionTop                  (0, std::numeric_limits<UShort>::max(), 0, std::numeric_limits<UChar>::max());
+  SMultiValueInput<UInt>   cfg_rwpSEIPackedRegionLeft                 (0, std::numeric_limits<UShort>::max(), 0, std::numeric_limits<UChar>::max());
+  SMultiValueInput<UInt>   cfg_rwpSEIRwpLeftGuardBandWidth            (0, std::numeric_limits<UChar>::max(), 0, std::numeric_limits<UChar>::max());
+  SMultiValueInput<UInt>   cfg_rwpSEIRwpRightGuardBandWidth           (0, std::numeric_limits<UChar>::max(), 0, std::numeric_limits<UChar>::max());
+  SMultiValueInput<UInt>   cfg_rwpSEIRwpTopGuardBandHeight            (0, std::numeric_limits<UChar>::max(), 0, std::numeric_limits<UChar>::max());
+  SMultiValueInput<UInt>   cfg_rwpSEIRwpBottomGuardBandHeight         (0, std::numeric_limits<UChar>::max(), 0, std::numeric_limits<UChar>::max());
+  SMultiValueInput<Bool>   cfg_rwpSEIRwpGuardBandNotUsedForPredFlag   (0, 1,   0, std::numeric_limits<UChar>::max());
+  SMultiValueInput<UInt>   cfg_rwpSEIRwpGuardBandType                 (0, 7,   0, 4*std::numeric_limits<UChar>::max());
+  SMultiValueInput<UInt>   cfg_fviSEIFisheyeCircularRegionCentreX     (0, std::numeric_limits<UInt>::max(), 0, 4); // CONFIRM: all the '3's have been changed to '4's since "The value of fisheye_num_active_areas_minus1 shall be in the range of 0 to 3, inclusive", so up to 4 entries.
+  SMultiValueInput<UInt>   cfg_fviSEIFisheyeCircularRegionCentreY     (0, std::numeric_limits<UInt>::max(), 0, 4);
+  SMultiValueInput<UInt>   cfg_fviSEIFisheyeRectRegionTop             (0, std::numeric_limits<UInt>::max(), 0, 4); // do not know the height of the picture at this point, so cannot limit region top.
+  SMultiValueInput<UInt>   cfg_fviSEIFisheyeRectRegionLeft            (0, std::numeric_limits<UInt>::max(), 0, 4);
+  SMultiValueInput<UInt>   cfg_fviSEIFisheyeRectRegionWidth           (1, std::numeric_limits<UInt>::max(), 0, 4);
+  SMultiValueInput<UInt>   cfg_fviSEIFisheyeRectRegionHeight          (1, std::numeric_limits<UInt>::max(), 0, 4);
+  SMultiValueInput<UInt>   cfg_fviSEIFisheyeCircularRegionRadius      (0, std::numeric_limits<UInt>::max(), 0, 4);
+  SMultiValueInput<UInt>   cfg_fviSEIFisheyeSceneRadius               (0, std::numeric_limits<UInt>::max(), 0, 4);
+  SMultiValueInput<Int>    cfg_fviSEIFisheyeCameraCentreAzimuth       (-180*65536, 180*65536-1, 0, 4);
+  SMultiValueInput<Int>    cfg_fviSEIFisheyeCameraCentreElevation     ( -90*65536,  90*65536  , 0, 4);
+  SMultiValueInput<Int>    cfg_fviSEIFisheyeCameraCentreTilt          (-180*65536, 180*65536-1, 0, 4);
+  SMultiValueInput<UInt>   cfg_fviSEIFisheyeCameraCentreOffsetX       (0, std::numeric_limits<UInt>::max(), 0, 4);
+  SMultiValueInput<UInt>   cfg_fviSEIFisheyeCameraCentreOffsetY       (0, std::numeric_limits<UInt>::max(), 0, 4);
+  SMultiValueInput<UInt>   cfg_fviSEIFisheyeCameraCentreOffsetZ       (0, std::numeric_limits<UInt>::max(), 0, 4);
+  SMultiValueInput<UInt>   cfg_fviSEIFisheyeFieldOfView               (0, 360*65536, 0, 4);
+  SMultiValueInput<UInt>   cfg_fviSEIFisheyeNumPolynomialCoeffs       (0, 8, 0, 4);
+  SMultiValueInput<Int>    cfg_fviSEIFisheyePolynomialCoeff           (std::numeric_limits<Int>::min(), std::numeric_limits<Int>::max(), 0, 4*8);
+  UInt cfg_fviSEIFisheyeNumActiveAreasMinus1=0;
+#if SHUTTER_INTERVAL_SEI_MESSAGE
+  SMultiValueInput<UInt>   cfg_siiSEIInputNumUnitsInSI                (0, MAX_UINT, 0, 7);
+#endif
+#if NNPFC_SEI_MESSAGE
+  std::vector<SMultiValueInput<UInt>>   cfg_nnPostFilterSEICharacteristicsInterpolatedPicturesList;
+  std::vector<SMultiValueInput<Bool>>   cfg_nnPostFilterSEICharacteristicsInputPicOutputFlagList;
+  for (Int i = 0; i < MAX_NUM_NN_POST_FILTERS; i++)
+  {
+    cfg_nnPostFilterSEICharacteristicsInterpolatedPicturesList.push_back(SMultiValueInput<UInt>(0, std::numeric_limits<UInt>::max(), 1, 0));
+    cfg_nnPostFilterSEICharacteristicsInputPicOutputFlagList.push_back(SMultiValueInput<Bool>(0, 1, 1, 0));
+  }
+#endif
+#if NNPFA_SEI_MESSAGE
+  SMultiValueInput<Bool>   cfg_nnPostFilterSEIActivationOutputFlagList(0, 1, 1, 0);
+#endif
 
+#if JVET_AL0062_AI_USAGE_RESTRICTIONS_SEI
+  SMultiValueInput<uint32_t>  cfg_aurSEIRestrictions(0, 2, 0, std::numeric_limits<uint32_t>::max());
+  SMultiValueInput<bool>      cfg_aurSEIContextPresentFlag(0, 1, 0, 4096);
+  SMultiValueInput<uint32_t>  cfg_aurSEIContext(0, 15, 0, std::numeric_limits<uint32_t>::max());
+#endif
+
+#if JVET_AJ0207_GFV
+  SMultiValueInput<uint32_t>   cfg_generativeFaceVideoSEIId(0, 2550, 0, 102400);
+  SMultiValueInput<uint32_t>   cfg_generativeFaceVideoSEICnt(0, 2550, 0, 102400);
+  SMultiValueInput<uint32_t>   cfg_generativeFaceVideoSEIDrivePicFusionFlag(0, 2550, 0, 102400);
+  SMultiValueInput<uint32_t>   cfg_generativeFaceVideoSEILowConfidenceFaceParameterFlag(0, 2550, 0, 102400);
+  SMultiValueInput<uint32_t>   cfg_generativeFaceVideoSEICoordinatePresentFlag(0, 2550, 0, 102400);
+  SMultiValueInput<uint32_t>   cfg_generativeFaceVideoSEICoordinateQuantizationFactor(0, 2550, 0, 102400);
+  SMultiValueInput<uint32_t>   cfg_generativeFaceVideoSEICoordinatePredFlag(0, 2550, 0, 102400);
+  SMultiValueInput<uint32_t>   cfg_generativeFaceVideoSEI3DCoordinateFlag(0, 2550, 0, 102400);
+  SMultiValueInput<uint32_t>   cfg_generativeFaceVideoSEICoordinatePointNum(0, 2550, 0, 102400);
+  SMultiValueInput<double>     cfg_generativeFaceVideoSEICoordinateXTesonr(-1.0, 1.0, 0, 102400);
+  SMultiValueInput<double>     cfg_generativeFaceVideoSEICoordinateYTesonr(-1.0, 1.0, 0, 10240);
+  SMultiValueInput<uint32_t>   cfg_generativeFaceVideoSEIZCoordinateMaxValue(0, 10240, 0, 10240);
+  SMultiValueInput<double>     cfg_generativeFaceVideoSEICoordinateZTesonr(-10240.0, 10240.0, 0, 102400);
+  SMultiValueInput<uint32_t>   cfg_generativeFaceVideoSEIMatrixPresentFlag(0, 2550, 0, 102400);
+  SMultiValueInput<uint32_t>   cfg_generativeFaceVideoSEIMatrixElementPrecisionFactor(0, 2550, 0, 102400);
+  SMultiValueInput<uint32_t>   cfg_generativeFaceVideoSEIMatrixPredFlag(0, 2550, 0, 102400);
+  SMultiValueInput<uint32_t>   cfg_generativeFaceVideoSEINumMatrixType(0, 2550, 0, 102400);
+  SMultiValueInput<uint32_t>   cfg_generativeFaceVideoSEIMatrixTypeIdx(0, 2550, 0, 102400);
+  SMultiValueInput<uint32_t>   cfg_generativeFaceVideoSEIMatrix3DSpaceFlag(0, 1, 0, 102400);
+  SMultiValueInput<uint32_t>   cfg_generativeFaceVideoSEINumMatrices(0, 2550, 0, 102400);
+  SMultiValueInput<uint32_t>   cfg_generativeFaceVideoSEIMatrixWidth(0, 2550, 0, 102400);
+  SMultiValueInput<uint32_t>   cfg_generativeFaceVideoSEIMatrixHeight(0, 2550, 0, 102400);
+  SMultiValueInput<uint32_t>   cfg_generativeFaceVideoSEINumMatricestoNumKpsFlag(0, 2550, 0, 102400);
+  SMultiValueInput<uint32_t>   cfg_generativeFaceVideoSEINumMatricesInfo(0, 2550, 0, 102400);
+  SMultiValueInput<double>     cfg_generativeFaceVideoSEIMatrixElement(-50960.0, 50960.0, 0, 5095000);
+  SMultiValueInput<uint32_t>   cfg_generativeFaceVideoSEIChromaKeyValuePresentFlag(0, 2550, 0, 102400);
+  SMultiValueInput<uint32_t>   cfg_generativeFaceVideoSEIChromaKeyValue(0, 2550, 0, 102400);
+  SMultiValueInput<uint32_t>   cfg_generativeFaceVideoSEIChromaKeyThrPresentFlag(0, 2550, 0, 102400);
+  SMultiValueInput<uint32_t>   cfg_generativeFaceVideoSEIChromaKeyThrValue(0, 2550, 0, 102400);
+#endif
+#if JVET_AK0239_GEFV
+  SMultiValueInput<uint32_t>   cfg_generativeFaceVideoEnhancementSEIId(0, 2550, 0, 102400);
+  SMultiValueInput<uint32_t>   cfg_generativeFaceVideoEnhancementSEIGFVId(0, 2550, 0, 102400);
+  SMultiValueInput<uint32_t>   cfg_generativeFaceVideoEnhancementSEIGFVCnt(0, 2550, 0, 102400);
+  SMultiValueInput<uint32_t>   cfg_generativeFaceVideoEnhancementSEIMatrixPresentFlag(0, 2550, 0, 102400);
+  SMultiValueInput<uint32_t>   cfg_generativeFaceVideoEnhancementSEIMatrixPredFlag(0, 2550, 0, 102400);
+  SMultiValueInput<uint32_t>   cfg_generativeFaceVideoEnhancementSEIMatrixElementPrecisionFactor(0, 2550, 0, 102400);
+  SMultiValueInput<uint32_t>   cfg_generativeFaceVideoEnhancementSEINumMatrices(0, 2550, 0, 102400);
+  SMultiValueInput<uint32_t>   cfg_generativeFaceVideoEnhancementSEIMatrixWidth(0, 2550, 0, 102400);
+  SMultiValueInput<uint32_t>   cfg_generativeFaceVideoEnhancementSEIMatrixHeight(0, 2550, 0, 102400);
+  SMultiValueInput<double>     cfg_generativeFaceVideoEnhancementSEIMatrixElement(-50960.0, 50960.0, 0, 5095000);
+  SMultiValueInput<uint32_t>   cfg_generativeFaceVideoEnhancementSEIPupilPresentIdx(0, 2550, 0, 102400);
+  SMultiValueInput<uint32_t>   cfg_generativeFaceVideoEnhancementSEIPupilCoordinatePrecisionFactor(0, 2550, 0, 102400);
+  SMultiValueInput<double>     cfg_generativeFaceVideoEnhancementSEIPupilLeftEyeCoordinateX(-50960.0, 50960.0, 0, 5095000);
+  SMultiValueInput<double>     cfg_generativeFaceVideoEnhancementSEIPupilLeftEyeCoordinateY(-50960.0, 50960.0, 0, 5095000);
+  SMultiValueInput<double>     cfg_generativeFaceVideoEnhancementSEIPupilRightEyeCoordinateX(-50960.0, 50960.0, 0, 5095000);
+  SMultiValueInput<double>     cfg_generativeFaceVideoEnhancementSEIPupilRightEyeCoordinateY(-50960.0, 50960.0, 0, 5095000);
+#endif
+#if JVET_AK0140_PACKED_REGIONS_INFORMATION_SEI
+  SMultiValueInput<uint32_t> cfg_priSEIResamplingWidthNumMinus1       (0, 65535, 0, std::numeric_limits<uint32_t>::max());
+  SMultiValueInput<uint32_t> cfg_priSEIResamplingWidthDenomMinus1     (0, 65535, 0, std::numeric_limits<uint32_t>::max());
+  SMultiValueInput<uint32_t> cfg_priSEIResamplingHeightNumMinus1      (0, std::numeric_limits<uint32_t>::max() - 1, 0, std::numeric_limits<uint32_t>::max());
+  SMultiValueInput<uint32_t> cfg_priSEIResamplingHeightDenomMinus1    (0, std::numeric_limits<uint32_t>::max() - 1, 0, std::numeric_limits<uint32_t>::max());
+  SMultiValueInput<uint32_t> cfg_priSEIRegionId                       (0, std::numeric_limits<uint32_t>::max(), 0, std::numeric_limits<uint32_t>::max());
+  SMultiValueInput<uint32_t> cfg_priSEIRegionTopLeftInUnitsX          (0, std::numeric_limits<uint32_t>::max(), 0, std::numeric_limits<uint32_t>::max());
+  SMultiValueInput<uint32_t> cfg_priSEIRegionTopLeftInUnitsY          (0, std::numeric_limits<uint32_t>::max(), 0, std::numeric_limits<uint32_t>::max());
+  SMultiValueInput<uint32_t> cfg_priSEIRegionWidthInUnitsMinus1       (0, std::numeric_limits<uint32_t>::max() - 1, 0, std::numeric_limits<uint32_t>::max());
+  SMultiValueInput<uint32_t> cfg_priSEIRegionHeightInUnitsMinus1      (0, std::numeric_limits<uint32_t>::max() - 1, 0, std::numeric_limits<uint32_t>::max());
+  SMultiValueInput<uint32_t> cfg_priSEIResamplingRatioIdx             (0, std::numeric_limits<uint32_t>::max(), 0, std::numeric_limits<uint32_t>::max());
+  SMultiValueInput<uint32_t> cfg_priSEITargetRegionTopLeftInUnitsX    (0, std::numeric_limits<uint32_t>::max(), 0, std::numeric_limits<uint32_t>::max());
+  SMultiValueInput<uint32_t> cfg_priSEITargetRegionTopLeftInUnitsY    (0, std::numeric_limits<uint32_t>::max(), 0, std::numeric_limits<uint32_t>::max());
+#endif
+
+  Int warnUnknowParameter = 0;
   po::Options opts;
   opts.addOptions()
   ("help",                                            do_help,                                          false, "this help text")
@@ -691,10 +858,14 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
 
   // File, I/O and source parameters
   ("InputFile,i",                                     m_inputFileName,                             string(""), "Original YUV input file name")
+  ("InputPathPrefix,-ipp",                            inputPathPrefix,                             string(""), "pathname to prepend to input filename")
   ("BitstreamFile,b",                                 m_bitstreamFileName,                         string(""), "Bitstream output file name")
   ("ReconFile,o",                                     m_reconFileName,                             string(""), "Reconstructed YUV output file name")
-  ("SourceWidth,-wdt",                                m_iSourceWidth,                                       0, "Source picture width")
-  ("SourceHeight,-hgt",                               m_iSourceHeight,                                      0, "Source picture height")
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+  ("SEIShutterIntervalPreFilename,-sii",              m_shutterIntervalPreFileName,                string(""), "File name of Pre-Filtering video. If empty, not output video\n")
+#endif
+  ("SourceWidth,-wdt",                                m_sourceWidth,                                        0, "Source picture width")
+  ("SourceHeight,-hgt",                               m_sourceHeight,                                       0, "Source picture height")
   ("InputBitDepth",                                   m_inputBitDepth[CHANNEL_TYPE_LUMA],                   8, "Bit-depth of input file")
   ("OutputBitDepth",                                  m_outputBitDepth[CHANNEL_TYPE_LUMA],                  0, "Bit-depth of output file (default:InternalBitDepth)")
   ("MSBExtendedBitDepth",                             m_MSBExtendedBitDepth[CHANNEL_TYPE_LUMA],             0, "bit depth of luma component after addition of MSBs of value 0 (used for synthesising High Dynamic Range source material). (default:InputBitDepth)")
@@ -710,18 +881,19 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
   ("OutputInternalColourSpace",                       m_outputInternalColourSpace,                      false, "If true, then no colour space conversion is applied for reconstructed video, otherwise inverse of input is applied.")
   ("InputChromaFormat",                               tmpInputChromaFormat,                               420, "InputChromaFormatIDC")
   ("MSEBasedSequencePSNR",                            m_printMSEBasedSequencePSNR,                      false, "0 (default) emit sequence PSNR only as a linear average of the frame PSNRs, 1 = also emit a sequence PSNR based on an average of the frame MSEs")
+  ("PrintHexPSNR",                                    m_printHexPsnr,                                   false, "0 (default) don't emit hexadecimal PSNR for each frame, 1 = also emit hexadecimal PSNR values")
   ("PrintFrameMSE",                                   m_printFrameMSE,                                  false, "0 (default) emit only bit count and PSNRs for each frame, 1 = also emit MSE values")
   ("PrintSequenceMSE",                                m_printSequenceMSE,                               false, "0 (default) emit only bit rate and PSNRs for the whole sequence, 1 = also emit MSE values")
+  ("PrintMSSSIM",                                     m_printMSSSIM,                                    false, "0 (default) do not print MS-SSIM scores, 1 = print MS-SSIM scores for each frame and for the whole sequence")
+  ("xPSNREnableFlag,-xPS",                            m_bXPSNREnableFlag,                               false, "Cross-Component xPSNR computation")
+  ("xPSNRYWeight,-xPS0",                              m_dXPSNRWeight[COMPONENT_Y],             ( Double )1.0, "xPSNR weighting factor for Y (default: 1.0)")
+  ("xPSNRCbWeight,-xPS1",                             m_dXPSNRWeight[COMPONENT_Cb],            ( Double )1.0, "xPSNR weighting factor for Cb (default: 1.0)")
+  ("xPSNRCrWeight,-xPS2",                             m_dXPSNRWeight[COMPONENT_Cr],            ( Double )1.0, "xPSNR weighting factor for Cr (default: 1.0)")
   ("CabacZeroWordPaddingEnabled",                     m_cabacZeroWordPaddingEnabled,                     true, "0 do not add conforming cabac-zero-words to bit streams, 1 (default) = add cabac-zero-words as required")
   ("ChromaFormatIDC,-cf",                             tmpChromaFormat,                                      0, "ChromaFormatIDC (400|420|422|444 or set 0 (default) for same as InputChromaFormat)")
-  ("ConformanceMode",                                 m_conformanceWindowMode,                              0, "Deprecated alias of ConformanceWindowMode")
-  ("ConformanceWindowMode",                           m_conformanceWindowMode,                              0, "Window conformance mode (0: no window, 1:automatic padding, 2:padding, 3:conformance")
-  ("HorizontalPadding,-pdx",                          m_aiPad[0],                                           0, "Horizontal source padding for conformance window mode 2")
-  ("VerticalPadding,-pdy",                            m_aiPad[1],                                           0, "Vertical source padding for conformance window mode 2")
-  ("ConfLeft",                                        m_confWinLeft,                                        0, "Deprecated alias of ConfWinLeft")
-  ("ConfRight",                                       m_confWinRight,                                       0, "Deprecated alias of ConfWinRight")
-  ("ConfTop",                                         m_confWinTop,                                         0, "Deprecated alias of ConfWinTop")
-  ("ConfBottom",                                      m_confWinBottom,                                      0, "Deprecated alias of ConfWinBottom")
+  ("ConformanceWindowMode",                           m_conformanceWindowMode,                              0, "Window conformance mode (0: no window, 1:automatic padding, 2:padding parameters specified, 3:conformance window parameters specified")
+  ("HorizontalPadding,-pdx",                          m_sourcePadding[0],                                   0, "Horizontal source padding for conformance window mode 2")
+  ("VerticalPadding,-pdy",                            m_sourcePadding[1],                                   0, "Vertical source padding for conformance window mode 2")
   ("ConfWinLeft",                                     m_confWinLeft,                                        0, "Left offset for window conformance mode 3")
   ("ConfWinRight",                                    m_confWinRight,                                       0, "Right offset for window conformance mode 3")
   ("ConfWinTop",                                      m_confWinTop,                                         0, "Top offset for window conformance mode 3")
@@ -744,7 +916,7 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
   ("HarmonizeGopFirstFieldCoupleEnabled",             m_bHarmonizeGopFirstFieldCoupleEnabled,            true, "Enables harmonization of Gop first field couple")
 
   // Profile and level
-  ("Profile",                                         extendedProfile,                                   NONE, "Profile name to use for encoding. Use main (for main), main10 (for main10), main-still-picture, main-RExt (for Range Extensions profile), any of the RExt specific profile names, or none")
+  ("Profile",                                         UIProfile,                                      UI_NONE, "Profile name to use for encoding. Use main (for main), main10 (for main10), main-still-picture, main-RExt (for Range Extensions profile), any of the RExt specific profile names, or none")
   ("Level",                                           m_level,                                    Level::NONE, "Level limit to be used, eg 5.1, or none")
   ("Tier",                                            m_levelTier,                                Level::MAIN, "Tier to use for interpretation of --Level (main or high only)")
   ("MaxBitDepthConstraint",                           m_bitDepthConstraint,                                0u, "Bit depth to use for profile-constraint for RExt profiles. 0=automatically choose based upon other parameters")
@@ -773,12 +945,10 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
   ("QuadtreeTUMaxDepthInter",                         m_uiQuadtreeTUMaxDepthInter,                         2u, "Depth of TU tree for inter CUs")
 
   // Coding structure paramters
-  ("IntraPeriod,-ip",                                 m_iIntraPeriod,                                      -1, "Intra period in frames, (-1: only first frame)")
+  ("IntraPeriod,-ip",                                 m_iIntraPeriod,                                      -1, "Intra period in frames, (-1: only first frame, -N: set to a multiple of N based on frame rate)")
   ("DecodingRefreshType,-dr",                         m_iDecodingRefreshType,                               0, "Intra refresh type (0:none 1:CRA 2:IDR 3:RecPointSEI)")
   ("GOPSize,g",                                       m_iGOPSize,                                           1, "GOP size of temporal structure")
-#if JCTVC_Y0038_PARAMS
   ("ReWriteParamSetsFlag",                            m_bReWriteParamSetsFlag,                           true, "Enable rewriting of Parameter sets before every (intra) random access point")
-#endif 
 
   // motion search options
   ("DisableIntraInInter",                             m_bDisableIntraPUsInInterSlices,                  false, "Flag to disable intra PUs in inter slices")
@@ -806,16 +976,10 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
   ("IQPFactor,-IQF",                                  m_dIntraQpFactor,                                  -1.0, "Intra QP Factor for Lambda Computation. If negative, the default will scale lambda based on GOP size (unless LambdaFromQpEnable then IntraQPOffset is used instead)")
 
   /* Quantization parameters */
-#if JVET_E0059_FLOATING_POINT_QP_FIX
   ("QP,q",                                            m_iQP,                                               30, "Qp value")
   ("QPIncrementFrame,-qpif",                          m_qpIncrementAtSourceFrame,       OptionalValue<UInt>(), "If a source file frame number is specified, the internal QP will be incremented for all POCs associated with source frames >= frame number. If empty, do not increment.")
-#else
-  ("QP,q",                                            m_fQP,                                             30.0, "Qp value, if value is float, QP is switched once during encoding")
-#endif
-#if X0038_LAMBDA_FROM_QP_CAPABILITY
   ("IntraQPOffset",                                   m_intraQPOffset,                                      0, "Qp offset value for intra slice, typically determined based on GOP size")
   ("LambdaFromQpEnable",                              m_lambdaFromQPEnable,                             false, "Enable flag for derivation of lambda from QP")
-#endif
   ("DeltaQpRD,-dqr",                                  m_uiDeltaQpRD,                                       0u, "max dQp offset for slice")
   ("MaxDeltaQP,d",                                    m_iMaxDeltaQP,                                        0, "max dQp offset for block")
   ("MaxCuDQPDepth,-dqd",                              m_iMaxCuDQPDepth,                                     0, "max depth for a minimum CuDQP")
@@ -838,7 +1002,17 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
 #if ADAPTIVE_QP_SELECTION
   ("AdaptiveQpSelection,-aqps",                       m_bUseAdaptQpSelect,                              false, "AdaptiveQpSelection")
 #endif
-
+#if JVET_V0078
+  ("SmoothQPReductionEnable",                         m_bSmoothQPReductionEnable,                       false, "Enable QP reduction for smooth blocks according to: Clip3(SmoothQPReductionLimit, 0, SmoothQPReductionModelScale*baseQP+SmoothQPReductionModelOffset)")
+  ("SmoothQPReductionThreshold",                      m_dSmoothQPReductionThreshold,                      3.0, "Threshold parameter for smoothness (SmoothQPReductionThreshold * number of samples in block)")
+  ("SmoothQPReductionModelScale",                     m_dSmoothQPReductionModelScale,                    -1.0, "Scale parameter of the QP reduction model")
+  ("SmoothQPReductionModelOffset",                    m_dSmoothQPReductionModelOffset,                   27.0, "Offset parameter of the QP reduction model")
+  ("SmoothQPReductionLimit",                          m_iSmoothQPReductionLimit,                          -16, "Threshold parameter for controlling maximum amount of QP reduction by the QP reduction model")
+  ("SmoothQPReductionPeriodicity",                    m_iSmoothQPReductionPeriodicity,                      1, "Periodicity parameter of the QP reduction model, 1: all frames, 0: only intra pictures, 2: every second frame, etc")
+#endif
+#if JVET_Y0077_BIM
+  ("BIM",                                             m_bimEnabled,                                     false, "Block Importance Mapping QP adaptation depending on estimated propagation of reference samples.")
+#endif
   ("AdaptiveQP,-aq",                                  m_bUseAdaptiveQP,                                 false, "QP adaptation based on a psycho-visual model")
   ("MaxQPAdaptationRange,-aqr",                       m_iQPAdaptationRange,                                 6, "QP adaptation range")
   ("dQPFile,m",                                       m_dQPFileName,                               string(""), "dQP file name")
@@ -874,7 +1048,7 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
   ("SaoEncodingRateChroma",                           m_saoEncodingRateChroma,                            0.5, "The SAO early picture termination rate to use for chroma (when m_SaoEncodingRate is >0). If <=0, use results for luma")
   ("MaxNumOffsetsPerPic",                             m_maxNumOffsetsPerPic,                             2048, "Max number of SAO offset per picture (Default: 2048)")
   ("SAOLcuBoundary",                                  m_saoCtuBoundary,                                 false, "0: right/bottom CTU boundary areas skipped from SAO parameter estimation, 1: non-deblocked pixels are used for those areas")
-  ("SAOResetEncoderStateAfterIRAP",                   m_saoResetEncoderStateAfterIRAP,                  false, "When true, resets the encoder's SAO state after an IRAP (POC order). Disabled by default.")
+  ("ResetEncoderStateAfterIRAP",                      m_resetEncoderStateAfterIRAP,                     true, "When true, resets the encoder's decisions after an IRAP (POC order). Enabled by default.")
   ("SliceMode",                                       tmpSliceMode,                            Int(NO_SLICES), "0: Disable all Recon slice limits, 1: Enforce max # of CTUs, 2: Enforce max # of bytes, 3:specify tiles per dependent slice")
   ("SliceArgument",                                   m_sliceArgument,                                      0, "Depending on SliceMode being:"
                                                                                                                "\t1: max number of CTUs per slice"
@@ -982,7 +1156,7 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
   ("Log2MaxMvLengthHorizontal",                       m_log2MaxMvLengthHorizontal,                         15, "Indicate the maximum absolute value of a decoded horizontal MV component in quarter-pel luma units")
   ("Log2MaxMvLengthVertical",                         m_log2MaxMvLengthVertical,                           15, "Indicate the maximum absolute value of a decoded vertical MV component in quarter-pel luma units");
   opts.addOptions()
-  ("SEIColourRemappingInfoFileRoot,-cri",             m_colourRemapSEIFileRoot,                    string(""), "Colour Remapping Information SEI parameters root file name (wo num ext)")
+  ("SEIColourRemappingInfoFileRoot,-cri",             m_colourRemapSEIFileRoot,                    string(""), "Colour Remapping Information SEI parameters root file name (wo num ext); only the file name base is to be added. Underscore and POC would be automatically addded to . E.g. \"-cri cri\" will search for files cri_0.txt, cri_1.txt, ...")
   ("SEIRecoveryPoint",                                m_recoveryPointSEIEnabled,                        false, "Control generation of recovery point SEI messages")
   ("SEIBufferingPeriod",                              m_bufferingPeriodSEIEnabled,                      false, "Control generation of buffering period SEI messages")
   ("SEIPictureTiming",                                m_pictureTimingSEIEnabled,                        false, "Control generation of picture timing SEI messages")
@@ -1054,6 +1228,12 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
   ("SEISOPDescription",                               m_SOPDescriptionSEIEnabled,                       false, "Control generation of SOP description SEI messages")
   ("SEIScalableNesting",                              m_scalableNestingSEIEnabled,                      false, "Control generation of scalable nesting SEI messages")
   ("SEITempMotionConstrainedTileSets",                m_tmctsSEIEnabled,                                false, "Control generation of temporal motion constrained tile sets SEI message")
+#if MCTS_ENC_CHECK
+  ("SEITMCTSTileConstraint",                          m_tmctsSEITileConstraint,                         false, "Constrain motion vectors at tile boundaries")
+#endif
+#if MCTS_EXTRACTION
+  ("SEITMCTSExtractionInfo",                          m_tmctsExtractionSEIEnabled,                      false, "Control generation of MCTS extraction info SEI messages")
+#endif
   ("SEITimeCodeEnabled",                              m_timeCodeSEIEnabled,                             false, "Control generation of time code information SEI message")
   ("SEITimeCodeNumClockTs",                           m_timeCodeSEINumTs,                                   0, "Number of clock time sets [0..3]")
   ("SEITimeCodeTimeStampFlag",                        cfg_timeCodeSeiTimeStampFlag,          cfg_timeCodeSeiTimeStampFlag,         "Time stamp flag associated to each time set")
@@ -1071,26 +1251,648 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
   ("SEITimeCodeHoursFlag",                            cfg_timeCodeSeiHoursFlag,              cfg_timeCodeSeiHoursFlag,             "Flag to signal hours value presence in each time set")
   ("SEITimeCodeOffsetLength",                         cfg_timeCodeSeiTimeOffsetLength,       cfg_timeCodeSeiTimeOffsetLength,      "Time offset length associated to each time set")
   ("SEITimeCodeTimeOffset",                           cfg_timeCodeSeiTimeOffsetValue,        cfg_timeCodeSeiTimeOffsetValue,       "Time offset associated to each time set")
-  ("SEIKneeFunctionInfo",                             m_kneeSEIEnabled,                                 false, "Control generation of Knee function SEI messages")
-  ("SEIKneeFunctionId",                               m_kneeSEIId,                                          0, "Specifies Id of Knee function SEI message for a given session")
-  ("SEIKneeFunctionCancelFlag",                       m_kneeSEICancelFlag,                              false, "Indicates that Knee function SEI message cancels the persistence or follows")
-  ("SEIKneeFunctionPersistenceFlag",                  m_kneeSEIPersistenceFlag,                          true, "Specifies the persistence of the Knee function SEI message")
-  ("SEIKneeFunctionInputDrange",                      m_kneeSEIInputDrange,                              1000, "Specifies the peak luminance level for the input picture of Knee function SEI messages")
-  ("SEIKneeFunctionInputDispLuminance",               m_kneeSEIInputDispLuminance,                        100, "Specifies the expected display brightness for the input picture of Knee function SEI messages")
-  ("SEIKneeFunctionOutputDrange",                     m_kneeSEIOutputDrange,                             4000, "Specifies the peak luminance level for the output picture of Knee function SEI messages")
-  ("SEIKneeFunctionOutputDispLuminance",              m_kneeSEIOutputDispLuminance,                       800, "Specifies the expected display brightness for the output picture of Knee function SEI messages")
-  ("SEIKneeFunctionNumKneePointsMinus1",              m_kneeSEINumKneePointsMinus1,                         2, "Specifies the number of knee points - 1")
-  ("SEIKneeFunctionInputKneePointValue",              cfg_kneeSEIInputKneePointValue,   cfg_kneeSEIInputKneePointValue, "Array of input knee point")
-  ("SEIKneeFunctionOutputKneePointValue",             cfg_kneeSEIOutputKneePointValue, cfg_kneeSEIOutputKneePointValue, "Array of output knee point")
+  ("SEIKneeFunctionInfo",                             m_kneeSEIEnabled,                                            false,          "Control generation of Knee function SEI messages")
+  ("SEIKneeFunctionId",                               m_kneeFunctionInformationSEI.m_kneeFunctionId,               0,              "Specifies Id of Knee function SEI message for a given session")
+  ("SEIKneeFunctionCancelFlag",                       m_kneeFunctionInformationSEI.m_kneeFunctionCancelFlag,       false,          "Indicates that Knee function SEI message cancels the persistence or follows")
+  ("SEIKneeFunctionPersistenceFlag",                  m_kneeFunctionInformationSEI.m_kneeFunctionPersistenceFlag,  true,           "Specifies the persistence of the Knee function SEI message")
+  ("SEIKneeFunctionInputDrange",                      m_kneeFunctionInformationSEI.m_inputDRange,                  1000,           "Specifies the peak luminance level for the input picture of Knee function SEI messages")
+  ("SEIKneeFunctionInputDispLuminance",               m_kneeFunctionInformationSEI.m_inputDispLuminance,           100,            "Specifies the expected display brightness for the input picture of Knee function SEI messages")
+  ("SEIKneeFunctionOutputDrange",                     m_kneeFunctionInformationSEI.m_outputDRange,                 4000,           "Specifies the peak luminance level for the output picture of Knee function SEI messages")
+  ("SEIKneeFunctionOutputDispLuminance",              m_kneeFunctionInformationSEI.m_outputDispLuminance,          800,            "Specifies the expected display brightness for the output picture of Knee function SEI messages")
+  ("SEIKneeFunctionNumKneePointsMinus1",              cfg_kneeSEINumKneePointsMinus1,           2,                                 "Specifies the number of knee points - 1")
+  ("SEIKneeFunctionInputKneePointValue",              cfg_kneeSEIInputKneePointValue,           cfg_kneeSEIInputKneePointValue,    "Array of input knee point")
+  ("SEIKneeFunctionOutputKneePointValue",             cfg_kneeSEIOutputKneePointValue,          cfg_kneeSEIOutputKneePointValue,   "Array of output knee point")
   ("SEIMasteringDisplayColourVolume",                 m_masteringDisplay.colourVolumeSEIEnabled,         false, "Control generation of mastering display colour volume SEI messages")
   ("SEIMasteringDisplayMaxLuminance",                 m_masteringDisplay.maxLuminance,                  10000u, "Specifies the mastering display maximum luminance value in units of 1/10000 candela per square metre (32-bit code value)")
   ("SEIMasteringDisplayMinLuminance",                 m_masteringDisplay.minLuminance,                      0u, "Specifies the mastering display minimum luminance value in units of 1/10000 candela per square metre (32-bit code value)")
   ("SEIMasteringDisplayPrimaries",                    cfg_DisplayPrimariesCode,       cfg_DisplayPrimariesCode, "Mastering display primaries for all three colour planes in CIE xy coordinates in increments of 1/50000 (results in the ranges 0 to 50000 inclusive)")
   ("SEIMasteringDisplayWhitePoint",                   cfg_DisplayWhitePointCode,     cfg_DisplayWhitePointCode, "Mastering display white point CIE xy coordinates in normalised increments of 1/50000 (e.g. 0.333 = 16667)")
-  ("SEIPreferredTransferCharacterisics",              m_preferredTransferCharacteristics,                   -1, "Value for the preferred_transfer_characteristics field of the Alternative transfer characteristics SEI which will override the corresponding entry in the VUI. If negative, do not produce the respective SEI message")
+  ("SEIPreferredTransferCharacteristics",             m_preferredTransferCharacteristics,                   -1, "Value for the preferred_transfer_characteristics field of the Alternative transfer characteristics SEI which will override the corresponding entry in the VUI. If negative, do not produce the respective SEI message")
   ("SEIGreenMetadataType",                            m_greenMetadataType,                   0u, "Value for the green_metadata_type specifies the type of metadata that is present in the SEI message. If green_metadata_type is 1, then metadata enabling quality recovery after low-power encoding is present")
   ("SEIXSDMetricType",                                m_xsdMetricType,                      0u, "Value for the xsd_metric_type indicates the type of the objective quality metric. PSNR is the only type currently supported")
+  ("SEICCVEnabled",                                   m_ccvSEIEnabled,                       false,                                    "Enables the Content Colour Volume SEI message")
+  ("SEICCVCancelFlag",                                m_ccvSEICancelFlag,                    true,                                     "Specifies the persistence of any previous content colour volume SEI message in output order.")
+  ("SEICCVPersistenceFlag",                           m_ccvSEIPersistenceFlag,               false,                                    "Specifies the persistence of the content colour volume SEI message for the current layer.")
+  ("SEICCVPrimariesPresent",                          m_ccvSEIPrimariesPresentFlag,          true,                                    "Specifies whether the CCV primaries are present in the content colour volume SEI message.")
+  ("m_ccvSEIPrimariesX0",                             m_ccvSEIPrimariesX[0],                0.300, "Specifies the x coordinate of the first (green) primary for the content colour volume SEI message")
+  ("m_ccvSEIPrimariesY0",                             m_ccvSEIPrimariesY[0],                0.600, "Specifies the y coordinate of the first (green) primary for the content colour volume SEI message")
+  ("m_ccvSEIPrimariesX1",                             m_ccvSEIPrimariesX[1],                0.150, "Specifies the x coordinate of the second (blue) primary for the content colour volume SEI message")
+  ("m_ccvSEIPrimariesY1",                             m_ccvSEIPrimariesY[1],                0.060, "Specifies the y coordinate of the second (blue) primary for the content colour volume SEI message")
+  ("m_ccvSEIPrimariesX2",                             m_ccvSEIPrimariesX[2],                0.640, "Specifies the x coordinate of the third (red) primary for the content colour volume SEI message")
+  ("m_ccvSEIPrimariesY2",                             m_ccvSEIPrimariesY[2],                0.330, "Specifies the y coordinate of the third (red) primary for the content colour volume SEI message")
+  ("SEICCVMinLuminanceValuePresent",                  m_ccvSEIMinLuminanceValuePresentFlag,  true,                                    "Specifies whether the CCV min luminance value is present in the content colour volume SEI message")
+  ("SEICCVMinLuminanceValue",                         m_ccvSEIMinLuminanceValue,              0.0, "specifies the CCV min luminance value  in the content colour volume SEI message")
+  ("SEICCVMaxLuminanceValuePresent",                  m_ccvSEIMaxLuminanceValuePresentFlag,  true,                                    "Specifies whether the CCV max luminance value is present in the content colour volume SEI message")
+  ("SEICCVMaxLuminanceValue",                         m_ccvSEIMaxLuminanceValue,              0.1, "specifies the CCV max luminance value  in the content colour volume SEI message")
+  ("SEICCVAvgLuminanceValuePresent",                  m_ccvSEIAvgLuminanceValuePresentFlag,  true,                                    "Specifies whether the CCV avg luminance value is present in the content colour volume SEI message")
+  ("SEICCVAvgLuminanceValue",                         m_ccvSEIAvgLuminanceValue,              0.01, "specifies the CCV avg luminance value  in the content colour volume SEI message")
+#if NNPFA_SEI_MESSAGE
+  ("SEINNPostFilterActivationEnabled",                m_nnPostFilterSEIActivationEnabled,         false, "Control use of the Neural Network Post Filter SEI on current picture")
+  ("SEINNPostFilterActivationUseSuffixSEI",           m_nnPostFilterSEIActivationUseSuffixSEI,    false, "Code NNPFA SEI either as suffix (1) or prefix (0) SEI message")
+  ("SEINNPostFilterActivationTargetId",               m_nnPostFilterSEIActivationTargetId,           0u, "Target id of the Neural Network Post Filter on current picture")
+  ("SEINNPostFilterActivationCancelFlag",             m_nnPostFilterSEIActivationCancelFlag,      false, "Control use of the target neural network post filter established by any previous NNPFA SEI message")
+  ("SEINNPostFilterActivationTargetBaseFlag",         m_nnPostFilterSEIActivationTargetBaseFlag,  false, "Specifies that the target NNPF is the base NNPF")
+  ("SEINNPostFilterActivationNoPrevCLVSFlag",         m_nnPostFilterSEIActivationNoPrevCLVSFlag,  false, "Specifies whether input pictures cannot (1) or can (0) originate from a previous CLVS")
+  ("SEINNPostFilterActivationNoFollCLVSFlag",         m_nnPostFilterSEIActivationNoFollCLVSFlag,  false, "Specifies whether input pictures cannot (1) or can (0) originate from a following CLVS")
+  ("SEINNPostFilterActivationPersistenceFlag",        m_nnPostFilterSEIActivationPersistenceFlag, false, "Specifies the persistence of the target neural-network post-processing filter for the current layer")
+  ("SEINNPostFilterActivationOutputFlag",             cfg_nnPostFilterSEIActivationOutputFlagList, cfg_nnPostFilterSEIActivationOutputFlagList, "Specifies a list indicating whether the NNPF-generated picture that corresponds to the input picture having index InpIdx[i] is output or not")
+  ("SEINNPostFilterActivationPromptUpdateFlag",       m_nnPostFilterSEIActivationPromptUpdateFlag, false, "Specifies the value of nnpfa_prompt_update_flag in the Neural Network Post Filter Activation SEI message")
+  ("SEINNPostFilterActivationPrompt",                 m_nnPostFilterSEIActivationPrompt, std::string(""), "Specifies the text string prompt used as input for the target NNPF")
+  ("SEINNPostFilterActivationSeedUpdateFlag",         m_nnPostFilterSEIActivationSeedUpdateFlag,  false, "Specifies the value of nnpfa_seed_update_flag in the Neural Network Post Filter Activation SEI message")
+  ("SEINNPostFilterActivationSeed",                   m_nnPostFilterSEIActivationSeed,               0u, "Specifies the seed value used as input for the target NNPF")
+#endif
+#if JVET_AE0101_PHASE_INDICATION_SEI_MESSAGE
+  ("SEIPhaseIndicationFullResolution", m_phaseIndicationSEIEnabledFullResolution, false, "Control generation of Phase Indication SEI messages for full resolution pictures.")
+  ("SEIPIHorPhaseNumFullResolution", m_piHorPhaseNumFullResolution, 0, "Specifies the Horizontal Phase Numerator of Phase Indication SEI messages for full resolution pictures.")
+  ("SEIPIHorPhaseDenMinus1FullResolution", m_piHorPhaseDenMinus1FullResolution, 0, "Specifies the Horizontal Phase Denominator minus 1 of Phase Indication SEI messages for full resolution pictures.")
+  ("SEIPIVerPhaseNumFullResolution", m_piVerPhaseNumFullResolution, 0, "Specifies the Vertical Phase Numerator of Phase Indication SEI messages for full resolution pictures.")
+  ("SEIPIVerPhaseDenMinus1FullResolution", m_piVerPhaseDenMinus1FullResolution, 0, "Specifies the Vertical Phase Denominator minus 1 of Phase Indication SEI messages for full resolution pictures.")
+#endif
+#if JVET_AL0061_ENCODER_OPTIMIZATION_INFORMATION_SEI
+  ("SEIEOIEnabled", m_eoiSEIEnabled, false, "Control use of the Encoder Optimization Information SEI")
+  ("SEIEOICancelFlag", m_eoiSEICancelFlag, false, "Specifies that the persistence of the previous applied optimization")
+  ("SEIEOIPersistenceFlag", m_eoiSEIPersistenceFlag, false, "Specifies the persistence of the optimization the current layer")
+  ("SEIEOIForHumanViewingIdc", m_eoiSEIForHumanViewingIdc, 0u, "Indicates the level of optimization for human viewing")
+  ("SEIEOIForMachineAnalysisIdc", m_eoiSEIForMachineAnalysisIdc, 0u, "Indicates the level of optimization for  machine analsysis")
+  ("SEIEOIType", m_eoiSEIType, 0u, "Indicates the types of optimization method")
+  ("SEIEOIObjectBasedIdc", m_eoiSEIObjectBasedIdc, 0u, "Indicates the type of object-based optimization")
+  ("SEIEOIQuantThresholdDelta", m_eoiSEIQuantThresholdDelta, 0u, "Indicates the quantization parameter threshold determining areas classified to be outside the detected objects or to include one or more detected objects (0 = unknown or unspecified)")
+  ("SEIEOIPicQuantObjectFlag", m_eoiSEIPicQuantObjectFlag, false, "Value of 1 indicates that areas with QP >= PicQuant + SEIEOIQuantThresholdDelta represent areas outside the detected objects. Value of 0 indicates that areas with QP <= PicQuant - SEIEOIQuantThresholdDelta represent areas that include objects")
+  ("SEIEOITemporalResamplingTypeFlag", m_eoiSEITemporalResamplingTypeFlag, false, "specifies the type of the temporal resampling optimization.")
+  ("SEIEOINumIntPics", m_eoiSEINumIntPics, 0u, "indicates that the count of pictures that the encoding system excluded or added between each pair of coded pictures in output order within the persistence of this SEI message is constant")
+  ("SEIEOISrcPicFlag", m_eoiSEISrcPicFlag, false, "Value of 1 specifies that the picture in the same access unit that contains the EOI SEI message is a source picture. Value of 0 provides no such indication.that areas with QP >= PicQuant + SEIEOIQuantThresholdDelta represent areas outside the detected objects. Value of 0 indicates that areas with QP <= PicQuant - SEIEOIQuantThresholdDelta represent areas that include objects")
+  ("SEIEOIOrigPicDimensionsFlag", m_eoiSEIOrigPicDimensionsFlag, false, "specifies if original source picture dimensions are present.")
+  ("SEIEOIOrigPicWidth", m_eoiSEIOrigPicWidth, 0u, "indicates the width of the original source picture.")
+  ("SEIEOIOrigPicHeight", m_eoiSEIOrigPicHeight, 0u, "indicates the height of the original source picture.")
+  ("SEIEOISpatialResamplingTypeFlag", m_eoiSEISpatialResamplingTypeFlag, false, "specifies the type of the spatial resampling optimization.")
+  ("SEIEOIPrivacyProtectionTypeIdc", m_eoiSEIPrivacyProtectionTypeIdc, 0u, "indicates the type of privacy protection optimization")
+  ("SEIEOIPrivacyProtectedInfoType", m_eoiSEIPrivacyProtectedInfoType, 0u, "indicates the types of protected information")
+#endif 
+
+
+#if SHUTTER_INTERVAL_SEI_MESSAGE
+  ("SEIShutterIntervalEnabled",                       m_siiSEIEnabled,                           false,                                   "Controls if shutter interval information SEI message is enabled")
+  ("SEISiiTimeScale",                                 m_siiSEITimeScale,                         27000000u,                               "Specifies sii_time_scale")
+  ("SEISiiInputNumUnitsInShutterInterval",            cfg_siiSEIInputNumUnitsInSI,               cfg_siiSEIInputNumUnitsInSI,             "Specifies sub_layer_num_units_in_shutter_interval")
+#endif
+#if JVET_AK2006_SPTI_SEI_MESSAGE
+  ("SEISourcePictureTimingInfo", m_sptiSEIEnabled, false, "Controls if source picture timing information SEI message is enabled")
+  ("SEISPTISourceTimingEqualsOutputTimingFlag", m_sptiSourceTimingEqualsOutputTimingFlag, true, "Indicates the timing of source pictures is the same as the timing of corresponding decoded output pictures")
+  ("SEISPTISourceType", m_sptiSourceType, 0u, "Indicates the timing relationship between source pictures and corresponding decoded output pictures.")
+  ("SEISPTITimeScale", m_sptiTimeScale, 27000000u, "Specifies the number of time units that pass in one second.")
+  ("SEISPTINumUnitsInElementalInterval", m_sptiNumUnitsInElementalInterval, 1080000u, "Specifies the number of time units of a clock operating at the frequency spti_time_scale Hz that corresponds to the indicated elemental source picture interval of consecutive pictures in output order in the CLVS.")
+  ("SEISPTIDirectionFlag", m_sptiDirectionFlag, false, "Indicates the direction of the signalled source picture intervals.")
+#endif
+#if SEI_ENCODER_CONTROL
+// film grain characteristics SEI
+  ("SEIFGCEnabled",                                   m_fgcSEIEnabled,                                   false, "Control generation of the film grain characteristics SEI message")
+  ("SEIFGCCancelFlag",                                m_fgcSEICancelFlag,                                false, "Specifies the persistence of any previous film grain characteristics SEI message in output order.")
+  ("SEIFGCPersistenceFlag",                           m_fgcSEIPersistenceFlag,                           false, "Specifies the persistence of the film grain characteristics SEI message for the current layer.")
+  ("SEIFGCModelID",                                   m_fgcSEIModelID,                                      0u, "Specifies the film grain simulation model. 0: frequency filtering; 1: auto-regression.")
+  ("SEIFGCSepColourDescPresentFlag",                  m_fgcSEISepColourDescPresentFlag,                  false, "Specifies the presense of a distinct colour space description for the film grain charactersitics specified in the SEI message.")
+  ("SEIFGCBlendingModeID",                            m_fgcSEIBlendingModeID,                               0u, "Specifies the blending mode used to blend the simulated film grain with the decoded images. 0: additive; 1: multiplicative.")
+  ("SEIFGCLog2ScaleFactor",                           m_fgcSEILog2ScaleFactor,                              2u, "Specifies a scale factor used in the film grain characterization equations.")
+  ("SEIFGCCompModelPresentComp0",                     m_fgcSEICompModelPresent[0],                       false, "Specifies the presense of film grain modelling on colour component 0.")
+  ("SEIFGCCompModelPresentComp1",                     m_fgcSEICompModelPresent[1],                       false, "Specifies the presense of film grain modelling on colour component 1.")
+  ("SEIFGCCompModelPresentComp2",                     m_fgcSEICompModelPresent[2],                       false, "Specifies the presense of film grain modelling on colour component 2.")
+#if JVET_AL0339_SPATIAL_RESOLUTION_FOR_FGC_SEI
+  ("SEIFGCPicWidthInLumaSamples",                     m_fgcSEIPicWidthInLumaSamples,                        0u, "Specifies the picture width in luma samples at which the film grain synthesis is intended to be applied.")
+  ("SEIFGCPicHeightInLumaSamples",                    m_fgcSEIPicHeightInLumaSamples,                       0u, "Specifies the picture height in luma samples at which the film grain synthesis is intended to be applied.")
+#endif
+#if JVET_X0048_X0103_FILM_GRAIN
+  ("SEIFGCAnalysisEnabled",                           m_fgcSEIAnalysisEnabled,                           false, "Control adaptive film grain parameter estimation - film grain analysis")
+  ("SEIFGCExternalMask",                              m_fgcSEIExternalMask,                       string( "" ), "Read external file with mask for film grain analysis. If empty string, use internally calculated mask.")
+  ("SEIFGCExternalDenoised",                          m_fgcSEIExternalDenoised,                   string( "" ), "Read external file with denoised sequence for film grain analysis. If empty string, use MCTF for denoising.")
+  ("SEIFGCPerPictureSEI",                             m_fgcSEIPerPictureSEI,                             false, "Film Grain SEI is added for each picture as speciffied in RDD5 to ensure bit accurate synthesis in tricky mode")
+  ("SEIFGCNumIntensityIntervalMinus1Comp0", m_fgcSEINumIntensityIntervalMinus1[0], 0u, "Specifies the number of intensity intervals minus1 on colour component 0.")
+  ("SEIFGCNumIntensityIntervalMinus1Comp1", m_fgcSEINumIntensityIntervalMinus1[1], 0u, "Specifies the number of intensity intervals minus1 on colour component 1.")
+  ("SEIFGCNumIntensityIntervalMinus1Comp2", m_fgcSEINumIntensityIntervalMinus1[2], 0u, "Specifies the number of intensity intervals minus1 on colour component 2.")
+  ("SEIFGCNumModelValuesMinus1Comp0", m_fgcSEINumModelValuesMinus1[0], 0u, "Specifies the number of component model values minus1 on colour component 0.")
+  ("SEIFGCNumModelValuesMinus1Comp1", m_fgcSEINumModelValuesMinus1[1], 0u, "Specifies the number of component model values minus1 on colour component 1.")
+  ("SEIFGCNumModelValuesMinus1Comp2", m_fgcSEINumModelValuesMinus1[2], 0u, "Specifies the number of component model values minus1 on colour component 2.")
+  ("SEIFGCIntensityIntervalLowerBoundComp0", cfg_FgcSEIIntensityIntervalLowerBoundComp[0], cfg_FgcSEIIntensityIntervalLowerBoundComp[0], "Specifies the lower bound for the intensity intervals on colour component 0.")
+  ("SEIFGCIntensityIntervalLowerBoundComp1", cfg_FgcSEIIntensityIntervalLowerBoundComp[1], cfg_FgcSEIIntensityIntervalLowerBoundComp[1], "Specifies the lower bound for the intensity intervals on colour component 1.")
+  ("SEIFGCIntensityIntervalLowerBoundComp2", cfg_FgcSEIIntensityIntervalLowerBoundComp[2], cfg_FgcSEIIntensityIntervalLowerBoundComp[2], "Specifies the lower bound for the intensity intervals on colour component 2.")
+  ("SEIFGCIntensityIntervalUpperBoundComp0", cfg_FgcSEIIntensityIntervalUpperBoundComp[0], cfg_FgcSEIIntensityIntervalUpperBoundComp[0], "Specifies the upper bound for the intensity intervals on colour component 0.")
+  ("SEIFGCIntensityIntervalUpperBoundComp1", cfg_FgcSEIIntensityIntervalUpperBoundComp[1], cfg_FgcSEIIntensityIntervalUpperBoundComp[1], "Specifies the upper bound for the intensity intervals on colour component 1.")
+  ("SEIFGCIntensityIntervalUpperBoundComp2", cfg_FgcSEIIntensityIntervalUpperBoundComp[2], cfg_FgcSEIIntensityIntervalUpperBoundComp[2], "Specifies the upper bound for the intensity intervals on colour component 2.")
+  ("SEIFGCCompModelValuesComp0", cfg_FgcSEICompModelValueComp[0], cfg_FgcSEICompModelValueComp[0], "Specifies the component model values on colour component 0.")
+  ("SEIFGCCompModelValuesComp1", cfg_FgcSEICompModelValueComp[1], cfg_FgcSEICompModelValueComp[1], "Specifies the component model values on colour component 1.")
+  ("SEIFGCCompModelValuesComp2", cfg_FgcSEICompModelValueComp[2], cfg_FgcSEICompModelValueComp[2], "Specifies the component model values on colour component 2.")
+#endif
+// content light level SEI
+  ("SEICLLEnabled",                                   m_cllSEIEnabled,                                   false, "Control generation of the content light level SEI message")
+  ("SEICLLMaxContentLightLevel",                      m_cllSEIMaxContentLevel,                              0u, "When not equal to 0, specifies an upper bound on the maximum light level among all individual samples in a 4:4:4 representation "
+                                                                                                                "of red, green, and blue colour primary intensities in the linear light domain for the pictures of the CLVS, "
+                                                                                                                "in units of candelas per square metre.When equal to 0, no such upper bound is indicated.")
+  ("SEICLLMaxPicAvgLightLevel",                       m_cllSEIMaxPicAvgLevel,                               0u, "When not equal to 0, specifies an upper bound on the maximum average light level among the samples in a 4:4:4 representation "
+                                                                                                                "of red, green, and blue colour primary intensities in the linear light domain for any individual picture of the CLVS, "
+                                                                                                                "in units of candelas per square metre.When equal to 0, no such upper bound is indicated.")
+// ambient viewing environment SEI
+  ("SEIAVEEnabled",                                   m_aveSEIEnabled,                                   false, "Control generation of the ambient viewing environment SEI message")
+  ("SEIAVEAmbientIlluminance",                        m_aveSEIAmbientIlluminance,                      100000u, "Specifies the environmental illluminance of the ambient viewing environment in units of 1/10000 lux for the ambient viewing enviornment SEI message")
+  ("SEIAVEAmbientLightX",                             m_aveSEIAmbientLightX,                            15635u, "Specifies the normalized x chromaticity coordinate of the environmental ambient light in the nominal viewing enviornment according to the CIE 1931 defination in units of 1/50000 lux for the ambient viewing enviornment SEI message")
+  ("SEIAVEAmbientLightY",                             m_aveSEIAmbientLightY,                            16450u, "Specifies the normalized y chromaticity coordinate of the environmental ambient light in the nominal viewing enviornment according to the CIE 1931 defination in units of 1/50000 lux for the ambient viewing enviornment SEI message")
+#endif
+  ("SEIErpEnabled",                                   m_erpSEIEnabled,                                   false, "Control generation of equirectangular projection SEI messages")
+  ("SEIErpCancelFlag",                                m_erpSEICancelFlag,                                 true, "Indicate that equirectangular projection SEI message cancels the persistence or follows")
+  ("SEIErpPersistenceFlag",                           m_erpSEIPersistenceFlag,                           false, "Specifies the persistence of the equirectangular projection SEI messages")
+  ("SEIErpGuardBandFlag",                             m_erpSEIGuardBandFlag,                             false, "Indicate the existence of guard band areas in the constituent picture")
+  ("SEIErpGuardBandType",                             m_erpSEIGuardBandType,                                0u, "Indicate the type of the guard band")
+  ("SEIErpLeftGuardBandWidth",                        m_erpSEILeftGuardBandWidth,                           0u, "Indicate the width of the guard band on the left side of the constituent picture")
+  ("SEIErpRightGuardBandWidth",                       m_erpSEIRightGuardBandWidth,                          0u, "Indicate the width of the guard band on the right side of the constituent picture")
+  ("SEISphereRotationEnabled",                        m_sphereRotationSEIEnabled,                        false, "Control generation of sphere rotation SEI messages")
+  ("SEISphereRotationCancelFlag",                     m_sphereRotationSEICancelFlag,                      true, "Indicate that sphere rotation SEI message cancels the persistence or follows")
+  ("SEISphereRotationPersistenceFlag",                m_sphereRotationSEIPersistenceFlag,                false, "Specifies the persistence of the sphere rotation SEI messages")
+  ("SEISphereRotationYaw",                            m_sphereRotationSEIYaw,                                0, "Specifies the value of the yaw rotation angle")
+  ("SEISphereRotationPitch",                          m_sphereRotationSEIPitch,                              0, "Specifies the value of the pitch rotation angle")
+  ("SEISphereRotationRoll",                           m_sphereRotationSEIRoll,                               0, "Specifies the value of the roll rotation angle")
+  ("SEIOmniViewportEnabled",                          m_omniViewportSEIEnabled,                          false, "Control generation of omni viewport SEI messages")
+  ("SEIOmniViewportId",                               m_omniViewportSEIId,                                  0u, "An identifying number that may be used to identify the purpose of the one or more recommended viewport regions")
+  ("SEIOmniViewportCancelFlag",                       m_omniViewportSEICancelFlag,                        true, "Indicate that omni viewport SEI message cancels the persistence or follows")
+  ("SEIOmniViewportPersistenceFlag",                  m_omniViewportSEIPersistenceFlag,                  false, "Specifies the persistence of the omni viewport SEI messages")
+  ("SEIOmniViewportCntMinus1",                        m_omniViewportSEICntMinus1,                           0u, "specifies the number of recommended viewport regions minus 1")
+  ("SEIOmniViewportAzimuthCentre",                    cfg_omniViewportSEIAzimuthCentre,     cfg_omniViewportSEIAzimuthCentre,     "Indicate the centre of the i-th recommended viewport region")
+  ("SEIOmniViewportElevationCentre",                  cfg_omniViewportSEIElevationCentre,   cfg_omniViewportSEIElevationCentre,   "Indicate the centre of the i-th recommended viewport region")
+  ("SEIOmniViewportTiltCentre",                       cfg_omniViewportSEITiltCentre,        cfg_omniViewportSEITiltCentre,        "Indicates the tilt angle of the i-th recommended viewport region")
+  ("SEIOmniViewportHorRange",                         cfg_omniViewportSEIHorRange,          cfg_omniViewportSEIHorRange,          "Indicates the azimuth range of the i-th recommended viewport region")
+  ("SEIOmniViewportVerRange",                         cfg_omniViewportSEIVerRange,          cfg_omniViewportSEIVerRange,          "Indicates the elevation range of the i-th recommended viewport region")
+  ("SEICmpEnabled",                                   m_cmpSEIEnabled,                          false,                                    "Controls generation of cubemap projection SEI message")
+  ("SEICmpCancelFlag",                                m_cmpSEICmpCancelFlag,                    true,                                     "Specifies the persistence of any previous cubemap projection SEI message in output order.")
+  ("SEICmpPersistenceFlag",                           m_cmpSEICmpPersistenceFlag,               false,                                    "Specifies the persistence of the cubemap projection SEI message for the current layer.")
+  ("SEIRwpEnabled",                                   m_rwpSEIEnabled,                          false,                                    "Controls if region-wise packing SEI message enabled")
+  ("SEIRwpCancelFlag",                                m_rwpSEIRwpCancelFlag,                    true,                                    "Specifies the persistence of any previous region-wise packing SEI message in output order.")
+  ("SEIRwpPersistenceFlag",                           m_rwpSEIRwpPersistenceFlag,               false,                                    "Specifies the persistence of the region-wise packing SEI message for the current layer.")
+  ("SEIRwpConstituentPictureMatchingFlag",            m_rwpSEIConstituentPictureMatchingFlag,   false,                                    "Specifies the information in the SEI message apply individually to each constituent picture or to the projected picture.")
+  ("SEIRwpNumPackedRegions",                          m_rwpSEINumPackedRegions,                 0,                                        "specifies the number of packed regions when constituent picture matching flag is equal to 0.")
+  ("SEIRwpProjPictureWidth",                          m_rwpSEIProjPictureWidth,                 0,                                        "Specifies the width of the projected picture.")
+  ("SEIRwpProjPictureHeight",                         m_rwpSEIProjPictureHeight,                0,                                        "Specifies the height of the projected picture.")
+  ("SEIRwpPackedPictureWidth",                        m_rwpSEIPackedPictureWidth,               0,                                        "specifies the width of the packed picture.")
+  ("SEIRwpPackedPictureHeight",                       m_rwpSEIPackedPictureHeight,              0,                                        "Specifies the height of the packed picture.")
+  ("SEIRwpTransformType",                             cfg_rwpSEIRwpTransformType,               cfg_rwpSEIRwpTransformType,               "specifies the rotation and mirroring to be applied to the i-th packed region.")
+  ("SEIRwpGuardBandFlag",                             cfg_rwpSEIRwpGuardBandFlag,               cfg_rwpSEIRwpGuardBandFlag,               "specifies the existence of guard band in the i-th packed region.")
+  ("SEIRwpProjRegionWidth",                           cfg_rwpSEIProjRegionWidth,                cfg_rwpSEIProjRegionWidth,                "specifies the width of the i-th projected region.")
+  ("SEIRwpProjRegionHeight",                          cfg_rwpSEIProjRegionHeight,               cfg_rwpSEIProjRegionHeight,               "specifies the height of the i-th projected region.")
+  ("SEIRwpProjRegionTop",                             cfg_rwpSEIRwpSEIProjRegionTop,            cfg_rwpSEIRwpSEIProjRegionTop,            "specifies the top sample row of the i-th projected region.")
+  ("SEIRwpProjRegionLeft",                            cfg_rwpSEIProjRegionLeft,                 cfg_rwpSEIProjRegionLeft,                 "specifies the left-most sample column of the i-th projected region.")
+  ("SEIRwpPackedRegionWidth",                         cfg_rwpSEIPackedRegionWidth,              cfg_rwpSEIPackedRegionWidth,              "specifies the width of the i-th packed region.")
+  ("SEIRwpPackedRegionHeight",                        cfg_rwpSEIPackedRegionHeight,             cfg_rwpSEIPackedRegionHeight,             "specifies the height of the i-th packed region.")
+  ("SEIRwpPackedRegionTop",                           cfg_rwpSEIPackedRegionTop,                cfg_rwpSEIPackedRegionTop,                "specifies the top luma sample row of the i-th packed region.")
+  ("SEIRwpPackedRegionLeft",                          cfg_rwpSEIPackedRegionLeft,               cfg_rwpSEIPackedRegionLeft,               "specifies the left-most luma sample column of the i-th packed region.")
+  ("SEIRwpLeftGuardBandWidth",                        cfg_rwpSEIRwpLeftGuardBandWidth,          cfg_rwpSEIRwpLeftGuardBandWidth,          "specifies the width of the guard band on the left side of the i-th packed region.")
+  ("SEIRwpRightGuardBandWidth",                       cfg_rwpSEIRwpRightGuardBandWidth,         cfg_rwpSEIRwpRightGuardBandWidth,         "specifies the width of the guard band on the right side of the i-th packed region.")
+  ("SEIRwpTopGuardBandHeight",                        cfg_rwpSEIRwpTopGuardBandHeight,          cfg_rwpSEIRwpTopGuardBandHeight,          "specifies the height of the guard band above the i-th packed region.")
+  ("SEIRwpBottomGuardBandHeight",                     cfg_rwpSEIRwpBottomGuardBandHeight,       cfg_rwpSEIRwpBottomGuardBandHeight,       "specifies the height of the guard band below the i-th packed region.")
+  ("SEIRwpGuardBandNotUsedForPredFlag",               cfg_rwpSEIRwpGuardBandNotUsedForPredFlag, cfg_rwpSEIRwpGuardBandNotUsedForPredFlag, "Specifies if the guard bands is used in the inter prediction process.")
+  ("SEIRwpGuardBandType",                             cfg_rwpSEIRwpGuardBandType,               cfg_rwpSEIRwpGuardBandType,               "Specifies the type of the guard bands for the i-th packed region.")
+  ("SEIFviEnabled",                                   m_fisheyeVIdeoInfoSEIEnabled,             false,                                   "Controls if fisheye video information SEI message enabled")
+  ("SEIFviCancelFlag",                                m_fisheyeVideoInfoSEI.m_fisheyeCancelFlag,                true,                    "Specifies the persistence of any previous fisheye video information SEI message in output order.")
+  ("SEIFviPersistenceFlag",                           m_fisheyeVideoInfoSEI.m_fisheyePersistenceFlag,           false,                   "Specifies the persistence of the fisheye video information SEI message for the current layer.")
+  ("SEIFviViewDimensionIdc",                          m_fisheyeVideoInfoSEI.m_fisheyeViewDimensionIdc,          0u,                      "Specifies the alignment and viewing direction of a fisheye lens")
+  ("SEIFviNumActiveAreasMinus1",                      cfg_fviSEIFisheyeNumActiveAreasMinus1,    0u,                                      "Specifies the number of active areas in the coded picture minus 1")
+  ("SEIFviCircularRegionCentreX",                     cfg_fviSEIFisheyeCircularRegionCentreX,   cfg_fviSEIFisheyeCircularRegionCentreX,  "Specifies the horizontal coordinates of the centre of the circular region that contains the i-th active area in the coded picture")
+  ("SEIFviCircularRegionCentreY",                     cfg_fviSEIFisheyeCircularRegionCentreY,   cfg_fviSEIFisheyeCircularRegionCentreY,  "Specifies the vertical coordinates of the centre of the circular region that contains the i-th active area in the coded picture")
+  ("SEIFviRectRegionTop",                             cfg_fviSEIFisheyeRectRegionTop,           cfg_fviSEIFisheyeRectRegionTop,          "Specifies the vertical coordinates of the top-left corner of the i-th rectangular region that contains the i-th active area")
+  ("SEIFviRectRegionLeft",                            cfg_fviSEIFisheyeRectRegionLeft,          cfg_fviSEIFisheyeRectRegionLeft,         "Specifies the horizontal coordinates of the top-left corner of the i-th rectangular region that contains the i-th active area")
+  ("SEIFviRectRegionWidth",                           cfg_fviSEIFisheyeRectRegionWidth,         cfg_fviSEIFisheyeRectRegionWidth,        "Specifies the width of the i-th rectangular region that contains the i-th active area")
+  ("SEIFviRectRegionHeight",                          cfg_fviSEIFisheyeRectRegionHeight,        cfg_fviSEIFisheyeRectRegionHeight,       "Specifies the height of the i-th rectangular region that contains the i-th active area")
+  ("SEIFviCircularRegionRadius",                      cfg_fviSEIFisheyeCircularRegionRadius,    cfg_fviSEIFisheyeCircularRegionRadius,   "Specifies the radius of the circular region that contains the i-th active area that is defined as a length from the centre of the circular region to the outermost pixel boundary of the circular region, that corresponds to the maximum field of view of the i-th fisheye lens")
+  ("SEIFviSceneRadius",                               cfg_fviSEIFisheyeSceneRadius,             cfg_fviSEIFisheyeSceneRadius,            "Specifies the radius of a circular region within the i-th active area where the obstruction is not included in the region")
+  ("SEIFviCameraCentreAzimuth",                       cfg_fviSEIFisheyeCameraCentreAzimuth,     cfg_fviSEIFisheyeCameraCentreAzimuth,    "Indicates the spherical coordinates that correspond to the centre of the circular region that contains the i-th active area")
+  ("SEIFviCameraCentreElevation",                     cfg_fviSEIFisheyeCameraCentreElevation,   cfg_fviSEIFisheyeCameraCentreElevation,  "Indicates the spherical coordinates that correspond to the centre of the circular region that contains the i-th active area")
+  ("SEIFviCameraCentreTilt",                          cfg_fviSEIFisheyeCameraCentreTilt,        cfg_fviSEIFisheyeCameraCentreTilt,       "Indicates the spherical coordinates that correspond to the centre of the circular region that contains the i-th active area")
+  ("SEIFviCameraCentreOffsetX",                       cfg_fviSEIFisheyeCameraCentreOffsetX,     cfg_fviSEIFisheyeCameraCentreOffsetX,    "Indicates the XYZ offset values of the focal centre of the fisheye camera lens corresponding to the i-th active area from the focal centre origin of the overall fisheye camera configuration.")
+  ("SEIFviCameraCentreOffsetY",                       cfg_fviSEIFisheyeCameraCentreOffsetY,     cfg_fviSEIFisheyeCameraCentreOffsetY,    "Indicates the XYZ offset values of the focal centre of the fisheye camera lens corresponding to the i-th active area from the focal centre origin of the overall fisheye camera configuration.")
+  ("SEIFviCameraCenterOffsetZ",                       cfg_fviSEIFisheyeCameraCentreOffsetZ,     cfg_fviSEIFisheyeCameraCentreOffsetZ,    "Indicates the XYZ offset values of the focal centre of the fisheye camera lens corresponding to the i-th active area from the focal centre origin of the overall fisheye camera configuration.")
+  ("SEIFviFieldOfView",                               cfg_fviSEIFisheyeFieldOfView,             cfg_fviSEIFisheyeFieldOfView,            "Specifies the field of view of the lens that corresponds to the i-th active area")
+  ("SEIFviNumPolynomialCoeffs",                       cfg_fviSEIFisheyeNumPolynomialCoeffs,     cfg_fviSEIFisheyeNumPolynomialCoeffs,    "Specifies the number of polynomial coefficients for the circular region")
+  ("SEIFviPolynomialCoeff",                           cfg_fviSEIFisheyePolynomialCoeff,         cfg_fviSEIFisheyePolynomialCoeff,        "Specifies the j-th polynomial coefficient value of the curve function that maps the normalized distance of a luma sample from the centre of the circular region corresponding to the i-th active area to the angular value of a sphere coordinate from the normal vector of a nominal imaging plane that passes through the centre of the sphere coordinate system for the i-th active region.")
+  ("SEIRegionalNestingFileRoot,-rns",                 m_regionalNestingSEIFileRoot,                    string(""), "Regional nesting SEI parameters root file name (wo num ext); only the file name base is to be added. Underscore and POC would be automatically addded to . E.g. \"-rns rns\" will search for files rns_0.txt, rns_1.txt, ...")
+  ("SEIAnnotatedRegionsFileRoot,-ar",                 m_arSEIFileRoot,                                 string(""), "Annotated region SEI parameters root file name (wo num ext); only the file name base is to be added. Underscore and POC would be automatically addded to . E.g. \"-ar ar\" will search for files ar_0.txt, ar_1.txt, ...")
+#if JCTVC_AD0021_SEI_MANIFEST
+  ("SEISEIManifestEnabled",                           m_SEIManifestSEIEnabled,                  false,                                   "Controls if SEI Manifest SEI messages enabled")
+#endif
+#if JCTVC_AD0021_SEI_PREFIX_INDICATION
+  ("SEISEIPrefixIndicationEnabled",                   m_SEIPrefixIndicationSEIEnabled,          false,                                   "Controls if SEI Prefix Indications SEI messages enabled")
+#endif
+#if JVET_AK0107_MODALITY_INFORMATION
+// Modality Information SEI
+  ("SEIModalityInfoEnabled",                          m_miSEIEnabled,                                    false, "Control generation of Modality Information SEI messages")
+  ("SEIMiCancelFlag",                                 m_miCancelFlag,                                    false, "Indicates that Modality Information SEI message cancels the persistence or follows")
+  ("SEIMiPersistenceFlag",                            m_miPersistenceFlag,                                true, "Specifies the persistence of the Modality Information SEI message")
+  ("SEIMiModalityType",                               m_miModalityType,                                      1, "Specifies the type of modality. 0: unspecified; 1: visible picture; 2: Infrared Picture; 3: Ultraviolet Picture")
+  ("SEIMiSpectrumRangePresentFlag",                   m_miSpectrumRangePresentFlag,                      false, "Specifies the presence of the spectrum band of the optical radiation wavelength")
+  ("SEIMiMinWavelengthMantissa",                      m_miMinWavelengthMantissa,                             0, "Specifies the mantissa part of the minimum wavelength indicating the spectral band of optical radiation")
+  ("SEIMiMinWavelengthExponentPlus15",                m_miMinWavelengthExponentPlus15,                       0, "Specifies the exponent part of the minimum wavelength indicating the spectral band of optical radiation")
+  ("SEIMiMaxWavelengthMantissa",                      m_miMaxWavelengthMantissa,                             0, "Specifies the mantissa part of the maximum wavelength indicating the spectral band of optical radiation")
+  ("SEIMiMaxWavelengthExponentPlus15",                m_miMaxWavelengthExponentPlus15,                       0, "Specifies the exponent part of the maximum wavelength indicating the spectral band of optical radiation")
+#endif
+#if JVET_AK0194_DSC_SEI
+  ("SEIDSCEnabled", m_cfgDigitallySignedContentSEI.enabled, false, "Control generation of Digitally Signed Content SEI messages")
+  ("SEIDSCId", m_cfgDigitallySignedContentSEI.dscId, 0, "Identifying number of Digitally Signed Content SEI messages")
+  ("SEIDSCHashMethod", m_cfgDigitallySignedContentSEI.hashMethod, 0 , "Hash type to be used:\n"
+                                                                       "\t0: SHA-1 (default)\n"
+                                                                       "\t1: SHA-224\n"
+                                                                       "\t2: SHA-256\n"
+                                                                       "\t3: SHA-384\n"
+                                                                       "\t4: SHA-512\n"
+                                                                       "\t5: SHA-512/224\n"
+                                                                       "\t6: SHA-512/256")
+  ("SEIDSCSigningKeyFile", m_cfgDigitallySignedContentSEI.privateKeyFile, std::string("") , "(Private) signing key location for Digitally Signed Content SEI messages")
+  ("SEIDSCVerificationKeyURI", m_cfgDigitallySignedContentSEI.publicKeyUri, std::string("") , "(Public) verification key URI for Digitally Signed Content SEI messages")
+  ("SEIDSCImplicitAssociationModeFlag", m_cfgDigitallySignedContentSEI.implicitAssociationModeFlag, false , "Used to infer the verification substream ID")
+  ("SEIDSCKeyIDEnabled", m_cfgDigitallySignedContentSEI.keyIdEnabled, false, "Enable using a key ID addition to URI of public key of Digitally Signed Content SEI messages")
+  ("SEIDSCKeyID", m_cfgDigitallySignedContentSEI.keyId, 0 , "Public Key ID for Digitally Signed Content SEI messages (if enabled)")
+  ("SEIDSCSignAURSEI", m_cfgDigitallySignedContentSEI.signAURSEI, false, "Enable signing of AUR SEI for Digitally Signed Content SEI messages")
+  ("SEIDSCSignGFVSEI", m_cfgDigitallySignedContentSEI.signGFVSEI, false, "Enable signing of GFV SEI for Digitally Signed Content SEI messages")
+  ("SEIDSCSignGFVESEI", m_cfgDigitallySignedContentSEI.signGFVESEI, false, "Enable signing of GFVE SEI for Digitally Signed Content SEI messages")
+  ("SEIDSCSignNNPFCSEI", m_cfgDigitallySignedContentSEI.signNNPFCSEI, false, "Enable signing of NNPFC SEI for Digitally Signed Content SEI messages")
+  ("SEIDSCSignNNPFASEI", m_cfgDigitallySignedContentSEI.signNNPFASEI, false, "Enable signing of NNPFA SEI for Digitally Signed Content SEI messages")
+#endif
+#if JVET_AJ0207_GFV
+  ("SEIGenerativeFaceVideoEnabled", m_generativeFaceVideoEnabled, false, "Control use of the Generative Face Video SEI on current picture")
+  ("SEIGenerativeFaceVideoNumber", m_generativeFaceVideoSEINumber, 0u, "Total number of Generative Face Video SEI to be carried")
+  ("SEIGenerativeFaceVideoBasePicFlag", m_generativeFaceVideoSEIBasePicFlag, false, "Specifies whether to indicates the current decoded output picture corresponds to a base picture")
+  ("SEIGenerativeFaceVideoNNPresentFlag", m_generativeFaceVideoSEINNPresentFlag, false, "indicates a neural network that may be used as a TranslatorNN( ) ")
+  ("SEIGenerativeFaceVideoNNModeIdc", m_generativeFaceVideoSEINNModeIdc, 0u, "specify a neural network that may be used as a TranslatorNN( )")
+  ("SEIGenerativeFaceVideoNNTagURI", m_generativeFaceVideoSEINNTagURI, std::string(""), "specify path to gfv_uri_tag")
+  ("SEIGenerativeFaceVideoNNURI", m_generativeFaceVideoSEINNURI, std::string(""), "specify path to gfv_uri")
+  ("SEIGenerativeFaceVideoId", cfg_generativeFaceVideoSEIId, cfg_generativeFaceVideoSEIId, "Target id of Generative Face Video SEI on current picture")
+  ("SEIGenerativeFaceVideoCnt", cfg_generativeFaceVideoSEICnt, cfg_generativeFaceVideoSEICnt, "Target cnt of Generative Face Video SEI on current picture")
+  ("SEIGenerativeFaceVideoCoordinatePresentFlag", cfg_generativeFaceVideoSEICoordinatePresentFlag, cfg_generativeFaceVideoSEICoordinatePresentFlag, "Specifies whether to carry coorinate parameter")
+  ("SEIGenerativeFaceVideoLowConfidenceFaceParameterFlag", cfg_generativeFaceVideoSEILowConfidenceFaceParameterFlag, cfg_generativeFaceVideoSEILowConfidenceFaceParameterFlag, "Indicates the facial parameters have been derived with low confidence ")
+  ("SEIGenerativeFaceVideoDrivePicFusionFlag", cfg_generativeFaceVideoSEIDrivePicFusionFlag, cfg_generativeFaceVideoSEIDrivePicFusionFlag, "Specifies whether to use DrivePicFusion function")
+  ("SEIGenerativeFaceVideoCoordinateQuantizationFactor", cfg_generativeFaceVideoSEICoordinateQuantizationFactor, cfg_generativeFaceVideoSEICoordinateQuantizationFactor, "Specifies the quantization factor to process the facial coordinate paramters")
+  ("SEIGenerativeFaceVideoCoordinatePredFlag", cfg_generativeFaceVideoSEICoordinatePredFlag, cfg_generativeFaceVideoSEICoordinatePredFlag, "Specifies whether to use the difference operation to process data")
+  ("SEIGenerativeFaceVideo3DCoordinateFlag", cfg_generativeFaceVideoSEI3DCoordinateFlag, cfg_generativeFaceVideoSEI3DCoordinateFlag, "Specifies whether to carry 3D coordinate-type paramters")
+  ("SEIGenerativeFaceVideoCoordinatePointNum", cfg_generativeFaceVideoSEICoordinatePointNum, cfg_generativeFaceVideoSEICoordinatePointNum, "the number of facial coordinate parameter set")
+  ("SEIGenerativeFaceVideoXCoordinate", cfg_generativeFaceVideoSEICoordinateXTesonr, cfg_generativeFaceVideoSEICoordinateXTesonr, "the x-axis value for i_th coordinate")
+  ("SEIGenerativeFaceVideoYCoordinate", cfg_generativeFaceVideoSEICoordinateYTesonr, cfg_generativeFaceVideoSEICoordinateYTesonr, "the y-axis value for i_th coordinate")
+  ("SEIGenerativeFaceVideoZCoordinateMaxValue", cfg_generativeFaceVideoSEIZCoordinateMaxValue, cfg_generativeFaceVideoSEIZCoordinateMaxValue, "the max value of z-axis coordinate parameter")
+  ("SEIGenerativeFaceVideoZCoordinate", cfg_generativeFaceVideoSEICoordinateZTesonr, cfg_generativeFaceVideoSEICoordinateZTesonr, "the z-axis value for i_th coordinate")
+  ("SEIGenerativeFaceVideoMatrixPresentFlag", cfg_generativeFaceVideoSEIMatrixPresentFlag, cfg_generativeFaceVideoSEIMatrixPresentFlag, "Specifies whether to carry matrix parameter")
+  ("SEIGenerativeFaceVideoMatrixElementPrecisionFactor", cfg_generativeFaceVideoSEIMatrixElementPrecisionFactor, cfg_generativeFaceVideoSEIMatrixElementPrecisionFactor, "Specifies the precision factor to process the facial matrix paramters (decimal part)")
+  ("SEIGenerativeFaceVideoNumMatrixType", cfg_generativeFaceVideoSEINumMatrixType, cfg_generativeFaceVideoSEINumMatrixType, "Specifies the number of used facial matrix type")
+  ("SEIGenerativeFaceVideoMatrixTypeIdx", cfg_generativeFaceVideoSEIMatrixTypeIdx, cfg_generativeFaceVideoSEIMatrixTypeIdx, "an identifying number vector regarding which facial matrix may be used")
+  ("SEIGenerativeFaceVideoMatrix3DSpaceFlag", cfg_generativeFaceVideoSEIMatrix3DSpaceFlag, cfg_generativeFaceVideoSEIMatrix3DSpaceFlag, "an identifying number vector regarding which facial matrix may be in 3d space")
+  ("SEIGenerativeFaceVideoNumMatrices", cfg_generativeFaceVideoSEINumMatrices, cfg_generativeFaceVideoSEINumMatrices, "the number of matrices of the i-th matrix type")
+  ("SEIGenerativeFaceVideoMatrixWidth", cfg_generativeFaceVideoSEIMatrixWidth, cfg_generativeFaceVideoSEIMatrixWidth, "the width of matrices of the i-th matrix type")
+  ("SEIGenerativeFaceVideoMatrixHeight", cfg_generativeFaceVideoSEIMatrixHeight, cfg_generativeFaceVideoSEIMatrixHeight, "the height of matrices of the i-th matrix type")
+  ("SEIGenerativeFaceVideoMatrixElement", cfg_generativeFaceVideoSEIMatrixElement, cfg_generativeFaceVideoSEIMatrixElement, "the value of the matrix element at position (k, l) of the j-th matrix of the i-th matrix type. ")
+  ("SEIGenerativeFaceVideoMatrixPredFlag", cfg_generativeFaceVideoSEIMatrixPredFlag, cfg_generativeFaceVideoSEIMatrixPredFlag, "indicates whether to use difference operation for GFV matrix ")
+  ("SEIGenerativeFaceVideoNumMatricestoNumKpsFlag", cfg_generativeFaceVideoSEINumMatricestoNumKpsFlag, cfg_generativeFaceVideoSEINumMatricestoNumKpsFlag, "indicates whether  the number of matrices of the i-th matrix type is equal to gfv_num_kps_minus1 + 1")
+  ("SEIGenerativeFaceVideoNumMatricesInfo", cfg_generativeFaceVideoSEINumMatricesInfo, cfg_generativeFaceVideoSEINumMatricesInfo, "provides information to derive the number of the matrices of the i-th matrix type.")
+  ("SEIGenerativeFaceVideoPayloadFilename", m_generativeFaceVideoSEIPayloadFilename, std::string(""), "specify path to payloadfile")
+  ("SEIGenerativeFaceVideoChromaKeyInfoPresentFlag", m_generativeFaceVideoSEIChromaKeyInfoPresentFlag, false, "Specifies the syntax elements gfv_chroma_key information")
+  ("SEIGenerativeFaceVideoChromaKeyValuePresentFlag", cfg_generativeFaceVideoSEIChromaKeyValuePresentFlag, cfg_generativeFaceVideoSEIChromaKeyValuePresentFlag, "indicates that the syntax element gfv_chroma_key_value[ c ] is present.")
+  ("SEIGenerativeFaceVideoChromaKeyValue", cfg_generativeFaceVideoSEIChromaKeyValue, cfg_generativeFaceVideoSEIChromaKeyValue, "specifies the chroma key value corresponding to the c-th colour component")
+  ("SEIGenerativeFaceVideoChromaKeyThrPresentFlag", cfg_generativeFaceVideoSEIChromaKeyThrPresentFlag, cfg_generativeFaceVideoSEIChromaKeyThrPresentFlag, "indicates that the syntax element gfv_chroma_thr_value[ i ] is present")
+  ("SEIGenerativeFaceVideoChromaKeyThrValue", cfg_generativeFaceVideoSEIChromaKeyThrValue, cfg_generativeFaceVideoSEIChromaKeyThrValue, "specifies the i-th chroma key threshold value")
+#endif
+#if JVET_AK0239_GEFV
+  ("SEIGenerativeFaceVideoEnhancementEnabled", m_generativeFaceVideoEnhancementEnabled, false, "Control use of the Generative Enhancement Face Video SEI on current picture")
+  ("SEIGenerativeFaceVideoEnhancementNumber", m_generativeFaceVideoEnhancementSEINumber, 0u, "Total number of Generative Enhancement Face Video SEI to be carried")
+  ("SEIGenerativeFaceVideoEnhancementBasePicFlag", m_generativeFaceVideoEnhancementSEIBasePicFlag, false, "Specifies whether to indicates the current decoded output picture corresponds to a base picture")
+  ("SEIGenerativeFaceVideoEnhancementNNPresentFlag", m_generativeFaceVideoEnhancementSEINNPresentFlag, false, "indicates a neural network that may be used as a EnhancerNN( ) ")
+  ("SEIGenerativeFaceVideoEnhancementNNModeIdc", m_generativeFaceVideoEnhancementSEINNModeIdc, 0u, "specify a neural network that may be used as a EnhancerNN( )")
+  ("SEIGenerativeFaceVideoEnhancementNNTagURI", m_generativeFaceVideoEnhancementSEINNTagURI, std::string(""), "specify path to gfv_uri_tag")
+  ("SEIGenerativeFaceVideoEnhancementNNURI", m_generativeFaceVideoEnhancementSEINNURI, std::string(""), "specify path to gfv_uri")
+  ("SEIGenerativeFaceVideoEnhancementId", cfg_generativeFaceVideoEnhancementSEIId, cfg_generativeFaceVideoEnhancementSEIId, "Target id of Generative Enhancement Face Video SEI on current picture")
+  ("SEIGenerativeFaceVideoEnhancementGFVCnt", cfg_generativeFaceVideoEnhancementSEIGFVCnt, cfg_generativeFaceVideoEnhancementSEIGFVCnt, "Target cnt of Generative Enhancement Face Video SEI on current picture")
+  ("SEIGenerativeFaceVideoEnhancementGFVId", cfg_generativeFaceVideoEnhancementSEIGFVId, cfg_generativeFaceVideoEnhancementSEIGFVId, "Target id of Generative Enhancement Face Video SEI on current picture")
+  ("SEIGenerativeFaceVideoEnhancementMatrixPredFlag", cfg_generativeFaceVideoEnhancementSEIMatrixPredFlag, cfg_generativeFaceVideoEnhancementSEIMatrixPredFlag, "indicates whether to use difference operation for GEFV matrix ")
+  ("SEIGenerativeFaceVideoEnhancementMatrixPresentFlag", cfg_generativeFaceVideoEnhancementSEIMatrixPresentFlag, cfg_generativeFaceVideoEnhancementSEIMatrixPresentFlag, "Specifies whether to carry gefv matrix parameter ")
+  ("SEIGenerativeFaceVideoEnhancementMatrixElementPrecisionFactor", cfg_generativeFaceVideoEnhancementSEIMatrixElementPrecisionFactor, cfg_generativeFaceVideoEnhancementSEIMatrixElementPrecisionFactor, "Specifies the precision factor to process the facial matrix paramters (decimal part)")
+  ("SEIGenerativeFaceVideoEnhancementNumMatrices", cfg_generativeFaceVideoEnhancementSEINumMatrices, cfg_generativeFaceVideoEnhancementSEINumMatrices, "the number of matrices of the i-th matrix type")
+  ("SEIGenerativeFaceVideoEnhancementMatrixWidth", cfg_generativeFaceVideoEnhancementSEIMatrixWidth, cfg_generativeFaceVideoEnhancementSEIMatrixWidth, "the width of matrices of the i-th matrix type")
+  ("SEIGenerativeFaceVideoEnhancementMatrixHeight", cfg_generativeFaceVideoEnhancementSEIMatrixHeight, cfg_generativeFaceVideoEnhancementSEIMatrixHeight, "the height of matrices of the i-th matrix type")
+  ("SEIGenerativeFaceVideoEnhancementMatrixElement", cfg_generativeFaceVideoEnhancementSEIMatrixElement, cfg_generativeFaceVideoEnhancementSEIMatrixElement, "the value of the matrix element at position (k, l) of the j-th matrix of the i-th matrix type. ")
+  ("SEIGenerativeFaceVideoEnhancementPupilPresentIdx", cfg_generativeFaceVideoEnhancementSEIPupilPresentIdx, cfg_generativeFaceVideoEnhancementSEIPupilPresentIdx, "Indicate the pupil information for transmission")
+  ("SEIGenerativeFaceVideoEnhancementPupilCoordinatePrecisionFactor", cfg_generativeFaceVideoEnhancementSEIPupilCoordinatePrecisionFactor, cfg_generativeFaceVideoEnhancementSEIPupilCoordinatePrecisionFactor, "the quantization precision factor of pupil coordinates")
+  ("SEIGenerativeFaceVideoEnhancementPupilLeftEyeCoordinateX", cfg_generativeFaceVideoEnhancementSEIPupilLeftEyeCoordinateX, cfg_generativeFaceVideoEnhancementSEIPupilLeftEyeCoordinateX, "the X coordinate of the left eye pupil")
+  ("SEIGenerativeFaceVideoEnhancementPupilLeftEyeCoordinateY", cfg_generativeFaceVideoEnhancementSEIPupilLeftEyeCoordinateY, cfg_generativeFaceVideoEnhancementSEIPupilLeftEyeCoordinateY, "the Y coordinate of the left eye pupil")
+  ("SEIGenerativeFaceVideoEnhancementPupilRightEyeCoordinateX", cfg_generativeFaceVideoEnhancementSEIPupilRightEyeCoordinateX, cfg_generativeFaceVideoEnhancementSEIPupilRightEyeCoordinateX, "the X coordinate of the right eye pupil")
+  ("SEIGenerativeFaceVideoEnhancementPupilRightEyeCoordinateY", cfg_generativeFaceVideoEnhancementSEIPupilRightEyeCoordinateY, cfg_generativeFaceVideoEnhancementSEIPupilRightEyeCoordinateY, "the Y coordinate of the right eye pupil")
+  ("SEIGenerativeFaceVideoEnhancementPayloadFilename", m_generativeFaceVideoEnhancementSEIPayloadFilename, std::string(""), "specify path to payloadfile")
+#endif
+#if JVET_AK0140_PACKED_REGIONS_INFORMATION_SEI
+  ("SEIPRIEnabled",                                   m_priSEIEnabled,                                   false, "Specifies whether packet regions info SEI is enabled")
+  ("SEIPRICancelFlag",                                m_priSEICancelFlag,                                false, "Specifies the persistence of any previous packed regions info SEI message in output order")
+  ("SEIPRIPersistenceFlag",                           m_priSEIPersistenceFlag,                            true, "Specifies the persistence of the packed regions info SEI message for the current layer")
+  ("SEIPRINumRegionsMinus1",                          m_priSEINumRegionsMinus1,                             0u, "Specifies the number of regions minus 1 for which information is signalled")
+  ("SEIPRIUseMaxDimensionsFlag",                      m_priSEIUseMaxDimensionsFlag,                      false, "Specifies that max pic dimensions are used in variable calculations")
+  ("SEIPRILog2UnitSize",                              m_priSEILog2UnitSize,                                 0u, "Specifies a unit size used in variable calculations for the region parameters")
+  ("SEIPRIRegionSizeLenMinus1",                       m_priSEIRegionSizeLenMinus1,                         12u, "Specifies the number of bits minus 1 used to signal region top left offsets and region dimensions")
+  ("SEIPRIRegionIdPresentFlag",                       m_priSEIRegionIdPresentFlag,                       false, "Specifies whether region IDs are signalled")
+  ("SEIPRITargetPicParamsPresentFlag",                m_priSEITargetPicParamsPresentFlag,                false, "Specifies whether pri_target_region_top_left_x[ i ], pri_target_region_top_left_y[ i ], pri_target_pic_width_minus1, and pri_target_pic_height_minus1 are signalled")
+  ("SEIPRITargetPicWidthMinus1",                      m_priSEITargetPicWidthMinus1,                         0u, "Target output picture width minus 1")
+  ("SEIPRITargetPicHeightMinus1",                     m_priSEITargetPicHeightMinus1,                        0u, "Target output picture height minus 1")
+  ("SEIPRINumResamplingRatiosMinus1",                 m_priSEINumResamplingRatiosMinus1,                    0u, "Specifies the number resampling ratios minus 1 that are signalled")
+  ("SEIPRIResamplingWidthNumMinus1",                  cfg_priSEIResamplingWidthNumMinus1, cfg_priSEIResamplingWidthNumMinus1, "Specifies a list of numerators minus 1 values for width resampling of the resampling ratio")
+  ("SEIPRIResamplingWidthDenomMinus1",                cfg_priSEIResamplingWidthDenomMinus1, cfg_priSEIResamplingWidthDenomMinus1, "Specifies a list of denominators minus 1 values for width resampling of the resampling ratio")
+  ("SEIPRIResamplingHeightNumMinus1",                 cfg_priSEIResamplingHeightNumMinus1, cfg_priSEIResamplingHeightNumMinus1, "Specifies a list of numerators minus 1 values for height resampling of the resampling ratio")
+  ("SEIPRIResamplingHeightDenomMinus1",               cfg_priSEIResamplingHeightDenomMinus1, cfg_priSEIResamplingHeightDenomMinus1, "Specifies a list of denominators minus 1 values for height resampling of the resampling ratio")
+  ("SEIPRIRegionId",                                  cfg_priSEIRegionId, cfg_priSEIRegionId,                   "Specifies a list of IDs for the regions")
+  ("SEIPRIRegionTopLeftInUnitsX",                     cfg_priSEIRegionTopLeftInUnitsX, cfg_priSEIRegionTopLeftInUnitsX, "Specifies a list of horizontal top left positions for the regions")
+  ("SEIPRIRegionTopLeftInUnitsY",                     cfg_priSEIRegionTopLeftInUnitsY, cfg_priSEIRegionTopLeftInUnitsY, "Specifies a list of vertical top left positions for the regions")
+  ("SEIPRIRegionWidthInUnitsMinus1",                  cfg_priSEIRegionWidthInUnitsMinus1, cfg_priSEIRegionWidthInUnitsMinus1, "Specifies a list of widths minus 1 in units for the regions")
+  ("SEIPRIRegionHeightInUnitsMinus1",                 cfg_priSEIRegionHeightInUnitsMinus1, cfg_priSEIRegionHeightInUnitsMinus1, "Specifies a list of heights minus 1 in units for the regions")
+  ("SEIPRIResamplingRatioIdx",                        cfg_priSEIResamplingRatioIdx, cfg_priSEIResamplingRatioIdx, "Specifies a list of resampling ration indices for the regions")
+  ("SEIPRITargetRegionTopLeftInUnitsX",               cfg_priSEITargetRegionTopLeftInUnitsX, cfg_priSEITargetRegionTopLeftInUnitsX, "Specifies a list of horizontal top left postions in units of priUnitSize luma samples for the regions in reconstructed target picture")
+  ("SEIPRITargetRegionTopLeftInUnitsY",               cfg_priSEITargetRegionTopLeftInUnitsY, cfg_priSEITargetRegionTopLeftInUnitsY, "Specifies a list of vertical top left postions in units of priUnitSize luma samples for the regions in reconstructed target picture")
+#endif
   ;
+#if JVET_AL0062_AI_USAGE_RESTRICTIONS_SEI
+  opts.addOptions()
+    ("SEIAUREnabled", m_aurSEIEnabled, false, "Control use of the AI usage restrictions SEI")
+    ("SEIAURCancelFlag", m_aurSEICancelFlag, false, " Specifies the persistence of any previous AI usage restrictions SEI message in output order")
+    ("SEIAURPersistenceFlag", m_aurSEIPersistenceFlag, false, "Specifies the persistence of the AI usage restrictions SEI message for the current layer.")
+    ("SEIAURNumRestrictionsMinus1", m_aurSEINumRestrictionsMinus1, 0u, "plus one specifies the number of restriction")
+    ("SEIAURRestrictions", cfg_aurSEIRestrictions, cfg_aurSEIRestrictions, "List of restrictions")
+    ("SEIAURContextPresentFlag", cfg_aurSEIContextPresentFlag, cfg_aurSEIContextPresentFlag, "List of flags indicating whether aur_context syntax elements are present")
+    ("SEIAURContext", cfg_aurSEIContext, cfg_aurSEIContext, "List of context");
+#endif
+  opts.addOptions()
+    ("TemporalFilter", m_gopBasedTemporalFilterEnabled, false, "Enable GOP based temporal filter. Disabled per default")
+    ("TemporalFilterPastRefs", m_gopBasedTemporalFilterPastRefs, TF_DEFAULT_REFS, "Number of past references for temporal prefilter")
+    ("TemporalFilterFutureRefs", m_gopBasedTemporalFilterFutureRefs, TF_DEFAULT_REFS, "Number of future references for temporal prefilter")
+    ("FirstValidFrame", m_firstValidFrame, 0, "First valid frame")
+    ("LastValidFrame", m_lastValidFrame, MAX_INT, "Last valid frame")
+    ("TemporalFilterStrengthFrame*", m_gopBasedTemporalFilterStrengths, std::map<Int, Double>(), "Strength for every * frame in GOP based temporal filter, where * is an integer."
+                                                                                                   " E.g. --TemporalFilterStrengthFrame8 0.95 will enable GOP based temporal filter at every 8th frame with strength 0.95");
+   
+
+
+#if NNPFC_SEI_MESSAGE
+  opts.addOptions()("SEINNPFCEnabled",      m_nnPostFilterSEICharacteristicsEnabled,      false, "Control generation of the Neural Network Post Filter Characteristics SEI messages");
+  opts.addOptions()("SEINNPFCUseSuffixSEI", m_nnPostFilterSEICharacteristicsUseSuffixSEI, false, "Code NNPFC SEI either as suffix (1) or prefix (0) SEI message");
+  opts.addOptions()("SEINNPFCNumFilters",   m_nnPostFilterSEICharacteristicsNumFilters,       0, "Specifies the number of Neural Network Post Filter Characteristics SEI messages" );
+  for (Int i = 0; i < MAX_NUM_NN_POST_FILTERS; i++)
+  {
+    std::ostringstream id;
+    id << "SEINNPFCId" << i;
+    opts.addOptions()(id.str(), m_nnPostFilterSEICharacteristicsId[i], 0u, "Specifies the identifying number in the Neural Network Post Filter Characteristics SEI message");
+
+    std::ostringstream modeIdc;
+    modeIdc << "SEINNPFCModeIdc" << i;
+    opts.addOptions()(modeIdc.str(), m_nnPostFilterSEICharacteristicsModeIdc[i], 0u, "Specifies the Neural Network Post Filter IDC in the Neural Network Post Filter Characteristics SEI message");
+
+    std::ostringstream propertyPresentFlag;
+    propertyPresentFlag << "SEINNPFCPropertyPresentFlag" << i;
+    opts.addOptions()(propertyPresentFlag.str(), m_nnPostFilterSEICharacteristicsPropertyPresentFlag[i], false, "Specifies whether the filter purpose, input formatting, output formatting and complexity are present in the Neural Network Post Filter Characteristics SEI message");
+
+    std::ostringstream nnpfcBaseFlag;
+    nnpfcBaseFlag << "SEINNPFCBaseFlag" << i;
+    opts.addOptions()(nnpfcBaseFlag.str(), m_nnPostFilterSEICharacteristicsBaseFlag[i], false, "Specifies whether the filter is a base filter or not");
+
+    std::ostringstream purpose;
+    purpose << "SEINNPFCPurpose" << i;
+    opts.addOptions()(purpose.str(), m_nnPostFilterSEICharacteristicsPurpose[i], 0u, "Specifies the purpose in the Neural Network Post Filter Characteristics SEI message");
+
+    std::ostringstream outSubWidthCFlag;
+    outSubWidthCFlag << "SEINNPFCOutSubCFlag" << i;
+    opts.addOptions()(outSubWidthCFlag.str(), m_nnPostFilterSEICharacteristicsOutSubCFlag[i], false, "Specifies output chroma format when upsampling");
+
+    std::ostringstream outColourFormatIdc;
+    outColourFormatIdc << "SEINNPFCOutColourFormatIdc" << i;
+    opts.addOptions()(outColourFormatIdc.str(), m_nnPostFilterSEICharacteristicsOutColourFormatIdc[i], 1u, "Specifies output chroma format for colourization purpose");
+
+    std::ostringstream picWidthNum;
+    picWidthNum << "SEINNPFCPicWidthNumerator" << i;
+    opts.addOptions()(picWidthNum.str(), m_nnPostFilterSEICharacteristicsPicWidthNumerator[i], 1u,
+                      "Specifies the numerator of output picture width resulting from applying the Neural Network Post "
+                      "Filter Characteristics SEI message");
+
+    std::ostringstream picWidthDenom;
+    picWidthDenom << "SEINNPFCPicWidthDenominator" << i;
+    opts.addOptions()(picWidthDenom.str(), m_nnPostFilterSEICharacteristicsPicWidthDenominator[i], 1u,
+                      "Specifies the denominator of output picture width resulting from applying the Neural Network "
+                      "Post Filter Characteristics SEI message");
+
+    std::ostringstream picHeightNum;
+    picHeightNum << "SEINNPFCPicHeightNumerator" << i;
+    opts.addOptions()(picHeightNum.str(), m_nnPostFilterSEICharacteristicsPicHeightNumerator[i], 1u,
+                      "Specifies the numerator of output picture height resulting from applying the Neural Network "
+                      "Post Filter Characteristics SEI message");
+
+    std::ostringstream picHeightDenom;
+    picHeightDenom << "SEINNPFCPicWidthDenominator" << i;
+    opts.addOptions()(picHeightDenom.str(), m_nnPostFilterSEICharacteristicsPicHeightDenominator[i], 1u,
+                      "Specifies the denominator of output picture height resulting from applying the Neural Network "
+                      "Post Filter Characteristics SEI message");
+
+    std::ostringstream inpTensorBitDepthLumaMinus8;
+    inpTensorBitDepthLumaMinus8 << "SEINNPFCInpTensorBitDepthLumaMinusEight" << i;
+    opts.addOptions()(inpTensorBitDepthLumaMinus8.str(), m_nnPostFilterSEICharacteristicsInpTensorBitDepthLumaMinus8[i], 0u, "Specifies the bit depth of the input tensor luma minus 8 in the Neural Network Post Filter Characteristics SEI message");
+
+    std::ostringstream inpTensorBitDepthChromaMinus8;
+    inpTensorBitDepthChromaMinus8 << "SEINNPFCInpTensorBitDepthChromaMinusEight" << i;
+    opts.addOptions()(inpTensorBitDepthChromaMinus8.str(), m_nnPostFilterSEICharacteristicsInpTensorBitDepthChromaMinus8[i], 0u, "Specifies the bit depth of the input tensor chroma minus 8 in the Neural Network Post Filter Characteristics SEI message");
+
+    std::ostringstream outTensorBitDepthLumaMinus8;
+    outTensorBitDepthLumaMinus8 << "SEINNPFCOutTensorBitDepthLumaMinusEight" << i;
+    opts.addOptions()(outTensorBitDepthLumaMinus8.str(), m_nnPostFilterSEICharacteristicsOutTensorBitDepthLumaMinus8[i], 0u, "Specifies the bit depth of the output tensor luma minus 8 in the Neural Network Post Filter Characteristics SEI message");
+
+    std::ostringstream outTensorBitDepthChromaMinus8;
+    outTensorBitDepthChromaMinus8 << "SEINNPFCOutTensorBitDepthChromaMinusEight" << i;
+    opts.addOptions()(outTensorBitDepthChromaMinus8.str(), m_nnPostFilterSEICharacteristicsOutTensorBitDepthChromaMinus8[i], 0u, "Specifies the bit depth of the output tensor chroma minus 8 in the Neural Network Post Filter Characteristics SEI message");
+
+    std::ostringstream componentLastFlag;
+    componentLastFlag << "SEINNPFCComponentLastFlag" << i;
+    opts.addOptions()(componentLastFlag.str(), m_nnPostFilterSEICharacteristicsComponentLastFlag[i], false, "Specifies the channel component is located in the last dimension for the Neural Network Post Filter Characteristics SEI message");
+
+
+    std::ostringstream inpFormatIdc;
+    inpFormatIdc << "SEINNPFCInpFormatIdc" << i;
+    opts.addOptions()(inpFormatIdc.str(), m_nnPostFilterSEICharacteristicsInpFormatIdc[i], 0u, "Specifies the method of converting an input sample in the the Neural Network Post Filter Characteristics SEI message");
+    std::ostringstream auxInpIdc;
+    auxInpIdc << "SEINNPFCAuxInpIdc" << i;
+    opts.addOptions()(auxInpIdc.str(), m_nnPostFilterSEICharacteristicsAuxInpIdc[i], 0u, "Specifies the auxillary input index in the Nueral Network Post Filter Characteristics SEI message");
+
+    std::ostringstream sepColDescriptionFlag;
+    sepColDescriptionFlag << "SEINNPFCSepColDescriptionFlag" << i;
+    opts.addOptions()(sepColDescriptionFlag.str(), m_nnPostFilterSEICharacteristicsSepColDescriptionFlag[i], false, "Specifies the presence of seperate color descriptions in the Nueral Network Post Filter Characteristics SEI message");
+
+    std::ostringstream fullRangeFlag;
+    fullRangeFlag << "SEINNPFCFullRangeFlag" << i;
+    opts.addOptions()(fullRangeFlag.str(), m_nnPostFilterSEICharacteristicsFullRangeFlag[i], false, "Specifies scaling and offset values applied in association with the matrix coefficients as specified by nnpfc_matrix_coeff.");
+  
+    std::ostringstream colPrimaries;
+    colPrimaries << "SEINNPFCColPrimaries" << i;
+    opts.addOptions()(colPrimaries.str(), m_nnPostFilterSEICharacteristicsColPrimaries[i], 0u, "Specifies color primaries in the Nueral Network Post Filter Characteristics SEI message");
+
+    std::ostringstream transCharacteristics;
+    transCharacteristics << "SEINNPFCTransCharacteristics" << i;
+    opts.addOptions()(transCharacteristics.str(), m_nnPostFilterSEICharacteristicsTransCharacteristics[i], 0u, "Specifies Transfer Characteristics in the Nueral Network Post Filter Characteristics SEI message");
+
+    std::ostringstream matrixCoeffs;
+    matrixCoeffs << "SEINNPFCMatrixCoeffs" << i;
+    opts.addOptions()(matrixCoeffs.str(), m_nnPostFilterSEICharacteristicsMatrixCoeffs[i], 0u, "Specifies color matrix coefficients in the Nueral Network Post Filter Characteristics SEI message");
+    std::ostringstream inpOrderIdc;
+    inpOrderIdc << "SEINNPFCInpOrderIdc" << i;
+    opts.addOptions()(inpOrderIdc.str(), m_nnPostFilterSEICharacteristicsInpOrderIdc[i], 0u, "Specifies the method of ordering the input sample arrays in the Neural Network Post Filter Characteristics SEI message");
+
+    std::ostringstream outFormatIdc;
+    outFormatIdc << "SEINNPFCOutFormatIdc" << i;
+    opts.addOptions()(outFormatIdc.str(), m_nnPostFilterSEICharacteristicsOutFormatIdc[i], 0u, "Specifies the method of converting an output sample in the the Neural Network Post Filter Characteristics SEI message");
+
+    std::ostringstream outOrderIdc;
+    outOrderIdc << "SEINNPFCOutOrderIdc" << i;
+    opts.addOptions()(outOrderIdc.str(), m_nnPostFilterSEICharacteristicsOutOrderIdc[i], 0u, "Specifies the method of ordering the output sample arrays in the Neural Network Post Filter Characteristics SEI message");
+
+    std::ostringstream constantPatchSizeFlag;
+    constantPatchSizeFlag << "SEINNPFCConstantPatchSizeFlag" << i;
+    opts.addOptions()(constantPatchSizeFlag.str(), m_nnPostFilterSEICharacteristicsConstantPatchSizeFlag[i], false, "Specifies the patch size flag in the the Neural Network Post Filter Characteristics SEI message");
+    
+    std::ostringstream chromaLocInfoPresentFlag;
+    chromaLocInfoPresentFlag << "SEINNPFCChromaLocInfoPresentFlag" << i;
+    opts.addOptions()(chromaLocInfoPresentFlag.str(), m_nnPostFilterSEICharacteristicsChromaLocInfoPresentFlag[i], false, "Specifies the chroma location information flag in the the Neural Network Post Filter Characteristics SEI message");
+    
+    std::ostringstream chromaSampleLocTypeFrame;
+    chromaSampleLocTypeFrame << "SEINNPFCChromaSampleLocTypeFrame" << i;
+    opts.addOptions()(chromaSampleLocTypeFrame.str(), m_nnPostFilterSEICharacteristicsChromaSampleLocTypeFrame[i], 0u, "Specifies the method of ordering the output sample arrays in the Neural Network Post Filter Characteristics SEI message");
+    
+    std::ostringstream patchWidthMinus1;
+    patchWidthMinus1 << "SEINNPFCPatchWidthMinus1" << i;
+    opts.addOptions()(patchWidthMinus1.str(), m_nnPostFilterSEICharacteristicsPatchWidthMinus1[i], 0u, "Specifies the horizontal sample counts of a patch in the Neural Network Post Filter Characteristics SEI message");
+
+    std::ostringstream patchHeightMinus1;
+    patchHeightMinus1 << "SEINNPFCPatchHeightMinus1" << i;
+    opts.addOptions()(patchHeightMinus1.str(), m_nnPostFilterSEICharacteristicsPatchHeightMinus1[i], 0u, "Specifies the vertical sample counts of a patch in the Neural Network Post Filter Characteristics SEI message");
+
+    std::ostringstream extendedPatchWidthCdDeltaMinus1;
+    extendedPatchWidthCdDeltaMinus1 << "SEINNPFCExtendedPatchWidthCdDeltaMinus1" << i;
+    opts.addOptions()(extendedPatchWidthCdDeltaMinus1.str(), m_nnPostFilterSEICharacteristicsExtendedPatchWidthCdDeltaMinus1[i], 0u, "Specifies the extended horizontal sample counts of a patch in the Neural Network Post Filter Characteristics SEI message");
+
+    std::ostringstream extendedPatchHeightCdDeltaMinus1;
+    extendedPatchHeightCdDeltaMinus1 << "SEINNPFCExtendedPatchHeightCdDeltaMinus1" << i;
+    opts.addOptions()(extendedPatchHeightCdDeltaMinus1.str(), m_nnPostFilterSEICharacteristicsExtendedPatchHeightCdDeltaMinus1[i], 0u, "Specifies the extended vertical sample counts of a patch in the Neural Network Post Filter Characteristics SEI message");
+
+    std::ostringstream overlap;
+    overlap << "SEINNPFCOverlap" << i;
+    opts.addOptions()(overlap.str(), m_nnPostFilterSEICharacteristicsOverlap[i], 0u, "Specifies the overlap in the Neural Network Post Filter Characteristics SEI message");
+
+    std::ostringstream paddingType;
+    paddingType << "SEINNPFCPaddingType" << i;
+    opts.addOptions()(paddingType.str(), m_nnPostFilterSEICharacteristicsPaddingType[i], 0u, "Specifies the process of padding when referencing sample locations outside the boundaries of the cropped decoded output picture ");
+
+    std::ostringstream lumaPadding;
+    lumaPadding << "SEINNPFCLumaPadding" << i;
+    opts.addOptions()(lumaPadding.str(), m_nnPostFilterSEICharacteristicsLumaPadding[i], 0u, "Specifies the luma padding when when the padding type is fixed padding ");
+
+    std::ostringstream crPadding;
+    crPadding << "SEINNPFCCrPadding" << i;
+    opts.addOptions()(crPadding.str(), m_nnPostFilterSEICharacteristicsCrPadding[i], 0u, "Specifies the Cr padding when when the padding type is fixed padding ");
+
+    std::ostringstream cbPadding;
+    cbPadding << "SEINNPFCCbPadding" << i;
+    opts.addOptions()(cbPadding.str(), m_nnPostFilterSEICharacteristicsCbPadding[i], 0u, "Specifies the Cb padding when when the padding type is fixed padding ");
+
+    std::ostringstream complexityInfoPresentFlag;
+    complexityInfoPresentFlag << "SEINNPFCComplexityInfoPresentFlag" << i;
+    opts.addOptions()(complexityInfoPresentFlag.str(), m_nnPostFilterSEICharacteristicsComplexityInfoPresentFlag[i], false, "Specifies the value of nnpfc_complexity_info_present_flag in the Neural Network Post Filter Characteristics SEI message");
+
+    std::ostringstream applicationPurposeTagUriPresentFlag;
+    applicationPurposeTagUriPresentFlag << "SEINNPFCApplicationPurposeTagUriPresentFlag" << i;
+    opts.addOptions()(applicationPurposeTagUriPresentFlag.str(), m_nnPostFilterSEICharacteristicsApplicationPurposeTagUriPresentFlag[i], false, "equal to 1 indicates that the nnpfc_application_purpose_tag_uri syntax element is present in this NNPFC SEI message. nnpfc_application_purpose_tag_uri_present_flag equal to 0 indicates that the nnpfc_application_purpose_tag_uri syntax element is not present in this NNPFC SEI message.");
+
+    std::ostringstream applicationPurposeTagUri;
+    applicationPurposeTagUri << "SEINNPFCApplicationPurposeTagUri" << i;
+    opts.addOptions()(applicationPurposeTagUri.str(), m_nnPostFilterSEICharacteristicsApplicationPurposeTagUri[i], std::string(""), "specifies a tag URI with syntax and semantics as specified in IETF RFC 4151 identifying the application determined purpose of the NNPF, when nnpfc_purpose is equal to 0.");
+
+    std::ostringstream scanTypeIdc;
+    scanTypeIdc << "SEINNPFCScanTypeIdc" << i;
+    opts.addOptions()(scanTypeIdc.str(), m_nnPostFilterSEICharacteristicsScanTypeIdc[i], 0u, "Specifies the preferred display method for the pictures output by the NNPF");
+
+    std::ostringstream forHumanViewingIdc;
+    forHumanViewingIdc << "SEINNPFCForHumanViewingIdc" << i;
+    opts.addOptions()(forHumanViewingIdc.str(), m_nnPostFilterSEICharacteristicsForHumanViewingIdc[i], 0u, "Specifies the user viewing usage level of a neural-network post-filter: optimal for human viewing (3), suitable (2), unsuitable (1), unknown (0)");
+
+    std::ostringstream forMachineAnalysis;
+    forMachineAnalysis << "SEINNPFCForMachineAnalysisIdc" << i;
+    opts.addOptions()(forMachineAnalysis.str(), m_nnPostFilterSEICharacteristicsForMachineAnalysisIdc[i], 0u, "Specifies the machine analysis usage level of a neural-network post-filter: optimal for machine analysis (3), suitable (2), unsuitable (1), unknown (0)");
+
+    std::ostringstream uriTag;
+    uriTag << "SEINNPFCUriTag" << i;
+    opts.addOptions()(
+      uriTag.str(), m_nnPostFilterSEICharacteristicsUriTag[i], std::string(""),
+      "Specifies the neural network uri tag in the Neural Network Post Filter Characteristics SEI message");
+
+    std::ostringstream uri;
+    uri << "SEINNPFCUri" << i;
+    opts.addOptions()(
+      uri.str(), m_nnPostFilterSEICharacteristicsUri[i], std::string(""),
+      "Specifies the neural network information uri in the Neural Network Post Filter Characteristics SEI message");
+
+    std::ostringstream parameterTypeIdc;
+    parameterTypeIdc << "SEINNPFCParameterTypeIdc" << i;
+    opts.addOptions()(parameterTypeIdc.str(), m_nnPostFilterSEICharacteristicsParameterTypeIdc[i], 0u, "Specifies the data type of parameters in the Neural Network Post Filter Characteristics SEI message");
+
+    std::ostringstream log2ParameterBitLengthMinus3;
+    log2ParameterBitLengthMinus3 << "SEINNPFCLog2ParameterBitLengthMinus3" << i;
+    opts.addOptions()(log2ParameterBitLengthMinus3.str(), m_nnPostFilterSEICharacteristicsLog2ParameterBitLengthMinus3[i], 0u, "Indicates that the neural network does not use parameter of bit length greater than 2^(N+3) bits");
+
+    std::ostringstream numParametersIdc;
+    numParametersIdc << "SEINNPFCNumParametersIdc" << i;
+    opts.addOptions()(numParametersIdc.str(), m_nnPostFilterSEICharacteristicsNumParametersIdc[i], 0u, "Specifies the maximum number of parameters ((2048<<NumParametersIdc)-1) in the Neural Network Post Filter Characteristics SEI message");
+
+    std::ostringstream numKmacOperationsIdc;
+    numKmacOperationsIdc << "SEINNPFCNumKmacOperationsIdc" << i;
+    opts.addOptions()(numKmacOperationsIdc.str(), m_nnPostFilterSEICharacteristicsNumKmacOperationsIdc[i], 0u, "Specifies the maximum number of operations (KMAC) per pixel in the Neural Network Post Filter Characteristics SEI message");
+
+    std::ostringstream totalKilobyteSize; 
+    totalKilobyteSize << "SEINNPFCTotalKilobyteSize" << i; 
+    opts.addOptions()(totalKilobyteSize.str(), m_nnPostFilterSEICharacteristicsTotalKilobyteSize[i], 0u, "Indicates the total size in kilobytes required to store the uncompressed NN parameters in the Neural Network Post Filter Characteristics SEI message");
+
+    std::ostringstream payloadFilename;
+    payloadFilename << "SEINNPFCPayloadFilename" << i;
+    opts.addOptions()(payloadFilename.str(), m_nnPostFilterSEICharacteristicsPayloadFilename[i], std::string(""),
+                      "Specifies the NNR bitstream in the Neural Network Post Filter Characteristics SEI message");
+
+    std::ostringstream numberDecodedInputPics;
+    numberDecodedInputPics << "SEINNPFCNumberInputDecodedPicsMinusOne" << i;
+    opts.addOptions()(numberDecodedInputPics.str(), m_nnPostFilterSEICharacteristicsNumberInputDecodedPicturesMinus1[i], 0u, "Specifies the number of decoded output pictures used as input for the post processing filter");
+    std::ostringstream numberInterpolatedPics;
+    numberInterpolatedPics << "SEINNPFCNumberInterpolatedPics" << i;
+    opts.addOptions()(numberInterpolatedPics.str(), cfg_nnPostFilterSEICharacteristicsInterpolatedPicturesList[i], cfg_nnPostFilterSEICharacteristicsInterpolatedPicturesList[i], "Number of pictures to interpolate");
+    std::ostringstream numberExtrapolatedPicturesMinus1;
+    numberExtrapolatedPicturesMinus1 << "SEINNPFCNumberExtrapolatedPicsMinus1" << i; 
+    opts.addOptions()(numberExtrapolatedPicturesMinus1.str(), m_nnPostFilterSEICharacteristicsNumberExtrapolatedPicturesMinus1[i], 0u, "Number of pictures to extrapolate");
+    std::ostringstream spatialExtrapolationLeftOffset;
+    spatialExtrapolationLeftOffset << "SEINNPFCSpatialExtrapolationLeftOffset" << i; 
+    opts.addOptions()(spatialExtrapolationLeftOffset.str(), m_nnPostFilterSEICharacteristicsSpatialExtrapolationLeftOffset[i], 0, "Left offset of spatial extrapolation");
+
+    std::ostringstream spatialExtrapolationRightOffset;
+    spatialExtrapolationRightOffset << "SEINNPFCSpatialExtrapolationRightOffset" << i; 
+    opts.addOptions()(spatialExtrapolationRightOffset.str(), m_nnPostFilterSEICharacteristicsSpatialExtrapolationRightOffset[i], 0, "Right offset of spatial extrapolation");
+
+    std::ostringstream spatialExtrapolationTopOffset;
+    spatialExtrapolationTopOffset << "SEINNPFCSpatialExtrapolationTopOffset" << i; 
+    opts.addOptions()(spatialExtrapolationTopOffset.str(), m_nnPostFilterSEICharacteristicsSpatialExtrapolationTopOffset[i], 0, "Top offset of spatial extrapolation");
+
+    std::ostringstream spatialExtrapolationBottomOffset;
+    spatialExtrapolationBottomOffset << "SEINNPFCSpatialExtrapolationLeftOffset" << i; 
+    opts.addOptions()(spatialExtrapolationBottomOffset.str(), m_nnPostFilterSEICharacteristicsSpatialExtrapolationBottomOffset[i], 0, "Bottom offset of spatial extrapolation");
+    std::ostringstream inbandPromptFlag;
+    inbandPromptFlag << "SEINNPFCInbandPromptFlag" << i;
+    opts.addOptions()(inbandPromptFlag.str(), m_nnPostFilterSEICharacteristicsInbandPromptFlag[i], false, "equal to 1 specifies that nnpfc_prompt syntax element is present and nnpfc_alignment_zero_bit_c syntax element may be present. nnpfc_spatial_extrapolation_prompt_present_flag equal to 0 specifies that nnpfc_prompt syntax element and nnpfc_alignment_zero_bit_c syntax element are not present.");
+    std::ostringstream prompt;
+    prompt << "SEINNPFCPrompt" << i;
+    opts.addOptions()(prompt.str(), m_nnPostFilterSEICharacteristicsPrompt[i], std::string(""), "specifies the text string prompt");
+    std::ostringstream InputPicOutputFlag;
+    InputPicOutputFlag << "SEINNPFCInputPicOutputFlag" << i;
+    opts.addOptions()(InputPicOutputFlag.str(), cfg_nnPostFilterSEICharacteristicsInputPicOutputFlagList[i], cfg_nnPostFilterSEICharacteristicsInputPicOutputFlagList[i], "Indicates whether NNPF will generate a corresponding output picture for the input picture");
+    std::ostringstream absentInputPicZeroFlag;
+    absentInputPicZeroFlag << "SEINNPFCAbsentInputPicZeroFlag" << i;
+    opts.addOptions()(absentInputPicZeroFlag.str(), m_nnPostFilterSEICharacteristicsAbsentInputPicZeroFlag[i], false, "Specifies the value of nnpfc_absent_input_pic_zero_flag in the Neural Network Post Filter Characteristics SEI message");
+    std::ostringstream inbandSeedFlag;
+    inbandSeedFlag << "SEINNPFCInbandSeedFlag" << i;
+    opts.addOptions()(inbandSeedFlag.str(), m_nnPostFilterSEICharacteristicsInbandSeedFlag[i], false, "Specifies the value of nnpfc_inband_seed_flag in the Neural Network Post Filter Characteristics SEI message");
+    std::ostringstream seed;
+    seed << "SEINNPFCSeed" << i;
+    opts.addOptions()(seed.str(), m_nnPostFilterSEICharacteristicsSeed[i], 0u, "Indicates the seed value used as input for an NNPF");
+  }
+#endif
 
 #if EXTENSION_360_VIDEO
   TExt360AppEncCfg::TExt360AppEncCfgContext ext360CfgContext;
@@ -1131,17 +1933,47 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
   /*
    * Set any derived parameters
    */
-  m_inputFileWidth  = m_iSourceWidth;
-  m_inputFileHeight = m_iSourceHeight;
+  m_inputFileWidth  = m_sourceWidth;
+  m_inputFileHeight = m_sourceHeight;
+
+  if (m_iIntraPeriod < -1)
+  {
+    // Set IntraPeriod to a multiple of -m_intraPeriod according to frame rate of source
+    // When setting to m_intraPeriod to -32, it is changed to appropriate value according to CTC:
+    // Frame rate | IntraPeriod
+    //     20     |     32
+    //     24     |     32
+    //     30     |     32
+    //     50     |     64
+    //     60     |     64
+    //    100     |     96
+    const int ipBase = -m_iIntraPeriod;
+    m_iIntraPeriod    = std::max((m_iFrameRate + ipBase / 2) / ipBase, 1) * ipBase;
+  }
+
+  if (!inputPathPrefix.empty() && inputPathPrefix.back() != '/' && inputPathPrefix.back() != '\\' )
+  {
+    inputPathPrefix += "/";
+  }
+  m_inputFileName   = inputPathPrefix + m_inputFileName;
+
+  if (m_firstValidFrame < 0)
+  {
+    m_firstValidFrame = m_FrameSkip;
+  }
+  if (m_lastValidFrame < 0)
+  {
+    m_lastValidFrame = m_firstValidFrame + m_framesToBeEncoded - 1;
+  }
 
   m_framesToBeEncoded = ( m_framesToBeEncoded + m_temporalSubsampleRatio - 1 ) / m_temporalSubsampleRatio;
   m_adIntraLambdaModifier = cfg_adIntraLambdaModifier.values;
   if(m_isField)
   {
     //Frame height
-    m_iSourceHeightOrg = m_iSourceHeight;
+    m_sourceHeightOrg = m_sourceHeight;
     //Field height
-    m_iSourceHeight = m_iSourceHeight >> 1;
+    m_sourceHeight = m_sourceHeight >> 1;
     //number of fields to encode
     m_framesToBeEncoded *= 2;
   }
@@ -1256,100 +2088,169 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
   }
   m_motionEstimationSearchMethod=MESearchMethod(tmpMotionEstimationSearchMethod);
 
-  if (extendedProfile == MAIN10_STILL_PICTURE)
+  switch (UIProfile)
   {
-    m_profile = Profile::MAIN10;
-    m_onePictureOnlyConstraintFlag = true;
-  }
-  else if (extendedProfile >= 1000 && extendedProfile <= 12316)
-  {
-    m_profile = Profile::MAINREXT;
-    if (m_bitDepthConstraint != 0 || tmpConstraintChromaFormat != 0)
-    {
-      fprintf(stderr, "Error: The bit depth and chroma format constraints are not used when an explicit RExt profile is specified\n");
-      exit(EXIT_FAILURE);
-    }
-    m_bitDepthConstraint           = (extendedProfile%100);
-    m_intraConstraintFlag          = ((extendedProfile%10000)>=2000);
-    m_onePictureOnlyConstraintFlag = (extendedProfile >= 10000);
-    switch ((extendedProfile/100)%10)
-    {
-      case 0:  tmpConstraintChromaFormat=400; break;
-      case 1:  tmpConstraintChromaFormat=420; break;
-      case 2:  tmpConstraintChromaFormat=422; break;
-      default: tmpConstraintChromaFormat=444; break;
-    }
-  }
-  else
-  {
-    m_profile = Profile::Name(extendedProfile);
-    m_onePictureOnlyConstraintFlag = false;
-  }
-
-  if (m_profile == Profile::HIGHTHROUGHPUTREXT )
-  {
-    if (m_bitDepthConstraint == 0)
-    {
-      m_bitDepthConstraint = 16;
-    }
-    m_chromaFormatConstraint = (tmpConstraintChromaFormat == 0) ? CHROMA_444 : numberToChromaFormat(tmpConstraintChromaFormat);
-  }
-  else if (m_profile == Profile::MAINREXT)
-  {
-    if (m_bitDepthConstraint == 0 && tmpConstraintChromaFormat == 0)
-    {
-      // produce a valid combination, if possible.
-      const Bool bUsingGeneralRExtTools  = m_transformSkipRotationEnabledFlag        ||
-                                           m_transformSkipContextEnabledFlag         ||
-                                           m_rdpcmEnabledFlag[RDPCM_SIGNAL_IMPLICIT] ||
-                                           m_rdpcmEnabledFlag[RDPCM_SIGNAL_EXPLICIT] ||
-                                           !m_enableIntraReferenceSmoothing          ||
-                                           m_persistentRiceAdaptationEnabledFlag     ||
-                                           m_log2MaxTransformSkipBlockSize!=2;
-      const Bool bUsingChromaQPAdjustment= m_diffCuChromaQpOffsetDepth >= 0;
-      const Bool bUsingExtendedPrecision = m_extendedPrecisionProcessingFlag;
-      if (m_onePictureOnlyConstraintFlag)
+    case UI_NONE:
+      m_profile = Profile::NONE;
+      m_onePictureOnlyConstraintFlag = false;
+      break;
+    case UI_MAIN:
+      m_profile = Profile::MAIN;
+      m_onePictureOnlyConstraintFlag = false;
+      break;
+    case UI_MAIN10:
+      m_profile = Profile::MAIN10;
+      m_onePictureOnlyConstraintFlag = false;
+      break;
+    case UI_MAINSTILLPICTURE:
+      m_profile = Profile::MAINSTILLPICTURE;
+      m_onePictureOnlyConstraintFlag = false;
+      break;
+    case UI_MAIN10_STILL_PICTURE:
+      m_profile = Profile::MAIN10;
+      m_onePictureOnlyConstraintFlag = true;
+      break;
+    case UI_MAINREXT:
+      m_profile = Profile::MAINREXT;
+      m_onePictureOnlyConstraintFlag = false;
+      break;
+    case UI_HIGHTHROUGHPUTREXT:
+      m_profile = Profile::HIGHTHROUGHPUTREXT;
+      m_onePictureOnlyConstraintFlag = false;
+      break;
+    default:
+      if (UIProfile >= 1000 && UIProfile <= 12316)
       {
-        m_chromaFormatConstraint = CHROMA_444;
-        if (m_intraConstraintFlag != true)
+        m_profile = Profile::MAINREXT;
+        if (m_bitDepthConstraint != 0 || tmpConstraintChromaFormat != 0)
         {
-          fprintf(stderr, "Error: Intra constraint flag must be true when one_picture_only_constraint_flag is true\n");
+          fprintf(stderr, "Error: The bit depth and chroma format constraints are not used when an explicit RExt profile is specified\n");
           exit(EXIT_FAILURE);
         }
-        const Int maxBitDepth = m_chromaFormatIDC==CHROMA_400 ? m_internalBitDepth[CHANNEL_TYPE_LUMA] : std::max(m_internalBitDepth[CHANNEL_TYPE_LUMA], m_internalBitDepth[CHANNEL_TYPE_CHROMA]);
-        m_bitDepthConstraint = maxBitDepth>8 ? 16:8;
+        m_bitDepthConstraint           = (UIProfile%100);
+        m_intraConstraintFlag          = ((UIProfile%10000)>=2000);
+        m_onePictureOnlyConstraintFlag = (UIProfile >= 10000);
+        switch ((UIProfile/100)%10)
+        {
+          case 0:  tmpConstraintChromaFormat=400; break;
+          case 1:  tmpConstraintChromaFormat=420; break;
+          case 2:  tmpConstraintChromaFormat=422; break;
+          default: tmpConstraintChromaFormat=444; break;
+        }
+      }
+      else if (UIProfile >= 21308 && UIProfile <= 22316)
+      {
+        m_profile = Profile::HIGHTHROUGHPUTREXT;
+        if (m_bitDepthConstraint != 0 || tmpConstraintChromaFormat != 0)
+        {
+          fprintf(stderr, "Error: The bit depth and chroma format constraints are not used when an explicit RExt profile is specified\n");
+          exit(EXIT_FAILURE);
+        }
+        m_bitDepthConstraint           = (UIProfile%100);
+        m_intraConstraintFlag          = ((UIProfile%10000)>=2000);
+        m_onePictureOnlyConstraintFlag = 0;
+        if((UIProfile == UI_HIGHTHROUGHPUT_444) || (UIProfile == UI_HIGHTHROUGHPUT_444_10) )
+        {
+           assert(m_cabacBypassAlignmentEnabledFlag==0);
+        }
+        switch ((UIProfile/100)%10)
+        {
+          case 0:  tmpConstraintChromaFormat=400; break;
+          case 1:  tmpConstraintChromaFormat=420; break;
+          case 2:  tmpConstraintChromaFormat=422; break;
+          default: tmpConstraintChromaFormat=444; break;
+        }
       }
       else
       {
-        m_chromaFormatConstraint = NUM_CHROMA_FORMAT;
-        automaticallySelectRExtProfile(bUsingGeneralRExtTools,
-                                       bUsingChromaQPAdjustment,
-                                       bUsingExtendedPrecision,
-                                       m_intraConstraintFlag,
-                                       m_bitDepthConstraint,
-                                       m_chromaFormatConstraint,
-                                       m_chromaFormatIDC==CHROMA_400 ? m_internalBitDepth[CHANNEL_TYPE_LUMA] : std::max(m_internalBitDepth[CHANNEL_TYPE_LUMA], m_internalBitDepth[CHANNEL_TYPE_CHROMA]),
-                                       m_chromaFormatIDC);
+        fprintf(stderr, "Error: Unprocessed UI profile\n");
+        assert(0);
+        exit(EXIT_FAILURE);
       }
-    }
-    else if (m_bitDepthConstraint == 0 || tmpConstraintChromaFormat == 0)
-    {
-      fprintf(stderr, "Error: The bit depth and chroma format constraints must either both be specified or both be configured automatically\n");
-      exit(EXIT_FAILURE);
-    }
-    else
-    {
-      m_chromaFormatConstraint = numberToChromaFormat(tmpConstraintChromaFormat);
-    }
-  }
-  else
-  {
-    m_chromaFormatConstraint = (tmpConstraintChromaFormat == 0) ? m_chromaFormatIDC : numberToChromaFormat(tmpConstraintChromaFormat);
-    m_bitDepthConstraint = (m_profile == Profile::MAIN10?10:8);
+      break;
   }
 
+  switch (m_profile)
+  {
+    case Profile::HIGHTHROUGHPUTREXT:
+      {
+        if (m_bitDepthConstraint == 0)
+        {
+          m_bitDepthConstraint = 16;
+        }
+        m_chromaFormatConstraint = (tmpConstraintChromaFormat == 0) ? CHROMA_444 : numberToChromaFormat(tmpConstraintChromaFormat);
+      }
+      break;
+    case Profile::MAINREXT:
+      {
+        if (m_bitDepthConstraint == 0 && tmpConstraintChromaFormat == 0)
+        {
+          // produce a valid combination, if possible.
+          const Bool bUsingGeneralRExtTools  = m_transformSkipRotationEnabledFlag        ||
+                                               m_transformSkipContextEnabledFlag         ||
+                                               m_rdpcmEnabledFlag[RDPCM_SIGNAL_IMPLICIT] ||
+                                               m_rdpcmEnabledFlag[RDPCM_SIGNAL_EXPLICIT] ||
+                                               !m_enableIntraReferenceSmoothing          ||
+                                               m_persistentRiceAdaptationEnabledFlag     ||
+                                               m_log2MaxTransformSkipBlockSize!=2;
+          const Bool bUsingChromaQPAdjustment= m_diffCuChromaQpOffsetDepth >= 0;
+          const Bool bUsingExtendedPrecision = m_extendedPrecisionProcessingFlag;
+          if (m_onePictureOnlyConstraintFlag)
+          {
+            m_chromaFormatConstraint = CHROMA_444;
+            if (m_intraConstraintFlag != true)
+            {
+              fprintf(stderr, "Error: Intra constraint flag must be true when one_picture_only_constraint_flag is true\n");
+              exit(EXIT_FAILURE);
+            }
+            const Int maxBitDepth = m_chromaFormatIDC==CHROMA_400 ? m_internalBitDepth[CHANNEL_TYPE_LUMA] : std::max(m_internalBitDepth[CHANNEL_TYPE_LUMA], m_internalBitDepth[CHANNEL_TYPE_CHROMA]);
+            m_bitDepthConstraint = maxBitDepth>8 ? 16:8;
+          }
+          else
+          {
+            m_chromaFormatConstraint = NUM_CHROMA_FORMAT;
+            automaticallySelectRExtProfile(bUsingGeneralRExtTools,
+                                           bUsingChromaQPAdjustment,
+                                           bUsingExtendedPrecision,
+                                           m_intraConstraintFlag,
+                                           m_bitDepthConstraint,
+                                           m_chromaFormatConstraint,
+                                           m_chromaFormatIDC==CHROMA_400 ? m_internalBitDepth[CHANNEL_TYPE_LUMA] : std::max(m_internalBitDepth[CHANNEL_TYPE_LUMA], m_internalBitDepth[CHANNEL_TYPE_CHROMA]),
+                                           m_chromaFormatIDC);
+          }
+        }
+        else if (m_bitDepthConstraint == 0 || tmpConstraintChromaFormat == 0)
+        {
+          fprintf(stderr, "Error: The bit depth and chroma format constraints must either both be specified or both be configured automatically\n");
+          exit(EXIT_FAILURE);
+        }
+        else
+        {
+          m_chromaFormatConstraint = numberToChromaFormat(tmpConstraintChromaFormat);
+        }
+      }
+      break;
+    case Profile::MAIN:
+    case Profile::MAIN10:
+    case Profile::MAINSTILLPICTURE:
+      m_chromaFormatConstraint = (tmpConstraintChromaFormat == 0) ? m_chromaFormatIDC : numberToChromaFormat(tmpConstraintChromaFormat);
+      m_bitDepthConstraint = (m_profile == Profile::MAIN10?10:8);
+      break;
+    case Profile::NONE:
+      m_chromaFormatConstraint = m_chromaFormatIDC;
+      m_bitDepthConstraint = m_chromaFormatIDC==CHROMA_400 ? m_internalBitDepth[CHANNEL_TYPE_LUMA] : std::max(m_internalBitDepth[CHANNEL_TYPE_LUMA], m_internalBitDepth[CHANNEL_TYPE_CHROMA]);
+      break;
+    default:
+      fprintf(stderr, "Unknown profile selected\n");
+      exit(EXIT_FAILURE);
+      break;
+  }
 
   m_inputColourSpaceConvert = stringToInputColourSpaceConvert(inputColourSpaceConvert, true);
+
+  // Picture width and height must be multiples of 8 and minCuSize
+  const Int minCuSize = m_uiMaxCUHeight >> (m_uiMaxCUDepth - 1);
+  const Int minResolutionMultiple = std::max(8, minCuSize);
 
   switch (m_conformanceWindowMode)
   {
@@ -1357,47 +2258,54 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
     {
       // no conformance or padding
       m_confWinLeft = m_confWinRight = m_confWinTop = m_confWinBottom = 0;
-      m_aiPad[1] = m_aiPad[0] = 0;
+      m_sourcePadding[1] = m_sourcePadding[0] = 0;
       break;
     }
   case 1:
     {
       // automatic padding to minimum CU size
-      Int minCuSize = m_uiMaxCUHeight >> (m_uiMaxCUDepth - 1);
-      if (m_iSourceWidth % minCuSize)
+      if (m_sourceWidth % minResolutionMultiple)
       {
-        m_aiPad[0] = m_confWinRight  = ((m_iSourceWidth / minCuSize) + 1) * minCuSize - m_iSourceWidth;
-        m_iSourceWidth  += m_confWinRight;
+        m_sourcePadding[0] = m_confWinRight  = ((m_sourceWidth / minResolutionMultiple) + 1) * minResolutionMultiple - m_sourceWidth;
+        m_sourceWidth  += m_confWinRight;
       }
-      if (m_iSourceHeight % minCuSize)
+      if (m_sourceHeight % minResolutionMultiple)
       {
-        m_aiPad[1] = m_confWinBottom = ((m_iSourceHeight / minCuSize) + 1) * minCuSize - m_iSourceHeight;
-        m_iSourceHeight += m_confWinBottom;
+        m_sourcePadding[1] = m_confWinBottom = ((m_sourceHeight / minResolutionMultiple) + 1) * minResolutionMultiple - m_sourceHeight;
+        m_sourceHeight += m_confWinBottom;
         if ( m_isField )
         {
-          m_iSourceHeightOrg += m_confWinBottom << 1;
-          m_aiPad[1] = m_confWinBottom << 1;
+          m_sourceHeightOrg += m_confWinBottom << 1;
+          m_sourcePadding[1] = m_confWinBottom << 1;
         }
       }
-      if (m_aiPad[0] % TComSPS::getWinUnitX(m_chromaFormatIDC) != 0)
+      if (m_sourcePadding[0] % TComSPS::getWinUnitX(m_chromaFormatIDC) != 0)
       {
         fprintf(stderr, "Error: picture width is not an integer multiple of the specified chroma subsampling\n");
         exit(EXIT_FAILURE);
       }
-      if (m_aiPad[1] % TComSPS::getWinUnitY(m_chromaFormatIDC) != 0)
+      if (m_sourcePadding[1] % TComSPS::getWinUnitY(m_chromaFormatIDC) != 0)
       {
         fprintf(stderr, "Error: picture height is not an integer multiple of the specified chroma subsampling\n");
         exit(EXIT_FAILURE);
+      }
+      if (m_sourcePadding[0])
+      {
+        fprintf(stderr, "Info: Conformance window automatically enabled. Adding %i lumal pel horizontally\n", m_sourcePadding[0]);
+      }
+      if (m_sourcePadding[1])
+      {
+        fprintf(stderr, "Info: Conformance window automatically enabled. Adding %i lumal pel vertically\n", m_sourcePadding[1]);
       }
       break;
     }
   case 2:
     {
       //padding
-      m_iSourceWidth  += m_aiPad[0];
-      m_iSourceHeight += m_aiPad[1];
-      m_confWinRight  = m_aiPad[0];
-      m_confWinBottom = m_aiPad[1];
+      m_sourceWidth  += m_sourcePadding[0];
+      m_sourceHeight += m_sourcePadding[1];
+      m_confWinRight  = m_sourcePadding[0];
+      m_confWinBottom = m_sourcePadding[1];
       break;
     }
   case 3:
@@ -1407,13 +2315,18 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
       {
         fprintf(stderr, "Warning: Conformance window enabled, but all conformance window parameters set to zero\n");
       }
-      if ((m_aiPad[1] != 0) || (m_aiPad[0]!=0))
+      if ((m_sourcePadding[1] != 0) || (m_sourcePadding[0]!=0))
       {
         fprintf(stderr, "Warning: Conformance window enabled, padding parameters will be ignored\n");
       }
-      m_aiPad[1] = m_aiPad[0] = 0;
+      m_sourcePadding[1] = m_sourcePadding[0] = 0;
       break;
     }
+  }
+  if ((m_sourceWidth% minResolutionMultiple) || (m_sourceHeight % minResolutionMultiple))
+  {
+    fprintf(stderr, "Picture width or height (after padding) is not a multiple of 8 or minCuSize, please use ConformanceWindowMode=1 for automatic adjustment or ConformanceWindowMode=2 to specify padding manually!\n");
+    exit(EXIT_FAILURE);
   }
 
   if (tmpSliceMode<0 || tmpSliceMode>=Int(NUMBER_OF_SLICE_CONSTRAINT_MODES))
@@ -1448,7 +2361,6 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
   m_aidQP = new Int[ m_framesToBeEncoded + m_iGOPSize + 1 ];
   ::memset( m_aidQP, 0, sizeof(Int)*( m_framesToBeEncoded + m_iGOPSize + 1 ) );
 
-#if JVET_E0059_FLOATING_POINT_QP_FIX
   if (m_qpIncrementAtSourceFrame.bPresent)
   {
     UInt switchingPOC=0;
@@ -1464,21 +2376,6 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
       m_aidQP[i]=1;
     }
   }
-#else
-  // handling of floating-point QP values
-  // if QP is not integer, sequence is split into two sections having QP and QP+1
-  m_iQP = (Int)( m_fQP );
-  if ( m_iQP < m_fQP )
-  {
-    Int iSwitchPOC = (Int)( m_framesToBeEncoded - (m_fQP - m_iQP)*m_framesToBeEncoded + 0.5 );
-
-    iSwitchPOC = (Int)( (Double)iSwitchPOC / m_iGOPSize + 0.5 )*m_iGOPSize;
-    for ( Int i=iSwitchPOC; i<m_framesToBeEncoded + m_iGOPSize + 1; i++ )
-    {
-      m_aidQP[i] = 1;
-    }
-  }
-#endif
 
   for(UInt ch=0; ch<MAX_NUM_CHANNEL_TYPE; ch++)
   {
@@ -1584,18 +2481,197 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
     }
   }
 
-  if( m_kneeSEIEnabled && !m_kneeSEICancelFlag )
+  if( m_kneeSEIEnabled && !m_kneeFunctionInformationSEI.m_kneeFunctionCancelFlag )
   {
-    assert ( m_kneeSEINumKneePointsMinus1 >= 0 && m_kneeSEINumKneePointsMinus1 < 999 );
-    m_kneeSEIInputKneePoint  = new Int[m_kneeSEINumKneePointsMinus1+1];
-    m_kneeSEIOutputKneePoint = new Int[m_kneeSEINumKneePointsMinus1+1];
-    for(Int i=0; i<(m_kneeSEINumKneePointsMinus1+1); i++)
+    assert ( cfg_kneeSEINumKneePointsMinus1 >= 0 && cfg_kneeSEINumKneePointsMinus1 < 999 );
+    m_kneeFunctionInformationSEI.m_kneeSEIKneePointPairs.resize(cfg_kneeSEINumKneePointsMinus1+1);
+    for(Int i=0; i<(cfg_kneeSEINumKneePointsMinus1+1); i++)
     {
-      m_kneeSEIInputKneePoint[i]  = cfg_kneeSEIInputKneePointValue.values.size()  > i ? cfg_kneeSEIInputKneePointValue.values[i]  : 1;
-      m_kneeSEIOutputKneePoint[i] = cfg_kneeSEIOutputKneePointValue.values.size() > i ? cfg_kneeSEIOutputKneePointValue.values[i] : 0;
+      TEncCfg::TEncSEIKneeFunctionInformation::KneePointPair &kpp=m_kneeFunctionInformationSEI.m_kneeSEIKneePointPairs[i];
+      kpp.inputKneePoint = cfg_kneeSEIInputKneePointValue.values.size()  > i ? cfg_kneeSEIInputKneePointValue.values[i]  : 1;
+      kpp.outputKneePoint = cfg_kneeSEIOutputKneePointValue.values.size() > i ? cfg_kneeSEIOutputKneePointValue.values[i] : 0;
     }
   }
 
+  if ( m_omniViewportSEIEnabled && !m_omniViewportSEICancelFlag )
+  {
+    assert ( m_omniViewportSEICntMinus1 >= 0 && m_omniViewportSEICntMinus1 < 16 );
+    m_omniViewportSEIAzimuthCentre.resize  (m_omniViewportSEICntMinus1+1);
+    m_omniViewportSEIElevationCentre.resize(m_omniViewportSEICntMinus1+1);
+    m_omniViewportSEITiltCentre.resize     (m_omniViewportSEICntMinus1+1);
+    m_omniViewportSEIHorRange.resize       (m_omniViewportSEICntMinus1+1);
+    m_omniViewportSEIVerRange.resize       (m_omniViewportSEICntMinus1+1);
+    for(Int i=0; i<(m_omniViewportSEICntMinus1+1); i++)
+    {
+      m_omniViewportSEIAzimuthCentre[i]   = cfg_omniViewportSEIAzimuthCentre  .values.size() > i ? cfg_omniViewportSEIAzimuthCentre  .values[i] : 0;
+      m_omniViewportSEIElevationCentre[i] = cfg_omniViewportSEIElevationCentre.values.size() > i ? cfg_omniViewportSEIElevationCentre.values[i] : 0;
+      m_omniViewportSEITiltCentre[i]      = cfg_omniViewportSEITiltCentre     .values.size() > i ? cfg_omniViewportSEITiltCentre     .values[i] : 0;
+      m_omniViewportSEIHorRange[i]        = cfg_omniViewportSEIHorRange       .values.size() > i ? cfg_omniViewportSEIHorRange       .values[i] : 0;
+      m_omniViewportSEIVerRange[i]        = cfg_omniViewportSEIVerRange       .values.size() > i ? cfg_omniViewportSEIVerRange       .values[i] : 0;
+    }
+  }
+
+  if(!m_rwpSEIRwpCancelFlag && m_rwpSEIEnabled)
+  {
+    assert ( m_rwpSEINumPackedRegions > 0 && m_rwpSEINumPackedRegions <= std::numeric_limits<UChar>::max() );
+    assert (cfg_rwpSEIRwpTransformType.values.size() == m_rwpSEINumPackedRegions  && cfg_rwpSEIRwpGuardBandFlag.values.size() == m_rwpSEINumPackedRegions    && cfg_rwpSEIProjRegionWidth.values.size() == m_rwpSEINumPackedRegions &&
+            cfg_rwpSEIProjRegionHeight.values.size() == m_rwpSEINumPackedRegions  && cfg_rwpSEIRwpSEIProjRegionTop.values.size() == m_rwpSEINumPackedRegions && cfg_rwpSEIProjRegionLeft.values.size() == m_rwpSEINumPackedRegions  &&
+            cfg_rwpSEIPackedRegionWidth.values.size() == m_rwpSEINumPackedRegions && cfg_rwpSEIPackedRegionHeight.values.size() == m_rwpSEINumPackedRegions  && cfg_rwpSEIPackedRegionTop.values.size() == m_rwpSEINumPackedRegions &&
+            cfg_rwpSEIPackedRegionLeft.values.size() == m_rwpSEINumPackedRegions);
+    m_rwpSEIRwpTransformType.resize(m_rwpSEINumPackedRegions);
+    m_rwpSEIRwpGuardBandFlag.resize(m_rwpSEINumPackedRegions);
+    m_rwpSEIProjRegionWidth.resize(m_rwpSEINumPackedRegions);
+    m_rwpSEIProjRegionHeight.resize(m_rwpSEINumPackedRegions);
+    m_rwpSEIRwpSEIProjRegionTop.resize(m_rwpSEINumPackedRegions);
+    m_rwpSEIProjRegionLeft.resize(m_rwpSEINumPackedRegions);
+    m_rwpSEIPackedRegionWidth.resize(m_rwpSEINumPackedRegions);
+    m_rwpSEIPackedRegionHeight.resize(m_rwpSEINumPackedRegions);
+    m_rwpSEIPackedRegionTop.resize(m_rwpSEINumPackedRegions);
+    m_rwpSEIPackedRegionLeft.resize(m_rwpSEINumPackedRegions);
+    m_rwpSEIRwpLeftGuardBandWidth.resize(m_rwpSEINumPackedRegions);
+    m_rwpSEIRwpRightGuardBandWidth.resize(m_rwpSEINumPackedRegions);
+    m_rwpSEIRwpTopGuardBandHeight.resize(m_rwpSEINumPackedRegions);
+    m_rwpSEIRwpBottomGuardBandHeight.resize(m_rwpSEINumPackedRegions);
+    m_rwpSEIRwpGuardBandNotUsedForPredFlag.resize(m_rwpSEINumPackedRegions);
+    m_rwpSEIRwpGuardBandType.resize(4*m_rwpSEINumPackedRegions);
+    for( Int i=0; i < m_rwpSEINumPackedRegions; i++ )
+    {
+      m_rwpSEIRwpTransformType[i]                     = cfg_rwpSEIRwpTransformType.values[i];
+      assert ( m_rwpSEIRwpTransformType[i] >= 0 && m_rwpSEIRwpTransformType[i] <= 7 );
+      m_rwpSEIRwpGuardBandFlag[i]                     = cfg_rwpSEIRwpGuardBandFlag.values[i];
+      m_rwpSEIProjRegionWidth[i]                      = cfg_rwpSEIProjRegionWidth.values[i];
+      m_rwpSEIProjRegionHeight[i]                     = cfg_rwpSEIProjRegionHeight.values[i];
+      m_rwpSEIRwpSEIProjRegionTop[i]                  = cfg_rwpSEIRwpSEIProjRegionTop.values[i];
+      m_rwpSEIProjRegionLeft[i]                       = cfg_rwpSEIProjRegionLeft.values[i];
+      m_rwpSEIPackedRegionWidth[i]                    = cfg_rwpSEIPackedRegionWidth.values[i];
+      m_rwpSEIPackedRegionHeight[i]                   = cfg_rwpSEIPackedRegionHeight.values[i];
+      m_rwpSEIPackedRegionTop[i]                      = cfg_rwpSEIPackedRegionTop.values[i];
+      m_rwpSEIPackedRegionLeft[i]                     = cfg_rwpSEIPackedRegionLeft.values[i]; 
+      if( m_rwpSEIRwpGuardBandFlag[i] )
+      {
+        m_rwpSEIRwpLeftGuardBandWidth[i]              =  cfg_rwpSEIRwpLeftGuardBandWidth.values[i];
+        m_rwpSEIRwpRightGuardBandWidth[i]             =  cfg_rwpSEIRwpRightGuardBandWidth.values[i];
+        m_rwpSEIRwpTopGuardBandHeight[i]              =  cfg_rwpSEIRwpTopGuardBandHeight.values[i];
+        m_rwpSEIRwpBottomGuardBandHeight[i]           =  cfg_rwpSEIRwpBottomGuardBandHeight.values[i];
+        assert ( m_rwpSEIRwpLeftGuardBandWidth[i] > 0 || m_rwpSEIRwpRightGuardBandWidth[i] > 0 || m_rwpSEIRwpTopGuardBandHeight[i] >0 || m_rwpSEIRwpBottomGuardBandHeight[i] >0 );
+        m_rwpSEIRwpGuardBandNotUsedForPredFlag[i]     =  cfg_rwpSEIRwpGuardBandNotUsedForPredFlag.values[i];
+        for( Int j=0; j < 4; j++ )
+        {
+          m_rwpSEIRwpGuardBandType[i*4 + j]           =  cfg_rwpSEIRwpGuardBandType.values[i*4 + j];
+        }
+
+      }
+    }
+  }
+  if (!m_fisheyeVideoInfoSEI.m_fisheyeCancelFlag && m_fisheyeVIdeoInfoSEIEnabled)
+  {
+    if (cfg_fviSEIFisheyeNumActiveAreasMinus1 < 0 || cfg_fviSEIFisheyeNumActiveAreasMinus1 > 3)             { fprintf(stderr, "Bad number of FVI active areas\n"); exit(EXIT_FAILURE); }
+    if (cfg_fviSEIFisheyeCircularRegionCentreX.values.size() != cfg_fviSEIFisheyeNumActiveAreasMinus1 + 1)  { fprintf(stderr, "Bad number of FVI circular region centre X entries\n"); exit(EXIT_FAILURE); }
+    if (cfg_fviSEIFisheyeCircularRegionCentreY.values.size() != cfg_fviSEIFisheyeNumActiveAreasMinus1 + 1)  { fprintf(stderr, "Bad number of FVI circular region centre Y entries\n"); exit(EXIT_FAILURE); }
+    if (cfg_fviSEIFisheyeRectRegionTop.values.size()         != cfg_fviSEIFisheyeNumActiveAreasMinus1 + 1)  { fprintf(stderr, "Bad number of FVI rect region top entries\n"); exit(EXIT_FAILURE); }
+    if (cfg_fviSEIFisheyeRectRegionLeft.values.size()        != cfg_fviSEIFisheyeNumActiveAreasMinus1 + 1)  { fprintf(stderr, "Bad number of FVI rect region left entries\n"); exit(EXIT_FAILURE); }
+    if (cfg_fviSEIFisheyeRectRegionWidth.values.size()       != cfg_fviSEIFisheyeNumActiveAreasMinus1 + 1)  { fprintf(stderr, "Bad number of FVI rect region width entries\n"); exit(EXIT_FAILURE); }
+    if (cfg_fviSEIFisheyeRectRegionHeight.values.size()      != cfg_fviSEIFisheyeNumActiveAreasMinus1 + 1)  { fprintf(stderr, "Bad number of FVI rect region height entries\n"); exit(EXIT_FAILURE); }
+    if (cfg_fviSEIFisheyeCircularRegionRadius.values.size()  != cfg_fviSEIFisheyeNumActiveAreasMinus1 + 1)  { fprintf(stderr, "Bad number of FVI circular region radius entries\n"); exit(EXIT_FAILURE); }
+    if (cfg_fviSEIFisheyeSceneRadius.values.size()           != cfg_fviSEIFisheyeNumActiveAreasMinus1 + 1)  { fprintf(stderr, "Bad number of FVI scene radius entries\n"); exit(EXIT_FAILURE); }
+
+    if (cfg_fviSEIFisheyeCameraCentreAzimuth.values.size()   != cfg_fviSEIFisheyeNumActiveAreasMinus1 + 1)  { fprintf(stderr, "Bad number of FVI camera centre azimuth entries\n"); exit(EXIT_FAILURE); }
+    if (cfg_fviSEIFisheyeCameraCentreElevation.values.size() != cfg_fviSEIFisheyeNumActiveAreasMinus1 + 1)  { fprintf(stderr, "Bad number of FVI camera centre elevation entries\n"); exit(EXIT_FAILURE); }
+    if (cfg_fviSEIFisheyeCameraCentreTilt.values.size()      != cfg_fviSEIFisheyeNumActiveAreasMinus1 + 1)  { fprintf(stderr, "Bad number of FVI camera centre tilt entries\n"); exit(EXIT_FAILURE); }
+    if (cfg_fviSEIFisheyeCameraCentreOffsetX.values.size()   != cfg_fviSEIFisheyeNumActiveAreasMinus1 + 1)  { fprintf(stderr, "Bad number of FVI camera centre offsetX entries\n"); exit(EXIT_FAILURE); }
+    if (cfg_fviSEIFisheyeCameraCentreOffsetY.values.size()   != cfg_fviSEIFisheyeNumActiveAreasMinus1 + 1)  { fprintf(stderr, "Bad number of FVI camera centre offsetY entries\n"); exit(EXIT_FAILURE); }
+    if (cfg_fviSEIFisheyeCameraCentreOffsetZ.values.size()   != cfg_fviSEIFisheyeNumActiveAreasMinus1 + 1)  { fprintf(stderr, "Bad number of FVI camera centre offsetZ entries\n"); exit(EXIT_FAILURE); }
+    if (cfg_fviSEIFisheyeFieldOfView.values.size()           != cfg_fviSEIFisheyeNumActiveAreasMinus1 + 1)  { fprintf(stderr, "Bad number of FVI field of view entries\n"); exit(EXIT_FAILURE); }
+
+    m_fisheyeVideoInfoSEI.m_fisheyeActiveAreas.resize(cfg_fviSEIFisheyeNumActiveAreasMinus1 + 1);
+
+    for (std::size_t i = 0, extractPolynomialIdx = 0; i < m_fisheyeVideoInfoSEI.m_fisheyeActiveAreas.size(); i++)
+    {
+      TComSEIFisheyeVideoInfo::ActiveAreaInfo &info=m_fisheyeVideoInfoSEI.m_fisheyeActiveAreas[i];
+      info.m_fisheyeCircularRegionCentreX           = cfg_fviSEIFisheyeCircularRegionCentreX.values[i];
+      info.m_fisheyeCircularRegionCentreY           = cfg_fviSEIFisheyeCircularRegionCentreY.values[i];
+      info.m_fisheyeRectRegionTop                   = cfg_fviSEIFisheyeRectRegionTop.values[i];
+      info.m_fisheyeRectRegionLeft                  = cfg_fviSEIFisheyeRectRegionLeft.values[i];
+      info.m_fisheyeRectRegionWidth                 = cfg_fviSEIFisheyeRectRegionWidth.values[i];
+      info.m_fisheyeRectRegionHeight                = cfg_fviSEIFisheyeRectRegionHeight.values[i];
+      info.m_fisheyeCircularRegionRadius            = cfg_fviSEIFisheyeCircularRegionRadius.values[i];
+      info.m_fisheyeSceneRadius                     = cfg_fviSEIFisheyeSceneRadius.values[i];
+
+      // check rectangular region is within the conformance window.
+      if ( (!( info.m_fisheyeRectRegionHeight >= 1 && m_confWinTop  <= info.m_fisheyeRectRegionTop  && info.m_fisheyeRectRegionTop  + info.m_fisheyeRectRegionHeight < m_sourceHeight -m_confWinBottom ) ) ||
+           (!( info.m_fisheyeRectRegionWidth  >= 1 && m_confWinLeft <= info.m_fisheyeRectRegionLeft && info.m_fisheyeRectRegionLeft + info.m_fisheyeRectRegionWidth  < m_sourceWidth  -m_confWinRight  ) ) )
+      {
+        fprintf(stderr, "Fisheye region is not within visible area\n");
+        exit (EXIT_FAILURE);
+      }
+
+      info.m_fisheyeCameraCentreAzimuth             = cfg_fviSEIFisheyeCameraCentreAzimuth.values[i];
+      info.m_fisheyeCameraCentreElevation           = cfg_fviSEIFisheyeCameraCentreElevation.values[i];
+      info.m_fisheyeCameraCentreTilt                = cfg_fviSEIFisheyeCameraCentreTilt.values[i];
+      info.m_fisheyeCameraCentreOffsetX             = cfg_fviSEIFisheyeCameraCentreOffsetX.values[i];
+      info.m_fisheyeCameraCentreOffsetY             = cfg_fviSEIFisheyeCameraCentreOffsetY.values[i];
+      info.m_fisheyeCameraCentreOffsetZ             = cfg_fviSEIFisheyeCameraCentreOffsetZ.values[i];
+
+      info.m_fisheyeFieldOfView                     = cfg_fviSEIFisheyeFieldOfView.values[i];
+      assert(cfg_fviSEIFisheyeNumPolynomialCoeffs.values[i] >= 0 && cfg_fviSEIFisheyeNumPolynomialCoeffs.values[i] <= 8);
+      info.m_fisheyePolynomialCoeff.resize(cfg_fviSEIFisheyeNumPolynomialCoeffs.values[i]);
+
+      for (Int j = 0; j < info.m_fisheyePolynomialCoeff.size(); j++)
+      {
+        assert(cfg_fviSEIFisheyePolynomialCoeff.values.size() > extractPolynomialIdx);
+        info.m_fisheyePolynomialCoeff[j] = cfg_fviSEIFisheyePolynomialCoeff.values[extractPolynomialIdx++];
+      }
+    }
+  }
+#if JVET_AL0062_AI_USAGE_RESTRICTIONS_SEI
+  if (m_aurSEIEnabled)
+  {
+    m_aurSEIRestrictions = cfg_aurSEIRestrictions.values;
+    m_aurSEIContextPresentFlag = cfg_aurSEIContextPresentFlag.values;
+    m_aurSEIContext = cfg_aurSEIContext.values;
+  }
+#endif
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+  m_ShutterFilterEnable = false;
+#endif
+#if SHUTTER_INTERVAL_SEI_MESSAGE
+  if (m_siiSEIEnabled)
+  {
+    assert(m_siiSEITimeScale >= 0 && m_siiSEITimeScale <= MAX_UINT);
+    UInt arraySize = (UInt)cfg_siiSEIInputNumUnitsInSI.values.size();
+    assert(arraySize > 0);
+    if (arraySize > 1)
+    {
+      m_siiSEISubLayerNumUnitsInSI.resize(arraySize);
+      for (Int i = 0; i < arraySize; i++)
+      {
+        m_siiSEISubLayerNumUnitsInSI[i] = cfg_siiSEIInputNumUnitsInSI.values[i];
+        assert(m_siiSEISubLayerNumUnitsInSI[i] >= 0 && m_siiSEISubLayerNumUnitsInSI[i] <= MAX_UINT);
+      }
+    }
+    else
+    {
+      m_siiSEINumUnitsInShutterInterval = cfg_siiSEIInputNumUnitsInSI.values[0];
+      assert(m_siiSEINumUnitsInShutterInterval >= 0 && m_siiSEINumUnitsInShutterInterval <= MAX_UINT);
+    }
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+    if (arraySize > 1 && m_siiSEISubLayerNumUnitsInSI[0] == 2 * m_siiSEISubLayerNumUnitsInSI[arraySize - 1])
+    {
+      m_ShutterFilterEnable = true;
+      const Double shutterAngle = 360.0;
+      Double fpsHFR = (Double)m_iFrameRate, fpsLFR = (Double)m_iFrameRate / 2.0;
+      UInt numUnitsHFR = (UInt)(((Double)m_siiSEITimeScale / fpsHFR) * (shutterAngle / 360.0));
+      UInt numUnitsLFR = (UInt)(((Double)m_siiSEITimeScale / fpsLFR) * (shutterAngle / 360.0));
+      for (Int i = 0; i < arraySize - 1; i++) m_siiSEISubLayerNumUnitsInSI[i] = numUnitsLFR;
+      m_siiSEISubLayerNumUnitsInSI[arraySize - 1] = numUnitsHFR;
+    }
+    else
+    {
+      printf("Warning: SII-processing is applied for multiple shutter intervals and number of LFR units should be 2 times of number of HFR units\n");
+    }
+#endif
+  }
+#endif
   if(m_timeCodeSEIEnabled)
   {
     for(Int i = 0; i < m_timeCodeSEINumTs && i < MAX_TIMECODE_SEI_SETS; i++)
@@ -1617,6 +2693,453 @@ Bool TAppEncCfg::parseCfg( Int argc, TChar* argv[] )
       m_timeSetArray[i].timeOffsetValue       = cfg_timeCodeSeiTimeOffsetValue      .values.size()>i ? cfg_timeCodeSeiTimeOffsetValue      .values [i] : 0;
     }
   }
+#if JVET_X0048_X0103_FILM_GRAIN
+  // Assigning the FGC SEI params from App to Lib
+  if (!m_fgcSEIEnabled && m_fgcSEIAnalysisEnabled)
+  {
+    fprintf(stderr, "FGC SEI must be enabled in order to perform film grain analysis!\n"); exit(EXIT_FAILURE);
+  }
+  if (m_fgcSEIEnabled)
+  {
+    if (m_iIntraPeriod < 1)
+    { // low delay configuration
+      fprintf(stderr, "*************************************************************************************\n");
+      fprintf(stderr, "** WARNING: For low delay configuration, FGC SEI is inserted for first frame only! **\n");
+      fprintf(stderr, "*************************************************************************************\n");
+      m_fgcSEIPerPictureSEI = false;
+      m_fgcSEIPersistenceFlag = true;
+    }
+    else if (m_iIntraPeriod == 1)
+    { // all intra configuration
+      fprintf(stderr, "*******************************************************************\n");
+      fprintf(stderr, "** WARNING: For Intra Period = 1, FGC SEI is inserted per frame! **\n");
+      fprintf(stderr, "*******************************************************************\n");
+      m_fgcSEIPerPictureSEI = true;
+      m_fgcSEIPersistenceFlag = false;
+    }
+    if (!m_fgcSEIPerPictureSEI && !m_fgcSEIPersistenceFlag)
+    {
+      fprintf(stderr, "*************************************************************************************\n");
+      fprintf(stderr, "** WARNING: SEIPerPictureSEI is set to 0, SEIPersistenceFlag needs to be set to 1! **\n");
+      fprintf(stderr, "*************************************************************************************\n");
+      m_fgcSEIPersistenceFlag = true;
+    }
+    else if (m_fgcSEIPerPictureSEI && m_fgcSEIPersistenceFlag)
+    {
+      fprintf(stderr, "*************************************************************************************\n");
+      fprintf(stderr, "** WARNING: SEIPerPictureSEI is set to 1, SEIPersistenceFlag needs to be set to 0! **\n");
+      fprintf(stderr, "*************************************************************************************\n");
+      m_fgcSEIPersistenceFlag = false;
+    }
+    UInt numModelCtr;
+    for (UInt c = 0; c <= 2; c++ )
+    {
+      if (m_fgcSEICompModelPresent[c])
+      {
+        numModelCtr = 0;
+        for (UInt i = 0; i <= m_fgcSEINumIntensityIntervalMinus1[c]; i++)
+        {
+          m_fgcSEIIntensityIntervalLowerBound[c][i] = UChar((cfg_FgcSEIIntensityIntervalLowerBoundComp[c].values.size() > i) ? cfg_FgcSEIIntensityIntervalLowerBoundComp[c].values[i] : 10);
+          m_fgcSEIIntensityIntervalUpperBound[c][i] = UChar((cfg_FgcSEIIntensityIntervalUpperBoundComp[c].values.size() > i) ? cfg_FgcSEIIntensityIntervalUpperBoundComp[c].values[i] : 250);
+          for (UInt j = 0; j <= m_fgcSEINumModelValuesMinus1[c]; j++)
+          {
+            m_fgcSEICompModelValue[c][i][j] = UInt((cfg_FgcSEICompModelValueComp[c].values.size() > numModelCtr) ? cfg_FgcSEICompModelValueComp[c].values[numModelCtr] : getDefaultFgcCompModelValue(c));
+            numModelCtr++;
+          }
+        }
+      }
+    }
+  }
+  m_fgcSEILog2ScaleFactor = m_fgcSEILog2ScaleFactor ? m_fgcSEILog2ScaleFactor : 2;
+#endif
+#if JVET_AJ0207_GFV
+  if (m_generativeFaceVideoEnabled)
+  {
+    assert(cfg_generativeFaceVideoSEIId.values.size() == m_generativeFaceVideoSEINumber);
+    assert(cfg_generativeFaceVideoSEICnt.values.size() == m_generativeFaceVideoSEINumber);
+    assert(cfg_generativeFaceVideoSEIDrivePicFusionFlag.values.size() == m_generativeFaceVideoSEINumber);
+    assert(cfg_generativeFaceVideoSEILowConfidenceFaceParameterFlag.values.size() == m_generativeFaceVideoSEINumber);
+    assert(cfg_generativeFaceVideoSEICoordinatePresentFlag.values.size() == m_generativeFaceVideoSEINumber);
+    assert(cfg_generativeFaceVideoSEICoordinatePredFlag.values.size() == m_generativeFaceVideoSEINumber);
+    m_generativeFaceVideoSEIId.resize(m_generativeFaceVideoSEINumber);
+    m_generativeFaceVideoSEICnt.resize(m_generativeFaceVideoSEINumber);
+    m_generativeFaceVideoSEIDrivePicFusionFlag.resize(m_generativeFaceVideoSEINumber);
+    m_generativeFaceVideoSEILowConfidenceFaceParameterFlag.resize(m_generativeFaceVideoSEINumber);
+    m_generativeFaceVideoSEICoordinatePresentFlag.resize(m_generativeFaceVideoSEINumber);
+    m_generativeFaceVideoSEICoordinateQuantizationFactor.resize(m_generativeFaceVideoSEINumber);
+    m_generativeFaceVideoSEICoordinatePredFlag.resize(m_generativeFaceVideoSEINumber);
+    m_generativeFaceVideoSEI3DCoordinateFlag.resize(m_generativeFaceVideoSEINumber);
+    m_generativeFaceVideoSEICoordinatePointNum.resize(m_generativeFaceVideoSEINumber);
+    assert(cfg_generativeFaceVideoSEIMatrixPresentFlag.values.size() == m_generativeFaceVideoSEINumber);
+    m_generativeFaceVideoSEIMatrixPresentFlag.resize(m_generativeFaceVideoSEINumber);
+    m_generativeFaceVideoSEIMatrixPredFlag.resize(m_generativeFaceVideoSEINumber);
+    m_generativeFaceVideoSEIMatrixElementPrecisionFactor.resize(m_generativeFaceVideoSEINumber);
+    m_generativeFaceVideoSEINumMatrixType.resize(m_generativeFaceVideoSEINumber);
+    int cooridinateBeforeSum = 0;
+    int cooridinateZBeforeSum = 0;
+    int matrixNumBeforeSum = 0;
+    int matrixDimensionBeforeSum = 0;
+    m_generativeFaceVideoSEIChromaKeyValuePresentFlag.resize(3);
+    m_generativeFaceVideoSEIChromaKeyValue.resize(3);
+    m_generativeFaceVideoSEIChromaKeyThrPresentFlag.resize(2);
+    m_generativeFaceVideoSEIChromaKeyThrValue.resize(2);
+    if (m_generativeFaceVideoSEIChromaKeyInfoPresentFlag)
+    {
+      for (uint32_t chromac = 0; chromac < 3; chromac++)
+      {
+        m_generativeFaceVideoSEIChromaKeyValuePresentFlag[chromac] = cfg_generativeFaceVideoSEIChromaKeyValuePresentFlag.values[chromac];
+        m_generativeFaceVideoSEIChromaKeyValue[chromac] = cfg_generativeFaceVideoSEIChromaKeyValue.values[chromac];
+      }
+      for (uint32_t chromai = 0; chromai < 2; chromai++)
+      {
+        m_generativeFaceVideoSEIChromaKeyThrPresentFlag[chromai] = cfg_generativeFaceVideoSEIChromaKeyThrPresentFlag.values[chromai];
+        m_generativeFaceVideoSEIChromaKeyThrValue[chromai] = cfg_generativeFaceVideoSEIChromaKeyThrValue.values[chromai];
+      }
+    }
+    for (uint32_t frameIdx = 0; frameIdx < m_generativeFaceVideoSEINumber; frameIdx++)
+    {
+      m_generativeFaceVideoSEIId[frameIdx] = cfg_generativeFaceVideoSEIId.values[frameIdx];
+      m_generativeFaceVideoSEICnt[frameIdx] = cfg_generativeFaceVideoSEICnt.values[frameIdx];
+      m_generativeFaceVideoSEIDrivePicFusionFlag[frameIdx] = cfg_generativeFaceVideoSEIDrivePicFusionFlag.values[frameIdx];
+      m_generativeFaceVideoSEILowConfidenceFaceParameterFlag[frameIdx] = cfg_generativeFaceVideoSEILowConfidenceFaceParameterFlag.values[frameIdx];
+      m_generativeFaceVideoSEICoordinatePresentFlag[frameIdx] = cfg_generativeFaceVideoSEICoordinatePresentFlag.values[frameIdx];
+      assert(!m_generativeFaceVideoSEICnt[frameIdx] || !m_generativeFaceVideoSEIBasePicFlag || !m_generativeFaceVideoSEIDrivePicFusionFlag[frameIdx]);
+      m_generativeFaceVideoSEICoordinatePredFlag[frameIdx] = cfg_generativeFaceVideoSEICoordinatePredFlag.values[frameIdx];
+      m_generativeFaceVideoSEIZCoordinateMaxValue.push_back(std::vector<uint32_t>());
+      int basePicFlag = (frameIdx == 0) ? 1 : 0;
+      if (basePicFlag || !m_generativeFaceVideoSEICoordinatePredFlag[frameIdx])
+      {
+        m_generativeFaceVideoSEICoordinateQuantizationFactor[frameIdx] = cfg_generativeFaceVideoSEICoordinateQuantizationFactor.values[frameIdx];
+        m_generativeFaceVideoSEI3DCoordinateFlag[frameIdx] = cfg_generativeFaceVideoSEI3DCoordinateFlag.values[frameIdx];
+        m_generativeFaceVideoSEICoordinatePointNum[frameIdx] = cfg_generativeFaceVideoSEICoordinatePointNum.values[frameIdx];
+        if (m_generativeFaceVideoSEI3DCoordinateFlag[frameIdx] == 1)
+        {
+          m_generativeFaceVideoSEIZCoordinateMaxValue[frameIdx].push_back(cfg_generativeFaceVideoSEIZCoordinateMaxValue.values[frameIdx]);
+        }
+      }
+      else
+      {
+        assert(m_generativeFaceVideoSEIId[frameIdx] == m_generativeFaceVideoSEIId[0]);
+        m_generativeFaceVideoSEICoordinateQuantizationFactor[frameIdx] = m_generativeFaceVideoSEICoordinateQuantizationFactor[0];
+        m_generativeFaceVideoSEI3DCoordinateFlag[frameIdx] = m_generativeFaceVideoSEI3DCoordinateFlag[0];
+        m_generativeFaceVideoSEICoordinatePointNum[frameIdx] = m_generativeFaceVideoSEICoordinatePointNum[0];
+        if (m_generativeFaceVideoSEI3DCoordinateFlag[frameIdx] == 1)
+        {
+          m_generativeFaceVideoSEIZCoordinateMaxValue[frameIdx].push_back(m_generativeFaceVideoSEIZCoordinateMaxValue[0][0]);
+        }
+      }
+      m_generativeFaceVideoSEICoordinateXTesonr.push_back(std::vector<double>());
+      m_generativeFaceVideoSEICoordinateYTesonr.push_back(std::vector<double>());
+      m_generativeFaceVideoSEICoordinateZTesonr.push_back(std::vector<double>());
+      m_generativeFaceVideoSEIMatrixElement.push_back(std::vector<std::vector<std::vector<std::vector<double>>>>());
+      if (m_generativeFaceVideoSEICoordinatePresentFlag[frameIdx] == 1)
+      {
+        for (uint32_t coordinateId = 0; coordinateId < m_generativeFaceVideoSEICoordinatePointNum[frameIdx]; coordinateId++)
+        {
+          m_generativeFaceVideoSEICoordinateXTesonr[frameIdx].push_back(cfg_generativeFaceVideoSEICoordinateXTesonr.values[cooridinateBeforeSum + coordinateId]);
+          m_generativeFaceVideoSEICoordinateYTesonr[frameIdx].push_back(cfg_generativeFaceVideoSEICoordinateYTesonr.values[cooridinateBeforeSum + coordinateId]);
+        }
+        cooridinateBeforeSum = cooridinateBeforeSum + m_generativeFaceVideoSEICoordinatePointNum[frameIdx];
+        if (m_generativeFaceVideoSEI3DCoordinateFlag[frameIdx] == 1)
+        {
+          m_generativeFaceVideoSEIZCoordinateMaxValue[frameIdx].push_back(cfg_generativeFaceVideoSEIZCoordinateMaxValue.values[frameIdx]);
+          for (uint32_t coordinateId = 0; coordinateId < m_generativeFaceVideoSEICoordinatePointNum[frameIdx]; coordinateId++)
+          {
+            m_generativeFaceVideoSEICoordinateZTesonr[frameIdx].push_back(cfg_generativeFaceVideoSEICoordinateZTesonr.values[cooridinateZBeforeSum + coordinateId]);
+          }
+          cooridinateZBeforeSum = cooridinateZBeforeSum + m_generativeFaceVideoSEICoordinatePointNum[frameIdx];
+        }
+      }
+      m_generativeFaceVideoSEIMatrixPresentFlag[frameIdx] = cfg_generativeFaceVideoSEIMatrixPresentFlag.values[frameIdx];
+      m_generativeFaceVideoSEIMatrixPredFlag[frameIdx] = cfg_generativeFaceVideoSEIMatrixPredFlag.values[frameIdx];
+      if (basePicFlag)
+      {
+        m_generativeFaceVideoSEIMatrixPredFlag[frameIdx] = 0;
+      }
+      if (basePicFlag || !m_generativeFaceVideoSEIMatrixPredFlag[frameIdx])
+      {
+        m_generativeFaceVideoSEIMatrixElementPrecisionFactor[frameIdx] = cfg_generativeFaceVideoSEIMatrixElementPrecisionFactor.values[frameIdx];
+        m_generativeFaceVideoSEINumMatrixType[frameIdx] = cfg_generativeFaceVideoSEINumMatrixType.values[frameIdx];
+      }
+      else
+      {
+        assert(m_generativeFaceVideoSEIId[frameIdx] == m_generativeFaceVideoSEIId[0]);
+        m_generativeFaceVideoSEIMatrixElementPrecisionFactor[frameIdx] = m_generativeFaceVideoSEIMatrixElementPrecisionFactor[0];
+        m_generativeFaceVideoSEINumMatrixType[frameIdx] = m_generativeFaceVideoSEINumMatrixType[0];
+      }
+      m_generativeFaceVideoSEIMatrixTypeIdx.push_back(std::vector<uint32_t>());
+      m_generativeFaceVideoSEIMatrix3DSpaceFlag.push_back(std::vector<uint32_t>());
+      m_generativeFaceVideoSEINumMatrices.push_back(std::vector<uint32_t>());
+      m_generativeFaceVideoSEIMatrixWidth.push_back(std::vector<uint32_t>());
+      m_generativeFaceVideoSEIMatrixHeight.push_back(std::vector<uint32_t>());
+      m_generativeFaceVideoSEINumMatricestoNumKpsFlag.push_back(std::vector<uint32_t>());
+      m_generativeFaceVideoSEINumMatricesInfo.push_back(std::vector<uint32_t>());
+      if (m_generativeFaceVideoSEIMatrixPresentFlag[frameIdx] == 1)
+      {
+        uint32_t matrixWidth = 0;
+        uint32_t matrixHeight = 0;
+        uint32_t numMatrices = 0;
+        for (uint32_t matrixId = 0; matrixId < m_generativeFaceVideoSEINumMatrixType[frameIdx]; matrixId++)
+        {
+          m_generativeFaceVideoSEIMatrixElement[frameIdx].push_back(std::vector<std::vector<std::vector<double>>>());
+          if (basePicFlag || !m_generativeFaceVideoSEIMatrixPredFlag[frameIdx])
+          {
+            m_generativeFaceVideoSEIMatrixTypeIdx[frameIdx].push_back(cfg_generativeFaceVideoSEIMatrixTypeIdx.values[matrixNumBeforeSum + matrixId]);
+            m_generativeFaceVideoSEIMatrix3DSpaceFlag[frameIdx].push_back(cfg_generativeFaceVideoSEIMatrix3DSpaceFlag.values[matrixNumBeforeSum + matrixId]);
+            m_generativeFaceVideoSEINumMatrices[frameIdx].push_back(cfg_generativeFaceVideoSEINumMatrices.values[matrixNumBeforeSum + matrixId]);
+            m_generativeFaceVideoSEIMatrixWidth[frameIdx].push_back(cfg_generativeFaceVideoSEIMatrixWidth.values[matrixNumBeforeSum + matrixId]);
+            m_generativeFaceVideoSEIMatrixHeight[frameIdx].push_back(cfg_generativeFaceVideoSEIMatrixHeight.values[matrixNumBeforeSum + matrixId]);
+            m_generativeFaceVideoSEINumMatricestoNumKpsFlag[frameIdx].push_back(cfg_generativeFaceVideoSEINumMatricestoNumKpsFlag.values[matrixNumBeforeSum + matrixId]);
+            m_generativeFaceVideoSEINumMatricesInfo[frameIdx].push_back(cfg_generativeFaceVideoSEINumMatricesInfo.values[matrixNumBeforeSum + matrixId]);
+          }
+          else
+          {
+            assert(m_generativeFaceVideoSEIId[frameIdx] == m_generativeFaceVideoSEIId[0]);
+            m_generativeFaceVideoSEIMatrixTypeIdx[frameIdx].push_back(m_generativeFaceVideoSEIMatrixTypeIdx[0][matrixId]);
+            m_generativeFaceVideoSEIMatrix3DSpaceFlag[frameIdx].push_back(m_generativeFaceVideoSEIMatrix3DSpaceFlag[0][matrixId]);
+            m_generativeFaceVideoSEINumMatrices[frameIdx].push_back(m_generativeFaceVideoSEINumMatrices[0][matrixId]);
+            m_generativeFaceVideoSEIMatrixWidth[frameIdx].push_back(m_generativeFaceVideoSEIMatrixWidth[0][matrixId]);
+            m_generativeFaceVideoSEIMatrixHeight[frameIdx].push_back(m_generativeFaceVideoSEIMatrixHeight[0][matrixId]);
+            m_generativeFaceVideoSEINumMatricestoNumKpsFlag[frameIdx].push_back(m_generativeFaceVideoSEINumMatricestoNumKpsFlag[0][matrixId]);
+            m_generativeFaceVideoSEINumMatricesInfo[frameIdx].push_back(m_generativeFaceVideoSEINumMatricesInfo[0][matrixId]);
+          }
+          if (m_generativeFaceVideoSEIMatrixTypeIdx[frameIdx][matrixId] == 0 || m_generativeFaceVideoSEIMatrixTypeIdx[frameIdx][matrixId] == 1)
+          {
+            if (m_generativeFaceVideoSEI3DCoordinateFlag[frameIdx] == 1 || m_generativeFaceVideoSEIMatrix3DSpaceFlag[frameIdx][matrixId] == 1)
+            {
+              matrixWidth = 3;
+              matrixHeight = 3;
+            }
+            else
+            {
+              matrixWidth = 2;
+              matrixHeight = 2;
+            }
+            if (m_generativeFaceVideoSEICoordinatePresentFlag[frameIdx])
+            {
+              numMatrices = m_generativeFaceVideoSEINumMatricestoNumKpsFlag[frameIdx][matrixId] ? m_generativeFaceVideoSEICoordinatePointNum[frameIdx] : (m_generativeFaceVideoSEINumMatricesInfo[frameIdx][matrixId] < (m_generativeFaceVideoSEICoordinatePointNum[frameIdx] - 1) ? (m_generativeFaceVideoSEINumMatricesInfo[frameIdx][matrixId] + 1) : (m_generativeFaceVideoSEINumMatricesInfo[frameIdx][matrixId] + 2));
+            }
+            else
+            {
+              numMatrices = m_generativeFaceVideoSEINumMatricesInfo[frameIdx][matrixId] + 1;
+            }
+          }
+          else if (m_generativeFaceVideoSEIMatrixTypeIdx[frameIdx][matrixId] == 2 || m_generativeFaceVideoSEIMatrixTypeIdx[frameIdx][matrixId] == 3 || m_generativeFaceVideoSEIMatrixTypeIdx[frameIdx][matrixId] >= 7)
+          {
+            if (m_generativeFaceVideoSEIMatrixTypeIdx[frameIdx][matrixId] >= 7)
+            {
+              numMatrices = m_generativeFaceVideoSEINumMatrices[frameIdx][matrixId];
+            }
+            else
+            {
+              numMatrices = 1;
+            }
+            matrixHeight = m_generativeFaceVideoSEIMatrixHeight[frameIdx][matrixId];
+            matrixWidth = m_generativeFaceVideoSEIMatrixWidth[frameIdx][matrixId];
+          }
+          else if (m_generativeFaceVideoSEIMatrixTypeIdx[frameIdx][matrixId] >= 4 && m_generativeFaceVideoSEIMatrixTypeIdx[frameIdx][matrixId] <= 6)
+          {
+            if (m_generativeFaceVideoSEIMatrixTypeIdx[frameIdx][matrixId] == 4)
+            {
+              if (m_generativeFaceVideoSEI3DCoordinateFlag[frameIdx] == 1 || m_generativeFaceVideoSEIMatrix3DSpaceFlag[frameIdx][matrixId] == 1)
+              {
+                matrixWidth = 3;
+              }
+              else
+              {
+                matrixWidth = 2;
+              }
+            }
+            if (m_generativeFaceVideoSEIMatrixTypeIdx[frameIdx][matrixId] == 5 || m_generativeFaceVideoSEIMatrixTypeIdx[frameIdx][matrixId] == 6)
+            {
+              matrixWidth = 1;
+            }
+            if (m_generativeFaceVideoSEI3DCoordinateFlag[frameIdx] == 1 || m_generativeFaceVideoSEIMatrix3DSpaceFlag[frameIdx][matrixId] == 1)
+            {
+              matrixHeight = 3;
+            }
+            else
+            {
+              matrixHeight = 2;
+            }
+            numMatrices = 1;
+          }
+          for (uint32_t j = 0; j < numMatrices; j++)
+          {
+            m_generativeFaceVideoSEIMatrixElement[frameIdx][matrixId].push_back(std::vector< std::vector<double> >());
+            for (uint32_t k = 0; k < matrixHeight; k++)
+            {
+              m_generativeFaceVideoSEIMatrixElement[frameIdx][matrixId][j].push_back(std::vector<double>());
+              for (uint32_t l = 0; l < matrixWidth; l++)
+              {
+                m_generativeFaceVideoSEIMatrixElement[frameIdx][matrixId][j][k].push_back(cfg_generativeFaceVideoSEIMatrixElement.values[matrixDimensionBeforeSum + j * matrixHeight * matrixWidth + k * matrixWidth + l]);
+              }
+            }
+          }
+          matrixDimensionBeforeSum = matrixDimensionBeforeSum + numMatrices * matrixHeight * matrixWidth;
+        }
+      }
+      if (m_generativeFaceVideoSEINumMatrixType[frameIdx] == 0)
+      {
+        matrixNumBeforeSum = matrixNumBeforeSum + 1;
+      }
+      else
+      {
+        matrixNumBeforeSum = matrixNumBeforeSum + m_generativeFaceVideoSEINumMatrixType[frameIdx];
+      }
+    }
+  }
+#endif
+
+#if JVET_AK0239_GEFV
+  if (m_generativeFaceVideoEnhancementEnabled)
+  {
+    assert(cfg_generativeFaceVideoEnhancementSEIId.values.size() == m_generativeFaceVideoEnhancementSEINumber);
+    assert(cfg_generativeFaceVideoEnhancementSEIGFVCnt.values.size() == m_generativeFaceVideoEnhancementSEINumber);
+    assert(cfg_generativeFaceVideoEnhancementSEIGFVId.values.size() == m_generativeFaceVideoEnhancementSEINumber);
+    assert(cfg_generativeFaceVideoEnhancementSEIMatrixElementPrecisionFactor.values.size() == m_generativeFaceVideoEnhancementSEINumber);
+    assert(cfg_generativeFaceVideoEnhancementSEIMatrixPresentFlag.values.size() == m_generativeFaceVideoEnhancementSEINumber);
+    assert(cfg_generativeFaceVideoEnhancementSEIMatrixPredFlag.values.size() == m_generativeFaceVideoEnhancementSEINumber);
+    assert(cfg_generativeFaceVideoEnhancementSEINumMatrices.values.size() == m_generativeFaceVideoEnhancementSEINumber);
+    assert(cfg_generativeFaceVideoEnhancementSEIPupilPresentIdx.values.size() == m_generativeFaceVideoEnhancementSEINumber);
+    assert(cfg_generativeFaceVideoEnhancementSEIPupilCoordinatePrecisionFactor.values.size() == m_generativeFaceVideoEnhancementSEINumber);
+    assert(cfg_generativeFaceVideoEnhancementSEIPupilLeftEyeCoordinateX.values.size() == m_generativeFaceVideoEnhancementSEINumber);
+    assert(cfg_generativeFaceVideoEnhancementSEIPupilLeftEyeCoordinateY.values.size() == m_generativeFaceVideoEnhancementSEINumber);
+    assert(cfg_generativeFaceVideoEnhancementSEIPupilRightEyeCoordinateX.values.size() == m_generativeFaceVideoEnhancementSEINumber);
+    assert(cfg_generativeFaceVideoEnhancementSEIPupilRightEyeCoordinateY.values.size() == m_generativeFaceVideoEnhancementSEINumber);
+    m_generativeFaceVideoEnhancementSEIId.resize(m_generativeFaceVideoEnhancementSEINumber);
+    m_generativeFaceVideoEnhancementSEIGFVCnt.resize(m_generativeFaceVideoEnhancementSEINumber);
+    m_generativeFaceVideoEnhancementSEIGFVId.resize(m_generativeFaceVideoEnhancementSEINumber);
+    m_generativeFaceVideoEnhancementSEIMatrixElementPrecisionFactor.resize(m_generativeFaceVideoEnhancementSEINumber);
+    m_generativeFaceVideoEnhancementSEINumMatrices.resize(m_generativeFaceVideoEnhancementSEINumber);
+    m_generativeFaceVideoEnhancementSEIMatrixPresentFlag.resize(m_generativeFaceVideoEnhancementSEINumber);
+    m_generativeFaceVideoEnhancementSEIMatrixPredFlag.resize(m_generativeFaceVideoEnhancementSEINumber);
+    m_generativeFaceVideoEnhancementSEIPupilPresentIdx.resize(m_generativeFaceVideoEnhancementSEINumber);
+    m_generativeFaceVideoEnhancementSEIPupilCoordinatePrecisionFactor.resize(m_generativeFaceVideoEnhancementSEINumber);
+    m_generativeFaceVideoEnhancementSEIPupilLeftEyeCoordinateX.resize(m_generativeFaceVideoEnhancementSEINumber);
+    m_generativeFaceVideoEnhancementSEIPupilLeftEyeCoordinateY.resize(m_generativeFaceVideoEnhancementSEINumber);
+    m_generativeFaceVideoEnhancementSEIPupilRightEyeCoordinateX.resize(m_generativeFaceVideoEnhancementSEINumber);
+    m_generativeFaceVideoEnhancementSEIPupilRightEyeCoordinateY.resize(m_generativeFaceVideoEnhancementSEINumber);
+    int matrixNumBeforeSum = 0;
+    int matrixDimensionBeforeSum = 0;
+    m_generativeFaceVideoEnhancementSEIMatrixElement.push_back(std::vector< std::vector< std::vector<double>> >());
+    m_generativeFaceVideoEnhancementSEIMatrixElement.resize(m_generativeFaceVideoEnhancementSEINumber);
+    for (uint32_t frameIdx = 0; frameIdx < m_generativeFaceVideoEnhancementSEINumber; frameIdx++)
+    {
+      m_generativeFaceVideoEnhancementSEIId[frameIdx] = cfg_generativeFaceVideoEnhancementSEIId.values[frameIdx];
+      m_generativeFaceVideoEnhancementSEIGFVCnt[frameIdx] = cfg_generativeFaceVideoEnhancementSEIGFVCnt.values[frameIdx];
+      m_generativeFaceVideoEnhancementSEIGFVId[frameIdx] = cfg_generativeFaceVideoEnhancementSEIGFVId.values[frameIdx];
+      m_generativeFaceVideoEnhancementSEIMatrixElementPrecisionFactor[frameIdx] = cfg_generativeFaceVideoEnhancementSEIMatrixElementPrecisionFactor.values[frameIdx];
+      m_generativeFaceVideoEnhancementSEINumMatrices[frameIdx] = cfg_generativeFaceVideoEnhancementSEINumMatrices.values[frameIdx];
+      m_generativeFaceVideoEnhancementSEIMatrixPresentFlag[frameIdx] = cfg_generativeFaceVideoEnhancementSEIMatrixPresentFlag.values[frameIdx];
+      m_generativeFaceVideoEnhancementSEIMatrixPredFlag[frameIdx] = cfg_generativeFaceVideoEnhancementSEIMatrixPredFlag.values[frameIdx];
+      m_generativeFaceVideoEnhancementSEIPupilPresentIdx[frameIdx] = cfg_generativeFaceVideoEnhancementSEIPupilPresentIdx.values[frameIdx];
+      m_generativeFaceVideoEnhancementSEIPupilCoordinatePrecisionFactor[frameIdx] = cfg_generativeFaceVideoEnhancementSEIPupilCoordinatePrecisionFactor.values[frameIdx];
+      m_generativeFaceVideoEnhancementSEIPupilLeftEyeCoordinateX[frameIdx] = cfg_generativeFaceVideoEnhancementSEIPupilLeftEyeCoordinateX.values[frameIdx];
+      m_generativeFaceVideoEnhancementSEIPupilLeftEyeCoordinateY[frameIdx] = cfg_generativeFaceVideoEnhancementSEIPupilLeftEyeCoordinateY.values[frameIdx];
+      m_generativeFaceVideoEnhancementSEIPupilRightEyeCoordinateX[frameIdx] = cfg_generativeFaceVideoEnhancementSEIPupilRightEyeCoordinateX.values[frameIdx];
+      m_generativeFaceVideoEnhancementSEIPupilRightEyeCoordinateY[frameIdx] = cfg_generativeFaceVideoEnhancementSEIPupilRightEyeCoordinateY.values[frameIdx];
+      uint32_t numMatrices = m_generativeFaceVideoEnhancementSEINumMatrices[frameIdx];
+      m_generativeFaceVideoEnhancementSEIMatrixWidth.push_back(std::vector<uint32_t>());
+      m_generativeFaceVideoEnhancementSEIMatrixHeight.push_back(std::vector<uint32_t>());
+      m_generativeFaceVideoEnhancementSEIMatrixElement[frameIdx].push_back(std::vector< std::vector<double> >());
+      m_generativeFaceVideoEnhancementSEIMatrixElement[frameIdx].resize(numMatrices);
+      for (uint32_t j = 0; j < numMatrices; j++)
+      {
+        m_generativeFaceVideoEnhancementSEIMatrixWidth[frameIdx].push_back(cfg_generativeFaceVideoEnhancementSEIMatrixWidth.values[matrixNumBeforeSum + j]);
+        m_generativeFaceVideoEnhancementSEIMatrixHeight[frameIdx].push_back(cfg_generativeFaceVideoEnhancementSEIMatrixHeight.values[matrixNumBeforeSum + j]);
+        uint32_t matrixWidth = m_generativeFaceVideoEnhancementSEIMatrixWidth[frameIdx][j];
+        uint32_t matrixHeight = m_generativeFaceVideoEnhancementSEIMatrixHeight[frameIdx][j];
+        for (uint32_t k = 0; k < matrixHeight; k++)
+        {
+          m_generativeFaceVideoEnhancementSEIMatrixElement[frameIdx][j].push_back(std::vector<double>());
+          for (uint32_t l = 0; l < matrixWidth; l++)
+          {
+            m_generativeFaceVideoEnhancementSEIMatrixElement[frameIdx][j][k].push_back(cfg_generativeFaceVideoEnhancementSEIMatrixElement.values[matrixDimensionBeforeSum + k * matrixWidth + l]);
+          }
+        }
+        matrixDimensionBeforeSum = matrixDimensionBeforeSum + matrixHeight * matrixWidth;
+      }
+      matrixNumBeforeSum = matrixNumBeforeSum + numMatrices;
+    }
+  }
+#endif
+#if JVET_AK0140_PACKED_REGIONS_INFORMATION_SEI
+  if (m_priSEIEnabled)
+  {
+    CHECK(m_priSEICancelFlag, "SEIPRICancelFlag must be 0 in this implementation");
+    CHECK(!m_priSEIPersistenceFlag, "SEIPRIPersistenceFlag must be 1 in this implementation");
+    CHECK(cfg_priSEIResamplingWidthNumMinus1.values.size() != (m_priSEINumResamplingRatiosMinus1 + 1), "Number of elements in SEIRPRIesamplingWidthNumMinus1 must be equal to SEIPRINumResamplingRatiosMinus1 + 1");
+    CHECK(cfg_priSEIResamplingWidthDenomMinus1.values.size() != (m_priSEINumResamplingRatiosMinus1 + 1), "Number of elements in SEIPRIResamplingWidthNumMinus1 must be equal to SEIPRIResamplingWidthDenomMinus1 + 1");
+    CHECK(cfg_priSEIResamplingHeightNumMinus1.values.size() != (m_priSEINumResamplingRatiosMinus1 + 1), "Number of elements in SEIPRIResamplingHeightNumMinus1 must be equal to SEIPRINumResamplingRatiosMinus1 + 1");
+    CHECK(cfg_priSEIResamplingHeightDenomMinus1.values.size() != (m_priSEINumResamplingRatiosMinus1 + 1), "Number of elements in SEIPRIResamplingHeightNumMinus1 must be equal to SEIPRIResamplingWidthDenomMinus1 + 1");
+    if (m_priSEINumResamplingRatiosMinus1 > 0)
+    {
+      m_priSEIResamplingWidthNumMinus1 = cfg_priSEIResamplingWidthNumMinus1.values;
+      m_priSEIResamplingWidthDenomMinus1 = cfg_priSEIResamplingWidthDenomMinus1.values;
+      m_priSEIResamplingHeightNumMinus1 = cfg_priSEIResamplingHeightNumMinus1.values;
+      m_priSEIResamplingHeightDenomMinus1 = cfg_priSEIResamplingHeightDenomMinus1.values;
+      m_priSEIFixedAspectRatioFlag.resize(m_priSEINumResamplingRatiosMinus1 + 1);
+      for (uint32_t i = 1; i <= m_priSEINumResamplingRatiosMinus1; i++)
+      {
+        m_priSEIFixedAspectRatioFlag[i] =
+          m_priSEIResamplingWidthNumMinus1[i] == m_priSEIResamplingHeightNumMinus1[i] &&
+          m_priSEIResamplingWidthDenomMinus1[i] == m_priSEIResamplingHeightDenomMinus1[i];
+      }
+      // First entry has fixed values
+      m_priSEIResamplingWidthNumMinus1[0] = 0;
+      m_priSEIResamplingWidthDenomMinus1[0] = 0;
+      m_priSEIFixedAspectRatioFlag[0] = true;
+      m_priSEIResamplingHeightNumMinus1[0] = 0;
+      m_priSEIResamplingHeightDenomMinus1[0] = 0;
+    }
+    else
+    {
+      m_priSEIResamplingWidthNumMinus1 = {0};
+      m_priSEIResamplingWidthDenomMinus1 = {0};
+      m_priSEIFixedAspectRatioFlag = {true};
+      m_priSEIResamplingHeightNumMinus1 = {0};
+      m_priSEIResamplingHeightDenomMinus1 = {0};
+    }
+
+    if (m_priSEIRegionIdPresentFlag)
+    {
+      CHECK(cfg_priSEIRegionId.values.size() != (m_priSEINumRegionsMinus1 + 1), "Number of elements in SEIPRIRegionId must be equal to SEIPRINumRegionsMinus1 + 1");
+      std::vector<uint32_t> tmpVec = cfg_priSEIRegionId.values;
+      std::sort(tmpVec.begin(), tmpVec.end());
+      auto it = std::unique(tmpVec.begin(), tmpVec.end());
+      CHECK(it != tmpVec.end(), "SEIRegionId values must be unique");
+    }
+    CHECK(cfg_priSEIRegionTopLeftInUnitsX.values.size() != (m_priSEINumRegionsMinus1 + 1), "Number of elements in SEIPRIRegionTopLeftInUnitsX must be equal to SEIPRINumRegionsMinus1 + 1");
+    CHECK(cfg_priSEIRegionTopLeftInUnitsY.values.size() != (m_priSEINumRegionsMinus1 + 1), "Number of elements in SEIPRIRegionTopLeftInUnitsY must be equal to SEIPRINumRegionsMinus1 + 1");
+    CHECK(cfg_priSEIRegionWidthInUnitsMinus1.values.size() != (m_priSEINumRegionsMinus1 + 1), "Number of elements in SEIPRIRegionWidthInUnitsMinus1 must be equal to SEIPRINumRegionsMinus1 + 1");
+    CHECK(cfg_priSEIRegionHeightInUnitsMinus1.values.size() != (m_priSEINumRegionsMinus1 + 1), "Number of elements in SEIPRIRegionHeightInUnitsMinus1 must be equal to SEIPRINumRegionsMinus1 + 1");
+    if (m_priSEINumResamplingRatiosMinus1 > 0)
+    {
+      CHECK(cfg_priSEIResamplingRatioIdx.values.size() != (m_priSEINumRegionsMinus1 + 1), "Number of elements in SEIPRIResamplingRatioIdx must be equal to SEIPRINumRegionsMinus1 + 1");
+    }
+    if (m_priSEITargetPicParamsPresentFlag)
+    {
+      CHECK(cfg_priSEITargetRegionTopLeftInUnitsX.values.size() != (m_priSEINumRegionsMinus1 + 1), "Number of elements in SEIPRITargetRegionTopLeftInUnitsX must be equal to SEIPRINumRegionsMinus1 + 1");
+      CHECK(cfg_priSEITargetRegionTopLeftInUnitsY.values.size() != (m_priSEINumRegionsMinus1 + 1), "Number of elements in SEIPRITargetRegionTopLeftInUnitsY must be equal to SEIPRINumRegionsMinus1 + 1");
+    }
+    m_priSEIRegionId = cfg_priSEIRegionId.values;
+    m_priSEIRegionTopLeftInUnitsX = cfg_priSEIRegionTopLeftInUnitsX.values;
+    m_priSEIRegionTopLeftInUnitsY = cfg_priSEIRegionTopLeftInUnitsY.values;
+    m_priSEIRegionWidthInUnitsMinus1 = cfg_priSEIRegionWidthInUnitsMinus1.values;
+    m_priSEIRegionHeightInUnitsMinus1 = cfg_priSEIRegionHeightInUnitsMinus1.values;
+    if (m_priSEINumResamplingRatiosMinus1 > 0)
+    {
+      m_priSEIResamplingRatioIdx = cfg_priSEIResamplingRatioIdx.values;
+    }
+    else
+    {
+      m_priSEIResamplingRatioIdx = {0};
+    }
+    m_priSEITargetRegionTopLeftInUnitsX = cfg_priSEITargetRegionTopLeftInUnitsX.values;
+    m_priSEITargetRegionTopLeftInUnitsY = cfg_priSEITargetRegionTopLeftInUnitsY.values;
+  }
+#endif
 
   // check validity of input parameters
   xCheckParameter();
@@ -1673,70 +3196,98 @@ Void TAppEncCfg::xCheckParameter()
   xConfirmPara(m_bitDepthConstraint<maxBitDepth, "The internalBitDepth must not be greater than the bitDepthConstraint value");
   xConfirmPara(m_chromaFormatConstraint<m_chromaFormatIDC, "The chroma format used must not be greater than the chromaFormatConstraint value");
 
-  if (m_profile==Profile::MAINREXT || m_profile==Profile::HIGHTHROUGHPUTREXT)
+  switch (m_profile)
   {
-    xConfirmPara(m_lowerBitRateConstraintFlag==false && m_intraConstraintFlag==false, "The lowerBitRateConstraint flag cannot be false when intraConstraintFlag is false");
-    xConfirmPara(m_cabacBypassAlignmentEnabledFlag && m_profile!=Profile::HIGHTHROUGHPUTREXT, "AlignCABACBeforeBypass must not be enabled unless the high throughput profile is being used.");
-    if (m_profile == Profile::MAINREXT)
-    {
-      const UInt intraIdx = m_intraConstraintFlag ? 1:0;
-      const UInt bitDepthIdx = (m_bitDepthConstraint == 8 ? 0 : (m_bitDepthConstraint ==10 ? 1 : (m_bitDepthConstraint == 12 ? 2 : (m_bitDepthConstraint == 16 ? 3 : 4 ))));
-      const UInt chromaFormatIdx = UInt(m_chromaFormatConstraint);
-      const Bool bValidProfile = (bitDepthIdx > 3 || chromaFormatIdx>3) ? false : (validRExtProfileNames[intraIdx][bitDepthIdx][chromaFormatIdx] != NONE);
-      xConfirmPara(!bValidProfile, "Invalid intra constraint flag, bit depth constraint flag and chroma format constraint flag combination for a RExt profile");
-      const Bool bUsingGeneralRExtTools  = m_transformSkipRotationEnabledFlag        ||
-                                           m_transformSkipContextEnabledFlag         ||
-                                           m_rdpcmEnabledFlag[RDPCM_SIGNAL_IMPLICIT] ||
-                                           m_rdpcmEnabledFlag[RDPCM_SIGNAL_EXPLICIT] ||
-                                           !m_enableIntraReferenceSmoothing          ||
-                                           m_persistentRiceAdaptationEnabledFlag     ||
-                                           m_log2MaxTransformSkipBlockSize!=2;
-      const Bool bUsingChromaQPTool      = m_diffCuChromaQpOffsetDepth >= 0;
-      const Bool bUsingExtendedPrecision = m_extendedPrecisionProcessingFlag;
-
-      xConfirmPara((m_chromaFormatConstraint==CHROMA_420 || m_chromaFormatConstraint==CHROMA_400) && bUsingChromaQPTool, "CU Chroma QP adjustment cannot be used for 4:0:0 or 4:2:0 RExt profiles");
-      xConfirmPara(m_bitDepthConstraint != 16 && bUsingExtendedPrecision, "Extended precision can only be used in 16-bit RExt profiles");
-      if (!(m_chromaFormatConstraint == CHROMA_400 && m_bitDepthConstraint == 16) && m_chromaFormatConstraint!=CHROMA_444)
+    case Profile::MAINREXT:
+    case Profile::HIGHTHROUGHPUTREXT:
       {
-        xConfirmPara(bUsingGeneralRExtTools, "Combination of tools and profiles are not possible in the specified RExt profile.");
-      }
-      xConfirmPara( m_onePictureOnlyConstraintFlag && m_chromaFormatConstraint!=CHROMA_444, "chroma format constraint must be 4:4:4 when one-picture-only constraint flag is 1");
-      xConfirmPara( m_onePictureOnlyConstraintFlag && m_bitDepthConstraint != 8 && m_bitDepthConstraint != 16, "bit depth constraint must be 8 or 16 when one-picture-only constraint flag is 1");
-      xConfirmPara( m_onePictureOnlyConstraintFlag && m_framesToBeEncoded > 1, "Number of frames to be encoded must be 1 when one-picture-only constraint flag is 1.");
+        xConfirmPara(m_lowerBitRateConstraintFlag==false && m_intraConstraintFlag==false, "The lowerBitRateConstraint flag cannot be false when intraConstraintFlag is false");
+        xConfirmPara(m_cabacBypassAlignmentEnabledFlag && m_profile!=Profile::HIGHTHROUGHPUTREXT, "AlignCABACBeforeBypass must not be enabled unless the high throughput profile is being used.");
+        if (m_profile == Profile::MAINREXT)
+        {
+          const UInt intraIdx = m_intraConstraintFlag ? 1:0;
+          const UInt bitDepthIdx = (m_bitDepthConstraint == 8 ? 0 : (m_bitDepthConstraint ==10 ? 1 : (m_bitDepthConstraint == 12 ? 2 : (m_bitDepthConstraint == 16 ? 3 : 4 ))));
+          const UInt chromaFormatIdx = UInt(m_chromaFormatConstraint);
+          const Bool bValidProfile = (bitDepthIdx > 3 || chromaFormatIdx>3) ? false : (validRExtProfileNames[intraIdx][bitDepthIdx][chromaFormatIdx] != UI_NONE);
+          xConfirmPara(!bValidProfile, "Invalid intra constraint flag, bit depth constraint flag and chroma format constraint flag combination for a RExt profile");
+          const Bool bUsingGeneralRExtTools  = m_transformSkipRotationEnabledFlag        ||
+                                               m_transformSkipContextEnabledFlag         ||
+                                               m_rdpcmEnabledFlag[RDPCM_SIGNAL_IMPLICIT] ||
+                                               m_rdpcmEnabledFlag[RDPCM_SIGNAL_EXPLICIT] ||
+                                               !m_enableIntraReferenceSmoothing          ||
+                                               m_persistentRiceAdaptationEnabledFlag     ||
+                                               m_log2MaxTransformSkipBlockSize!=2;
+          const Bool bUsingChromaQPTool      = m_diffCuChromaQpOffsetDepth >= 0;
+          const Bool bUsingExtendedPrecision = m_extendedPrecisionProcessingFlag;
 
-      if (!m_intraConstraintFlag && m_bitDepthConstraint==16 && m_chromaFormatConstraint==CHROMA_444)
+          xConfirmPara((m_chromaFormatConstraint==CHROMA_420 || m_chromaFormatConstraint==CHROMA_400) && bUsingChromaQPTool, "CU Chroma QP adjustment cannot be used for 4:0:0 or 4:2:0 RExt profiles");
+          xConfirmPara(m_bitDepthConstraint != 16 && bUsingExtendedPrecision, "Extended precision can only be used in 16-bit RExt profiles");
+          if (!(m_chromaFormatConstraint == CHROMA_400 && m_bitDepthConstraint == 16) && m_chromaFormatConstraint!=CHROMA_444)
+          {
+            xConfirmPara(bUsingGeneralRExtTools, "Combination of tools and profiles are not possible in the specified RExt profile.");
+          }
+          xConfirmPara( m_onePictureOnlyConstraintFlag && m_chromaFormatConstraint!=CHROMA_444, "chroma format constraint must be 4:4:4 when one-picture-only constraint flag is 1");
+          xConfirmPara( m_onePictureOnlyConstraintFlag && m_bitDepthConstraint != 8 && m_bitDepthConstraint != 16, "bit depth constraint must be 8 or 16 when one-picture-only constraint flag is 1");
+          xConfirmPara( m_onePictureOnlyConstraintFlag && m_framesToBeEncoded > 1, "Number of frames to be encoded must be 1 when one-picture-only constraint flag is 1.");
+
+          if (!m_intraConstraintFlag && m_bitDepthConstraint==16 && m_chromaFormatConstraint==CHROMA_444)
+          {
+            fprintf(stderr, "********************************************************************************************************\n");
+            fprintf(stderr, "** WARNING: The RExt constraint flags describe a non standard combination (used for development only) **\n");
+            fprintf(stderr, "********************************************************************************************************\n");
+          }
+        }
+        else
+        {
+          xConfirmPara( m_chromaFormatConstraint != CHROMA_444, "chroma format constraint must be 4:4:4 in the High Throughput 4:4:4 16-bit Intra profile.");
+          const UInt intraIdx = m_intraConstraintFlag ? 1:0;
+          const UInt bitDepthIdx = (m_bitDepthConstraint == 8 ? 0 : (m_bitDepthConstraint ==10 ? 1 : (m_bitDepthConstraint == 14 ? 2 : (m_bitDepthConstraint == 16 ? 3 : 4 ))));
+          const Bool bValidProfile = (bitDepthIdx > 3) ? false : (validRExtHighThroughPutProfileNames[intraIdx][bitDepthIdx] != UI_NONE);
+          xConfirmPara(!bValidProfile, "Invalid intra constraint flag and bit depth constraint flag combination for a RExt high profile throughput profile");
+          if(bitDepthIdx < 2)
+          {
+            xConfirmPara((m_extendedPrecisionProcessingFlag || m_cabacBypassAlignmentEnabledFlag), "Invalid configuration for a RExt high throughput 8 and 10 bit profile");
+          }
+          if(bitDepthIdx == 3)
+          {
+            xConfirmPara(!m_cabacBypassAlignmentEnabledFlag, "Cabac Bypass Alignment flag must be 1 in the High Throughput 4:4:4 16-bit Intra profile");
+          }
+          else if(bitDepthIdx < 3)
+          {
+            xConfirmPara(!m_entropyCodingSyncEnabledFlag, "WPP flag must be 1 in the High Throughput 4:4:4 non 16-bit Intra profile");
+          }
+        }
+      }
+      break;
+    case Profile::MAIN:
+    case Profile::MAIN10:
+    case Profile::MAINSTILLPICTURE:
       {
-        fprintf(stderr, "********************************************************************************************************\n");
-        fprintf(stderr, "** WARNING: The RExt constraint flags describe a non standard combination (used for development only) **\n");
-        fprintf(stderr, "********************************************************************************************************\n");
-      }
-    }
-    else
-    {
-      xConfirmPara( m_chromaFormatConstraint != CHROMA_444, "chroma format constraint must be 4:4:4 in the High Throughput 4:4:4 16-bit Intra profile.");
-      xConfirmPara( m_bitDepthConstraint     != 16,         "bit depth constraint must be 4:4:4 in the High Throughput 4:4:4 16-bit Intra profile.");
-      xConfirmPara( m_intraConstraintFlag    != 1,          "intra constraint flag must be 1 in the High Throughput 4:4:4 16-bit Intra profile.");
-    }
-  }
-  else
-  {
-    xConfirmPara(m_bitDepthConstraint!=((m_profile==Profile::MAIN10)?10:8), "BitDepthConstraint must be 8 for MAIN profile and 10 for MAIN10 profile.");
-    xConfirmPara(m_chromaFormatConstraint!=CHROMA_420, "ChromaFormatConstraint must be 420 for non main-RExt profiles.");
-    xConfirmPara(m_intraConstraintFlag==true, "IntraConstraintFlag must be false for non main_RExt profiles.");
-    xConfirmPara(m_lowerBitRateConstraintFlag==false, "LowerBitrateConstraintFlag must be true for non main-RExt profiles.");
-    xConfirmPara(m_profile == Profile::MAINSTILLPICTURE && m_framesToBeEncoded > 1, "Number of frames to be encoded must be 1 when main still picture profile is used.");
+        xConfirmPara(m_bitDepthConstraint!=((m_profile==Profile::MAIN10)?10:8), "BitDepthConstraint must be 8 for MAIN profile and 10 for MAIN10 profile.");
+        xConfirmPara(m_chromaFormatConstraint!=CHROMA_420, "ChromaFormatConstraint must be 420 for non main-RExt profiles.");
+        xConfirmPara(m_intraConstraintFlag==true, "IntraConstraintFlag must be false for non main_RExt profiles.");
+        xConfirmPara(m_lowerBitRateConstraintFlag==false, "LowerBitrateConstraintFlag must be true for non main-RExt profiles.");
+        xConfirmPara(m_profile == Profile::MAINSTILLPICTURE && m_framesToBeEncoded > 1, "Number of frames to be encoded must be 1 when main still picture profile is used.");
 
-    xConfirmPara(m_crossComponentPredictionEnabledFlag==true, "CrossComponentPrediction must not be used for non main-RExt profiles.");
-    xConfirmPara(m_log2MaxTransformSkipBlockSize!=2, "Transform Skip Log2 Max Size must be 2 for V1 profiles.");
-    xConfirmPara(m_transformSkipRotationEnabledFlag==true, "UseResidualRotation must not be enabled for non main-RExt profiles.");
-    xConfirmPara(m_transformSkipContextEnabledFlag==true, "UseSingleSignificanceMapContext must not be enabled for non main-RExt profiles.");
-    xConfirmPara(m_rdpcmEnabledFlag[RDPCM_SIGNAL_IMPLICIT]==true, "ImplicitResidualDPCM must not be enabled for non main-RExt profiles.");
-    xConfirmPara(m_rdpcmEnabledFlag[RDPCM_SIGNAL_EXPLICIT]==true, "ExplicitResidualDPCM must not be enabled for non main-RExt profiles.");
-    xConfirmPara(m_persistentRiceAdaptationEnabledFlag==true, "GolombRiceParameterAdaption must not be enabled for non main-RExt profiles.");
-    xConfirmPara(m_extendedPrecisionProcessingFlag==true, "UseExtendedPrecision must not be enabled for non main-RExt profiles.");
-    xConfirmPara(m_highPrecisionOffsetsEnabledFlag==true, "UseHighPrecisionPredictionWeighting must not be enabled for non main-RExt profiles.");
-    xConfirmPara(m_enableIntraReferenceSmoothing==false, "EnableIntraReferenceSmoothing must be enabled for non main-RExt profiles.");
-    xConfirmPara(m_cabacBypassAlignmentEnabledFlag, "AlignCABACBeforeBypass cannot be enabled for non main-RExt profiles.");
+        xConfirmPara(m_crossComponentPredictionEnabledFlag==true, "CrossComponentPrediction must not be used for non main-RExt profiles.");
+        xConfirmPara(m_log2MaxTransformSkipBlockSize!=2, "Transform Skip Log2 Max Size must be 2 for V1 profiles.");
+        xConfirmPara(m_transformSkipRotationEnabledFlag==true, "UseResidualRotation must not be enabled for non main-RExt profiles.");
+        xConfirmPara(m_transformSkipContextEnabledFlag==true, "UseSingleSignificanceMapContext must not be enabled for non main-RExt profiles.");
+        xConfirmPara(m_rdpcmEnabledFlag[RDPCM_SIGNAL_IMPLICIT]==true, "ImplicitResidualDPCM must not be enabled for non main-RExt profiles.");
+        xConfirmPara(m_rdpcmEnabledFlag[RDPCM_SIGNAL_EXPLICIT]==true, "ExplicitResidualDPCM must not be enabled for non main-RExt profiles.");
+        xConfirmPara(m_persistentRiceAdaptationEnabledFlag==true, "GolombRiceParameterAdaption must not be enabled for non main-RExt profiles.");
+        xConfirmPara(m_extendedPrecisionProcessingFlag==true, "UseExtendedPrecision must not be enabled for non main-RExt profiles.");
+        xConfirmPara(m_highPrecisionOffsetsEnabledFlag==true, "UseHighPrecisionPredictionWeighting must not be enabled for non main-RExt profiles.");
+        xConfirmPara(m_enableIntraReferenceSmoothing==false, "EnableIntraReferenceSmoothing must be enabled for non main-RExt profiles.");
+        xConfirmPara(m_cabacBypassAlignmentEnabledFlag, "AlignCABACBeforeBypass cannot be enabled for non main-RExt profiles.");
+      }
+      break;
+    case Profile::NONE:
+      // Non-conforming configuration, so all settings are valid.
+      break;
+    default:
+      xConfirmPara( 1, "Unknown profile selected.");
+      break;
   }
 
   // check range of parameters
@@ -1758,6 +3309,13 @@ Void TAppEncCfg::xCheckParameter()
       xConfirmPara((m_internalBitDepth[channelType] > 12) , "Model is not configured to support high enough internal accuracies - enable RExt__HIGH_BIT_DEPTH_SUPPORT to use increased precision internal data types etc...");
     }
   }
+#endif
+
+#if DPB_ENCODER_USAGE_CHECK
+  ProfileLevelTierFeatures profileLevelTierFeatures;
+  profileLevelTierFeatures.activate(m_profile, m_bitDepthConstraint, m_chromaFormatConstraint, m_intraConstraintFlag, m_onePictureOnlyConstraintFlag,
+                                    m_level, m_levelTier,
+                                    m_uiMaxCUWidth, m_internalBitDepth[CHANNEL_TYPE_LUMA], m_internalBitDepth[CHANNEL_TYPE_CHROMA], m_chromaFormatIDC);
 #endif
 
   xConfirmPara( (m_MSBExtendedBitDepth[CHANNEL_TYPE_LUMA  ] < m_inputBitDepth[CHANNEL_TYPE_LUMA  ]), "MSB-extended bit depth for luma channel (--MSBExtendedBitDepth) must be greater than or equal to input bit depth for luma channel (--InputBitDepth)" );
@@ -1843,17 +3401,13 @@ Void TAppEncCfg::xCheckParameter()
   {
     xConfirmPara( m_iIntraPeriod > 0 && m_iIntraPeriod <= m_iGOPSize ,                      "Intra period must be larger than GOP size for periodic IDR pictures");
   }
-  if (m_saoResetEncoderStateAfterIRAP)
-  {
-    xConfirmPara( m_iIntraPeriod > 0 && m_iIntraPeriod <= m_iGOPSize ,                      "Intra period must be larger than GOP size when SAOResetEncoderStateAfterIRAP is enabled");
-  }
   xConfirmPara( m_uiMaxCUDepth < 1,                                                         "MaxPartitionDepth must be greater than zero");
   xConfirmPara( (m_uiMaxCUWidth  >> m_uiMaxCUDepth) < 4,                                    "Minimum partition width size should be larger than or equal to 8");
   xConfirmPara( (m_uiMaxCUHeight >> m_uiMaxCUDepth) < 4,                                    "Minimum partition height size should be larger than or equal to 8");
   xConfirmPara( m_uiMaxCUWidth < 16,                                                        "Maximum partition width size should be larger than or equal to 16");
   xConfirmPara( m_uiMaxCUHeight < 16,                                                       "Maximum partition height size should be larger than or equal to 16");
-  xConfirmPara( (m_iSourceWidth  % (m_uiMaxCUWidth  >> (m_uiMaxCUDepth-1)))!=0,             "Resulting coded frame width must be a multiple of the minimum CU size");
-  xConfirmPara( (m_iSourceHeight % (m_uiMaxCUHeight >> (m_uiMaxCUDepth-1)))!=0,             "Resulting coded frame height must be a multiple of the minimum CU size");
+  xConfirmPara( (m_sourceWidth  % (m_uiMaxCUWidth  >> (m_uiMaxCUDepth-1)))!=0,             "Resulting coded frame width must be a multiple of the minimum CU size");
+  xConfirmPara( (m_sourceHeight % (m_uiMaxCUHeight >> (m_uiMaxCUDepth-1)))!=0,             "Resulting coded frame height must be a multiple of the minimum CU size");
 
   xConfirmPara( m_uiQuadtreeTULog2MinSize < 2,                                        "QuadtreeTULog2MinSize must be 2 or greater.");
   xConfirmPara( m_uiQuadtreeTULog2MaxSize > 5,                                        "QuadtreeTULog2MaxSize must be 5 or smaller.");
@@ -1901,11 +3455,11 @@ Void TAppEncCfg::xCheckParameter()
     xConfirmPara( tileFlag && m_entropyCodingSyncEnabledFlag, "Tiles and entropy-coding-sync (Wavefronts) can not be applied together, except in the High Throughput Intra 4:4:4 16 profile");
   }
 
-  xConfirmPara( m_iSourceWidth  % TComSPS::getWinUnitX(m_chromaFormatIDC) != 0, "Picture width must be an integer multiple of the specified chroma subsampling");
-  xConfirmPara( m_iSourceHeight % TComSPS::getWinUnitY(m_chromaFormatIDC) != 0, "Picture height must be an integer multiple of the specified chroma subsampling");
+  xConfirmPara( m_sourceWidth  % TComSPS::getWinUnitX(m_chromaFormatIDC) != 0, "Picture width must be an integer multiple of the specified chroma subsampling");
+  xConfirmPara( m_sourceHeight % TComSPS::getWinUnitY(m_chromaFormatIDC) != 0, "Picture height must be an integer multiple of the specified chroma subsampling");
 
-  xConfirmPara( m_aiPad[0] % TComSPS::getWinUnitX(m_chromaFormatIDC) != 0, "Horizontal padding must be an integer multiple of the specified chroma subsampling");
-  xConfirmPara( m_aiPad[1] % TComSPS::getWinUnitY(m_chromaFormatIDC) != 0, "Vertical padding must be an integer multiple of the specified chroma subsampling");
+  xConfirmPara( m_sourcePadding[0] % TComSPS::getWinUnitX(m_chromaFormatIDC) != 0, "Horizontal padding must be an integer multiple of the specified chroma subsampling");
+  xConfirmPara( m_sourcePadding[1] % TComSPS::getWinUnitY(m_chromaFormatIDC) != 0, "Vertical padding must be an integer multiple of the specified chroma subsampling");
 
   xConfirmPara( m_confWinLeft   % TComSPS::getWinUnitX(m_chromaFormatIDC) != 0, "Left conformance window offset must be an integer multiple of the specified chroma subsampling");
   xConfirmPara( m_confWinRight  % TComSPS::getWinUnitX(m_chromaFormatIDC) != 0, "Right conformance window offset must be an integer multiple of the specified chroma subsampling");
@@ -2071,6 +3625,9 @@ Void TAppEncCfg::xCheckParameter()
       else
       {
         //create a new GOPEntry for this frame containing all the reference pictures that were available (POC > 0)
+#if DPB_ENCODER_USAGE_CHECK
+        assert(m_iGOPSize+m_extraRPSs < MAX_GOP);
+#endif
         m_GOPList[m_iGOPSize+m_extraRPSs]=m_GOPList[curGOP];
         Int newRefs=0;
         for(Int i = 0; i< m_GOPList[curGOP].m_numRefPics; i++)
@@ -2267,15 +3824,30 @@ Void TAppEncCfg::xCheckParameter()
     m_maxDecPicBuffering[MAX_TLAYER-1] = m_numReorderPics[MAX_TLAYER-1] + 1;
   }
 
+#if DPB_ENCODER_USAGE_CHECK
+  // Check DPB Usage:
+  Int dpbSize=profileLevelTierFeatures.getMaxDPBNumFrames(m_sourceWidth*m_sourceHeight);
+  if (dpbSize!=-1)
+  {
+    Int dpbUsage=xDPBUsage(0);
+
+    if (dpbUsage > dpbSize)
+    {
+      std::cout << "WARNING - DPB SIZE (" << dpbSize << " pictures) IS LIKELY TO HAVE BEEN EXCEEDED:\n";
+      xDPBUsage(&(std::cout));
+    }
+  }
+#endif
+
   if(m_vuiParametersPresentFlag && m_bitstreamRestrictionFlag)
   {
-    Int PicSizeInSamplesY =  m_iSourceWidth * m_iSourceHeight;
+    Int PicSizeInSamplesY =  m_sourceWidth * m_sourceHeight;
     if(tileFlag)
     {
       Int maxTileWidth = 0;
       Int maxTileHeight = 0;
-      Int widthInCU = (m_iSourceWidth % m_uiMaxCUWidth) ? m_iSourceWidth/m_uiMaxCUWidth + 1: m_iSourceWidth/m_uiMaxCUWidth;
-      Int heightInCU = (m_iSourceHeight % m_uiMaxCUHeight) ? m_iSourceHeight/m_uiMaxCUHeight + 1: m_iSourceHeight/m_uiMaxCUHeight;
+      Int widthInCU = (m_sourceWidth % m_uiMaxCUWidth) ? m_sourceWidth/m_uiMaxCUWidth + 1: m_sourceWidth/m_uiMaxCUWidth;
+      Int heightInCU = (m_sourceHeight % m_uiMaxCUHeight) ? m_sourceHeight/m_uiMaxCUHeight + 1: m_sourceHeight/m_uiMaxCUHeight;
       if(m_tileUniformSpacingFlag)
       {
         maxTileWidth = m_uiMaxCUWidth*((widthInCU+m_numTileColumnsMinus1)/(m_numTileColumnsMinus1+1));
@@ -2284,20 +3856,20 @@ Void TAppEncCfg::xCheckParameter()
         // the maxTileHeight becomes smaller if the last row of treeblocks has lower height than the others
         if(!((heightInCU-1)%(m_numTileRowsMinus1+1)))
         {
-          maxTileHeight = maxTileHeight - m_uiMaxCUHeight + (m_iSourceHeight % m_uiMaxCUHeight);
+          maxTileHeight = maxTileHeight - m_uiMaxCUHeight + (m_sourceHeight % m_uiMaxCUHeight);
         }
         // if only the last tile-column is one treeblock wider than the others
         // the maxTileWidth becomes smaller if the last column of treeblocks has lower width than the others
         if(!((widthInCU-1)%(m_numTileColumnsMinus1+1)))
         {
-          maxTileWidth = maxTileWidth - m_uiMaxCUWidth + (m_iSourceWidth % m_uiMaxCUWidth);
+          maxTileWidth = maxTileWidth - m_uiMaxCUWidth + (m_sourceWidth % m_uiMaxCUWidth);
         }
       }
       else // not uniform spacing
       {
         if(m_numTileColumnsMinus1<1)
         {
-          maxTileWidth = m_iSourceWidth;
+          maxTileWidth = m_sourceWidth;
         }
         else
         {
@@ -2311,7 +3883,7 @@ Void TAppEncCfg::xCheckParameter()
         }
         if(m_numTileRowsMinus1<1)
         {
-          maxTileHeight = m_iSourceHeight;
+          maxTileHeight = m_sourceHeight;
         }
         else
         {
@@ -2329,7 +3901,7 @@ Void TAppEncCfg::xCheckParameter()
     }
     else if(m_entropyCodingSyncEnabledFlag)
     {
-      m_minSpatialSegmentationIdc = 4*PicSizeInSamplesY/((2*m_iSourceHeight+m_iSourceWidth)*m_uiMaxCUHeight)-4;
+      m_minSpatialSegmentationIdc = 4*PicSizeInSamplesY/((2*m_sourceHeight+m_sourceWidth)*m_uiMaxCUHeight)-4;
     }
     else if(m_sliceMode == FIXED_NUMBER_OF_CTU)
     {
@@ -2353,17 +3925,28 @@ Void TAppEncCfg::xCheckParameter()
     xConfirmPara( m_extendedWhiteLevelLumaCodeValue < m_nominalWhiteLevelLumaCodeValue, "SEIToneMapExtendedWhiteLevelLumaCodeValue shall be greater than or equal to SEIToneMapNominalWhiteLevelLumaCodeValue");
   }
 
-  if (m_kneeSEIEnabled && !m_kneeSEICancelFlag)
+#if JVET_AL0339_SPATIAL_RESOLUTION_FOR_FGC_SEI
+  if (m_fgcSEIEnabled)
   {
-    xConfirmPara( m_kneeSEINumKneePointsMinus1 < 0 || m_kneeSEINumKneePointsMinus1 > 998, "SEIKneeFunctionNumKneePointsMinus1 must be in the range of 0 to 998");
-    for ( UInt i=0; i<=m_kneeSEINumKneePointsMinus1; i++ )
+    xConfirmPara(m_fgcSEIPicWidthInLumaSamples > 0 && m_fgcSEIPicHeightInLumaSamples == 0, "When SEIFGCPicWidthInLumaSamples is set, SEIFGCPicHeightInLumaSamples must also be set");
+    xConfirmPara(m_fgcSEIPicHeightInLumaSamples > 0 && m_fgcSEIPicWidthInLumaSamples == 0, "When SEIFGCPicHeightInLumaSamples is set, SEIFGCPicWidthInLumaSamples must also be set");
+  }
+#endif
+
+  if (m_kneeSEIEnabled && !m_kneeFunctionInformationSEI.m_kneeFunctionCancelFlag)
+  {
+    Int kneeSEINumKneePointsMinus1=Int(m_kneeFunctionInformationSEI.m_kneeSEIKneePointPairs.size())-1;
+    xConfirmPara( kneeSEINumKneePointsMinus1 < 0 || kneeSEINumKneePointsMinus1 > 998, "SEIKneeFunctionNumKneePointsMinus1 must be in the range of 0 to 998");
+    for ( UInt i=0; i<=kneeSEINumKneePointsMinus1; i++ )
     {
-      xConfirmPara( m_kneeSEIInputKneePoint[i] < 1 || m_kneeSEIInputKneePoint[i] > 999, "SEIKneeFunctionInputKneePointValue must be in the range of 1 to 999");
-      xConfirmPara( m_kneeSEIOutputKneePoint[i] < 0 || m_kneeSEIOutputKneePoint[i] > 1000, "SEIKneeFunctionInputKneePointValue must be in the range of 0 to 1000");
+      TEncCfg::TEncSEIKneeFunctionInformation::KneePointPair &kpp=m_kneeFunctionInformationSEI.m_kneeSEIKneePointPairs[i];
+      xConfirmPara( kpp.inputKneePoint  < 1 || kpp.inputKneePoint  >  999, "SEIKneeFunctionInputKneePointValue must be in the range of 1 to 999");
+      xConfirmPara( kpp.outputKneePoint < 0 || kpp.outputKneePoint > 1000, "SEIKneeFunctionOutputKneePointValue must be in the range of 0 to 1000");
       if ( i > 0 )
       {
-        xConfirmPara( m_kneeSEIInputKneePoint[i-1] >= m_kneeSEIInputKneePoint[i],  "The i-th SEIKneeFunctionInputKneePointValue must be greater than the (i-1)-th value");
-        xConfirmPara( m_kneeSEIOutputKneePoint[i-1] > m_kneeSEIOutputKneePoint[i],  "The i-th SEIKneeFunctionOutputKneePointValue must be greater than or equal to the (i-1)-th value");
+        TEncCfg::TEncSEIKneeFunctionInformation::KneePointPair &kppPrev=m_kneeFunctionInformationSEI.m_kneeSEIKneePointPairs[i-1];
+        xConfirmPara( kppPrev.inputKneePoint  >= kpp.inputKneePoint,   "The i-th SEIKneeFunctionInputKneePointValue must be greater than the (i-1)-th value");
+        xConfirmPara( kppPrev.outputKneePoint >= kpp.outputKneePoint,  "The i-th SEIKneeFunctionOutputKneePointValue must be greater than or equal to the (i-1)-th value");
       }
     }
   }
@@ -2385,10 +3968,20 @@ Void TAppEncCfg::xCheckParameter()
       }
     }
     xConfirmPara( m_uiDeltaQpRD > 0, "Rate control cannot be used together with slice level multiple-QP optimization!\n" );
+#if DPB_ENCODER_USAGE_CHECK
+    if ((m_RCCpbSaturationEnabled) && profileLevelTierFeatures.getCpbSizeInBits()!=0)
+    {
+      xConfirmPara(m_RCCpbSize > profileLevelTierFeatures.getCpbSizeInBits(), "RCCpbSize should be smaller than or equal to Max CPB size according to tier and level");
+#else
     if ((m_RCCpbSaturationEnabled) && (m_level!=Level::NONE) && (m_profile!=Profile::NONE))
     {
+#if JVET_X0079_MODIFIED_BITRATES
+      UInt uiLevelIdx = (m_level / 30) * 4 + (UInt)((m_level % 30) / 3);
+#else
       UInt uiLevelIdx = (m_level / 10) + (UInt)((m_level % 10) / 3);    // (m_level / 30)*3 + ((m_level % 10) / 3);
+#endif
       xConfirmPara(m_RCCpbSize > g_uiMaxCpbSize[m_levelTier][uiLevelIdx], "RCCpbSize should be smaller than or equal to Max CPB size according to tier and level");
+#endif
       xConfirmPara(m_RCInitialCpbFullness > 1, "RCInitialCpbFullness should be smaller than or equal to 1");
     }
   }
@@ -2426,12 +4019,100 @@ Void TAppEncCfg::xCheckParameter()
     m_tmctsSEIEnabled = false;
   }
 
+#if MCTS_ENC_CHECK
+  if ((m_tmctsSEIEnabled) && (m_tmctsSEITileConstraint) && (m_bLFCrossTileBoundaryFlag) )
+  {
+    printf("Warning: Constrained Encoding for Temporal Motion Constrained Tile Sets is enabled. Disabling filtering across tile boundaries!\n");
+    m_bLFCrossTileBoundaryFlag = false;
+  }
+#endif
+
+#if MCTS_EXTRACTION
+  if ((m_tmctsSEIEnabled) && (m_tmctsSEITileConstraint) && (m_tmctsExtractionSEIEnabled) && (m_sliceSegmentMode != 3) && (m_sliceSegmentArgument != 1) )
+  {
+    printf("Warning: SEITMCTSExtractionInfo is enabled. Enabling segmentation with one slice per tile.");
+    m_sliceMode = FIXED_NUMBER_OF_TILES;
+    m_sliceArgument = 1;
+  }
+#endif
+
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+  if (m_siiSEIEnabled && m_ShutterFilterEnable && m_maxTempLayer == 1 && m_maxDecPicBuffering[0] == 1)
+  {
+    printf("Warning: Shutter Interval SEI message processing is disabled for single TempLayer and single frame in DPB\n");
+    m_ShutterFilterEnable = false;
+  }
+#endif
+
+#if JVET_AE0101_PHASE_INDICATION_SEI_MESSAGE
+  if (m_phaseIndicationSEIEnabledFullResolution)
+  {
+    xConfirmPara(m_piHorPhaseNumFullResolution < 0, "m_piHorPhaseNumFullResolution must be in the range of 0 to 511, inclusive");
+    xConfirmPara(m_piHorPhaseDenMinus1FullResolution < 0, "m_piHorPhaseDenMinus1FullResolution must be in the range of 0 to 511, inclusive");
+    xConfirmPara(m_piVerPhaseNumFullResolution < 0, "m_piVerPhaseNumFullResolution must be in the range of 0 to 511, inclusive");
+    xConfirmPara(m_piVerPhaseDenMinus1FullResolution < 0, "m_piVerPhaseDenMinus1FullResolution must be in the range of 0 to 511, inclusive");
+    xConfirmPara(m_piHorPhaseDenMinus1FullResolution > 511, "m_piHorPhaseDenMinus1FullResolution must be in the range of 0 to 511, inclusive");
+    xConfirmPara(m_piHorPhaseNumFullResolution > m_piHorPhaseDenMinus1FullResolution + 1, "m_piHorPhaseNumFullResolution must be in the range of 0 to m_piHorPhaseDenMinus1FullResolution + 1, inclusive");
+    xConfirmPara(m_piVerPhaseDenMinus1FullResolution > 511, "m_piVerPhaseDenMinus1FullResolution must be in the range of 0 to 511, inclusive");
+    xConfirmPara(m_piVerPhaseNumFullResolution > m_piVerPhaseDenMinus1FullResolution + 1, "m_piVerPhaseNumFullResolution must be in the range of 0 to m_piVerPhaseDenMinus1FullResolution + 1, inclusive");
+  }
+#endif
+
   if(m_timeCodeSEIEnabled)
   {
     xConfirmPara(m_timeCodeSEINumTs > MAX_TIMECODE_SEI_SETS, "Number of time sets cannot exceed 3");
   }
 
   xConfirmPara(m_preferredTransferCharacteristics > 255, "transfer_characteristics_idc should not be greater than 255.");
+
+  if( m_erpSEIEnabled && !m_erpSEICancelFlag )
+  {
+    xConfirmPara( m_erpSEIGuardBandType < 0 || m_erpSEIGuardBandType > 8, "SEIEquirectangularprojectionGuardBandType must be in the range of 0 to 7");
+    xConfirmPara( (m_chromaFormatIDC == CHROMA_420 || m_chromaFormatIDC == CHROMA_422) && (m_erpSEILeftGuardBandWidth%2 == 1), "SEIEquirectangularprojectionLeftGuardBandWidth must be an even number for 4:2:0 or 4:2:2 chroma format");
+    xConfirmPara( (m_chromaFormatIDC == CHROMA_420 || m_chromaFormatIDC == CHROMA_422) && (m_erpSEIRightGuardBandWidth%2 == 1), "SEIEquirectangularprojectionRightGuardBandWidth must be an even number for 4:2:0 or 4:2:2 chroma format");
+  }
+
+  if( m_sphereRotationSEIEnabled && !m_sphereRotationSEICancelFlag )
+  {
+    xConfirmPara( m_sphereRotationSEIYaw  < -(180<<16) || m_sphereRotationSEIYaw > (180<<16)-1, "SEISphereRotationYaw must be in the range of -11 796 480 to 11 796 479");
+    xConfirmPara( m_sphereRotationSEIPitch < -(90<<16) || m_sphereRotationSEIYaw > (90<<16),    "SEISphereRotationPitch must be in the range of -5 898 240 to 5 898 240");
+    xConfirmPara( m_sphereRotationSEIRoll < -(180<<16) || m_sphereRotationSEIYaw > (180<<16)-1, "SEISphereRotationRoll must be in the range of -11 796 480 to 11 796 479");
+    xConfirmPara( m_erpSEICancelFlag == 1 && m_cmpSEICmpCancelFlag == 1, "erp_cancel_flag equal to 0 or cmp_cancel_flag equal to 0 must be present");
+  }
+
+  if ( m_omniViewportSEIEnabled && !m_omniViewportSEICancelFlag )
+  {
+    xConfirmPara( m_omniViewportSEIId < 0 || m_omniViewportSEIId > 1023, "SEIomniViewportId must be in the range of 0 to 1023");
+    xConfirmPara( m_omniViewportSEICntMinus1 < 0 || m_omniViewportSEICntMinus1 > 15, "SEIomniViewportCntMinus1 must be in the range of 0 to 15");
+    for ( UInt i=0; i<=m_omniViewportSEICntMinus1; i++ )
+    {
+      xConfirmPara( m_omniViewportSEIAzimuthCentre[i] < -(180<<16)  || m_omniViewportSEIAzimuthCentre[i] > (180<<16)-1, "SEIOmniViewportAzimuthCentre must be in the range of -11 796 480 to 11 796 479");
+      xConfirmPara( m_omniViewportSEIElevationCentre[i] < -(90<<16) || m_omniViewportSEIElevationCentre[i] > (90<<16),  "SEIOmniViewportSEIElevationCentre must be in the range of -5 898 240 to 5 898 240");
+      xConfirmPara( m_omniViewportSEITiltCentre[i] < -(180<<16)     || m_omniViewportSEITiltCentre[i] > (180<<16)-1,    "SEIOmniViewportTiltCentre must be in the range of -11 796 480 to 11 796 479");
+      xConfirmPara( m_omniViewportSEIHorRange[i] < 1 || m_omniViewportSEIHorRange[i] > (360<<16), "SEIOmniViewportHorRange must be in the range of 1 to 360*2^16");
+      xConfirmPara( m_omniViewportSEIVerRange[i] < 1 || m_omniViewportSEIVerRange[i] > (180<<16), "SEIOmniViewportVerRange must be in the range of 1 to 180*2^16");
+    }
+  }
+
+  if (m_gopBasedTemporalFilterEnabled)
+  {
+    xConfirmPara(m_temporalSubsampleRatio != 1, "GOP Based Temporal Filter only support Temporal sub-sample ratio 1");
+
+    xConfirmPara(m_gopBasedTemporalFilterPastRefs <= 0 && m_gopBasedTemporalFilterFutureRefs <= 0,
+                 "Either TemporalFilterPastRefs or TemporalFilterFutureRefs must be larger than 0 when TemporalFilter is enabled");
+
+    if ((m_gopBasedTemporalFilterPastRefs != 0 && m_gopBasedTemporalFilterPastRefs != TF_DEFAULT_REFS)
+        || (m_gopBasedTemporalFilterFutureRefs != 0 && m_gopBasedTemporalFilterFutureRefs != TF_DEFAULT_REFS))
+    {
+      printf("Warning: Number of frames used for temporal prefilter is different from default.\n");
+    }
+  }
+#if JVET_Y0077_BIM
+  if (m_bimEnabled)
+  {
+    xConfirmPara(m_temporalSubsampleRatio != 1, "Block Importance Mapping only support Temporal sub-sample ratio 1");
+  }
+#endif
 
 #if EXTENSION_360_VIDEO
   check_failed |= m_ext360.verifyParameters();
@@ -2463,17 +4144,107 @@ const TChar *profileToString(const Profile::Name profile)
   return "";
 }
 
+#if DPB_ENCODER_USAGE_CHECK
+
+Int TAppEncCfg::xDPBUsage(std::ostream *pOs)
+{
+  Int minimumOffset=0;
+
+  // Calculate minimum delay caused by the gop structure - i.e. the biggest positive difference between the decoding and display order.
+
+  for(Int gopEntry=0; gopEntry<m_iGOPSize; gopEntry++)
+  {
+    Int poc=m_GOPList[gopEntry].m_POC;
+    minimumOffset=std::max<Int>(minimumOffset, gopEntry-poc);
+  }
+
+  if (pOs)
+  {
+    (*pOs) << "POCs marked with 'r' are reference frames. '!' are awaiting output.\n";
+  }
+
+  Int maxNumInDPB=0;
+  for(Int gopEntry=0; gopEntry<m_iGOPSize; gopEntry++)
+  {
+    if (pOs)
+    {
+      (*pOs) << "DPB Usage for GOP#" << std::setw(3) << gopEntry+1 << ": POC="
+             << std::setw(3) << m_GOPList[gopEntry].m_POC << " Decoder output POC=" << std::setw(4) << gopEntry-minimumOffset << " frames= ";
+      for(Int i=0; i<m_GOPList[gopEntry].m_numRefPics; i++)
+      {
+        Int rplPoc=m_GOPList[gopEntry].m_referencePics[i]+m_GOPList[gopEntry].m_POC;
+        (*pOs) << "  r" << std::setw(3) << rplPoc;
+      }
+    }
+    Int numInDPB=m_GOPList[gopEntry].m_numRefPics + 1; // 1 additional one required for the frame currently being decoded.
+    // When decoding gopEntry N, the decoder will be outputing POC N-minimumOffset, and we must make sure all POCs in the range (POC N-minimumOffset to POC N) are allocated space in the DPB.
+    // When decoding gopEntry N+minimumOffset, the decoder will be outputing POC N
+    for(Int n=gopEntry-minimumOffset; n<=gopEntry; n++)
+    {
+      // check if 'n' exists in the reference picture lists:
+      Bool bNeeded=true;
+      for(Int i=0; i<m_GOPList[gopEntry].m_numRefPics && bNeeded; i++)
+      {
+        Int rplPoc=m_GOPList[gopEntry].m_referencePics[i]+m_GOPList[gopEntry].m_POC;
+        bNeeded=(rplPoc!=n);
+      }
+      if (bNeeded && n>=0)
+      {
+        // 'n' is positive, so check that it has already been decoded within this GOP.
+        bNeeded=false;
+        for(Int i=0; i<gopEntry && !bNeeded; i++)
+        {
+          bNeeded=m_GOPList[i].m_POC == n;
+        }
+
+      }
+      if (bNeeded)
+      {
+        numInDPB++;
+        if (pOs)
+        {
+          (*pOs) << "  !" << std::setw(3)<< n;
+        }
+      }
+    }
+    maxNumInDPB=std::max(maxNumInDPB, numInDPB);
+    if (pOs)
+    {
+      (*pOs) << std::endl;
+    }
+  }
+  if (pOs)
+  {
+    (*pOs) << "Maximum number of pictures required in DPB:" << maxNumInDPB << std::endl;
+  }
+
+  return maxNumInDPB;
+}
+#endif
+
 Void TAppEncCfg::xPrintParameter()
 {
   printf("\n");
   printf("Input          File                    : %s\n", m_inputFileName.c_str()          );
   printf("Bitstream      File                    : %s\n", m_bitstreamFileName.c_str()      );
   printf("Reconstruction File                    : %s\n", m_reconFileName.c_str()          );
-  printf("Real     Format                        : %dx%d %gHz\n", m_iSourceWidth - m_confWinLeft - m_confWinRight, m_iSourceHeight - m_confWinTop - m_confWinBottom, (Double)m_iFrameRate/m_temporalSubsampleRatio );
-  printf("Internal Format                        : %dx%d %gHz\n", m_iSourceWidth, m_iSourceHeight, (Double)m_iFrameRate/m_temporalSubsampleRatio );
+#if SHUTTER_INTERVAL_SEI_PROCESSING
+  if (m_ShutterFilterEnable && !m_shutterIntervalPreFileName.empty())
+  {
+    printf("SII Pre-processed File                 : %s\n", m_shutterIntervalPreFileName.c_str());
+  }
+#endif
+  printf("Real     Format                        : %dx%d %gHz\n", m_sourceWidth - m_confWinLeft - m_confWinRight, m_sourceHeight - m_confWinTop - m_confWinBottom, (Double)m_iFrameRate/m_temporalSubsampleRatio );
+  printf("Internal Format                        : %dx%d %gHz\n", m_sourceWidth, m_sourceHeight, (Double)m_iFrameRate/m_temporalSubsampleRatio );
   printf("Sequence PSNR output                   : %s\n", (m_printMSEBasedSequencePSNR ? "Linear average, MSE-based" : "Linear average only") );
   printf("Sequence MSE output                    : %s\n", (m_printSequenceMSE ? "Enabled" : "Disabled") );
   printf("Frame MSE output                       : %s\n", (m_printFrameMSE    ? "Enabled" : "Disabled") );
+  printf("MS-SSIM output                         : %s\n", (m_printMSSSIM      ? "Enabled" : "Disabled") );
+  printf("xPSNR calculation                      : %s\n", (m_bXPSNREnableFlag ? "Enabled" : "Disabled"));
+  if (m_bXPSNREnableFlag)
+  {
+    printf("xPSNR Weights                          : (%8.3f, %8.3f, %8.3f)\n", m_dXPSNRWeight[COMPONENT_Y], m_dXPSNRWeight[COMPONENT_Cb], m_dXPSNRWeight[COMPONENT_Cr]);
+  }
   printf("Cabac-zero-word-padding                : %s\n", (m_cabacZeroWordPaddingEnabled? "Enabled" : "Disabled") );
   if (m_isField)
   {
@@ -2489,28 +4260,45 @@ Void TAppEncCfg::xPrintParameter()
   }
   if (m_profile == Profile::MAINREXT)
   {
-    ExtendedProfileName validProfileName;
+    UIProfileName validProfileName;
     if (m_onePictureOnlyConstraintFlag)
     {
-      validProfileName = m_bitDepthConstraint == 8 ? MAIN_444_STILL_PICTURE : (m_bitDepthConstraint == 16 ? MAIN_444_16_STILL_PICTURE : NONE);
+      validProfileName = m_bitDepthConstraint == 8 ? UI_MAIN_444_STILL_PICTURE : (m_bitDepthConstraint == 16 ? UI_MAIN_444_16_STILL_PICTURE : UI_NONE);
     }
     else
     {
       const UInt intraIdx = m_intraConstraintFlag ? 1:0;
       const UInt bitDepthIdx = (m_bitDepthConstraint == 8 ? 0 : (m_bitDepthConstraint ==10 ? 1 : (m_bitDepthConstraint == 12 ? 2 : (m_bitDepthConstraint == 16 ? 3 : 4 ))));
       const UInt chromaFormatIdx = UInt(m_chromaFormatConstraint);
-      validProfileName = (bitDepthIdx > 3 || chromaFormatIdx>3) ? NONE : validRExtProfileNames[intraIdx][bitDepthIdx][chromaFormatIdx];
+      validProfileName = (bitDepthIdx > 3 || chromaFormatIdx>3) ? UI_NONE : validRExtProfileNames[intraIdx][bitDepthIdx][chromaFormatIdx];
     }
     std::string rextSubProfile;
-    if (validProfileName!=NONE)
+    if (validProfileName!=UI_NONE)
     {
-      rextSubProfile=enumToString(strToExtendedProfile, sizeof(strToExtendedProfile)/sizeof(*strToExtendedProfile), validProfileName);
+      rextSubProfile=enumToString(strToUIProfileName, sizeof(strToUIProfileName)/sizeof(*strToUIProfileName), validProfileName);
     }
     if (rextSubProfile == "main_444_16")
     {
       rextSubProfile="main_444_16 [NON STANDARD]";
     }
     printf("Profile                                : %s (%s)\n", profileToString(m_profile), (rextSubProfile.empty())?"INVALID REXT PROFILE":rextSubProfile.c_str() );
+  }
+  else if (m_profile == Profile::HIGHTHROUGHPUTREXT)
+  {
+    UIProfileName validProfileName;
+    const UInt intraIdx = m_intraConstraintFlag ? 1:0;
+    const UInt bitDepthIdx = (m_bitDepthConstraint == 8 ? 0 : (m_bitDepthConstraint ==10 ? 1 : (m_bitDepthConstraint == 12 ? 2 : (m_bitDepthConstraint == 16 ? 3 : 4 ))));
+    validProfileName = (bitDepthIdx > 3) ? UI_NONE : validRExtHighThroughPutProfileNames[intraIdx][bitDepthIdx];
+    std::string subProfile;
+    if (validProfileName!=UI_NONE)
+    {
+      subProfile=enumToString(strToUIProfileName, sizeof(strToUIProfileName)/sizeof(*strToUIProfileName), validProfileName);
+    }
+    printf("Profile                                : %s (%s)\n", profileToString(m_profile), (subProfile.empty())?"INVALID HIGH THROUGHPUT REXT PROFILE":subProfile.c_str() );
+  }
+  else if (m_profile == Profile::MAIN10 && m_onePictureOnlyConstraintFlag)
+  {
+    printf("Profile                                : %s (main10-still-picture)\n", profileToString(m_profile) );
   }
   else
   {
@@ -2524,7 +4312,6 @@ Void TAppEncCfg::xPrintParameter()
   printf("Motion search range                    : %d\n", m_iSearchRange );
   printf("Intra period                           : %d\n", m_iIntraPeriod );
   printf("Decoding refresh type                  : %d\n", m_iDecodingRefreshType );
-#if JVET_E0059_FLOATING_POINT_QP_FIX
   if (m_qpIncrementAtSourceFrame.bPresent)
   {
     printf("QP                                     : %d (incrementing internal QP at source frame %d)\n", m_iQP, m_qpIncrementAtSourceFrame.value );
@@ -2533,9 +4320,6 @@ Void TAppEncCfg::xPrintParameter()
   {
     printf("QP                                     : %d\n", m_iQP );
   }
-#else
-  printf("QP                                     : %5.2f\n", m_fQP );
-#endif
   printf("Max dQP signaling depth                : %d\n", m_iMaxCuDQPDepth);
 
   printf("Cb QP Offset                           : %d\n", m_cbQpOffset   );
@@ -2641,7 +4425,7 @@ Void TAppEncCfg::xPrintParameter()
   printf("WPP:%d ", (Int)m_useWeightedPred);
   printf("WPB:%d ", (Int)m_useWeightedBiPred);
   printf("PME:%d ", m_log2ParallelMergeLevel);
-  const Int iWaveFrontSubstreams = m_entropyCodingSyncEnabledFlag ? (m_iSourceHeight + m_uiMaxCUHeight - 1) / m_uiMaxCUHeight : 1;
+  const Int iWaveFrontSubstreams = m_entropyCodingSyncEnabledFlag ? (m_sourceHeight + m_uiMaxCUHeight - 1) / m_uiMaxCUHeight : 1;
   printf(" WaveFrontSynchro:%d WaveFrontSubstreams:%d", m_entropyCodingSyncEnabledFlag?1:0, iWaveFrontSubstreams);
   printf(" ScalingList:%d ", m_useScalingListId );
   printf("TMVPMode:%d ", m_TMVPModeId     );

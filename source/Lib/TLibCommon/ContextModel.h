@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2017, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -57,9 +57,6 @@
 class ContextModel
 {
 public:
-  ContextModel  ()                        { m_ucState = 0; m_binsCoded = 0; }
-  ~ContextModel ()                        {}
-
   UChar getState  ()                { return ( m_ucState >> 1 ); }                    ///< get current state
   UChar getMps    ()                { return ( m_ucState  & 1 ); }                    ///< get curret MPS
   Void  setStateAndMps( UChar ucState, UChar ucMPS) { m_ucState = (ucState << 1) + ucMPS; } ///< set state and MPS
@@ -90,7 +87,7 @@ public:
   UInt getBinsCoded()           { return m_binsCoded;   }
 
 private:
-  UChar         m_ucState;                                                                  ///< internal state variable
+  UChar         m_ucState = 0;                                                                  ///< internal state variable
 
   static const  UInt  m_totalStates = (1 << CONTEXT_STATE_BITS) * 2; //*2 for MPS = [0|1]
   static const  UChar m_aucNextStateMPS[m_totalStates];
@@ -99,7 +96,7 @@ private:
 #if FAST_BIT_EST
   static UChar m_nextState[m_totalStates][2 /*MPS = [0|1]*/];
 #endif
-  UInt          m_binsCoded;
+  UInt          m_binsCoded = 0;
 };
 
 //! \}
