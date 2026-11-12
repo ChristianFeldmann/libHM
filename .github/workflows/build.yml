@@ -36,21 +36,24 @@ jobs:
         run: |
           cd bin
           ls -lR
-    #   - name: Upload Artifact (Linux)
-    #     uses: actions/upload-artifact@v7
-    #     if: runner.os	== 'Linux'
-    #     with:
-    #       name: libde265-${{ matrix.os }}.so
-    #       path: build/libde265/libde265.so
-    #   - name: Upload Artifact (Windows)
-    #     uses: actions/upload-artifact@v7
-    #     if: runner.os	== 'Windows'
-    #     with:
-    #       name: libde265-${{ matrix.os }}.dll
-    #       path: build/libde265/Release/libde265.dll
-    #   - name: Upload Artifact (MacOS)
-    #     uses: actions/upload-artifact@v7
-    #     if: runner.os	== 'macOS'
-    #     with:
-    #       name: libde265-${{ matrix.os }}.dylib
-    #       path: build/libde265/libde265.dylib
+          cd ..
+          cd lib
+          ls -lR
+      - name: Upload Artifact (Linux)
+        uses: actions/upload-artifact@v7
+        if: runner.os	== 'Linux'
+        with:
+          name: libHMDecoder-${{ matrix.os }}.so
+          path: bin/libHMDecoder.so
+      - name: Upload Artifact (Windows)
+        uses: actions/upload-artifact@v7
+        if: runner.os	== 'Windows'
+        with:
+          name: libHMDecoder-${{ matrix.os }}.dll
+          path: bin/vs17/msvc-19.44/x86_64/release/libHMDecoder.dll
+      # - name: Upload Artifact (MacOS)
+      #   uses: actions/upload-artifact@v7
+      #   if: runner.os	== 'macOS'
+      #   with:
+      #     name: libHMDecoder-${{ matrix.os }}.dylib
+      #     path: bin/umake/clang-21.0/x86_64/release/libHMDecoder.dylib

@@ -25,6 +25,10 @@ endif()
 add_library( ${SHARDE_LIB_NAME} SHARED ${SRC_FILES} ${INC_FILES} ${NATVIS_FILES} )
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
+if(WIN32)
+    set_target_properties(${SHARDE_LIB_NAME} PROPERTIES PREFIX "lib")
+endif()
+
 if( HIGH_BITDEPTH )
   target_compile_definitions( ${SHARDE_LIB_NAME} PUBLIC RExt__HIGH_BIT_DEPTH_SUPPORT=1 )
 endif()
