@@ -22,10 +22,8 @@ jobs:
           arch: ${{ contains(matrix.os, 'arm') && 'arm64' || 'x64' }}
       - name: Build
         run: |
-          mkdir build
-          cd build
-          cmake ..
-          cmake --build . --parallel 4 --config Release
+          cmake -S . -B buildCmake
+          cmake --build buildCmake --parallel 4 --config Release
       # - name: List files (windows)
       #   if: runner.os	== 'Windows'
       #   run: |
