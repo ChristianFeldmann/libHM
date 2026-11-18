@@ -7,6 +7,8 @@
 #include "TLibDecoder/NALread.h"
 #include "TLibCommon/TComRom.h"
 
+#include <optional>
+
 using namespace TComRom;
 
 // TODO: (isNaluWithinTargetDecLayerIdSet) The target layer file is not supported (yet)
