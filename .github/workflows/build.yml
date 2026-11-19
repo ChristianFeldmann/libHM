@@ -43,9 +43,15 @@ jobs:
         with:
           name: libHMDecoder-${{ matrix.os }}.so
           path: bin/libHMDecoder.so
-      - name: Upload Artifact (Windows)
+      - name: Upload Artifact (Windows Arm)
         uses: actions/upload-artifact@v7
-        if: runner.os	== 'Windows'
+        if: matrix.os	== 'windows-11-vs2026-arm'
+        with:
+          name: libHMDecoder-${{ matrix.os }}.dll
+          path: ${{ contains(matrix.os, 'vs2026') && 'bin/vs18\msvc-19.52\x86_64\release/libHMDecoder.dll' || 'bin/vs17/msvc-19.44/x86_64/release/libHMDecoder.dll' }}
+      - name: Upload Artifact (Windows Non arm)
+        uses: actions/upload-artifact@v7
+        if: matrix.os	== 'windows-2025-vs2026' || matrix.os == 'windows-2022'
         with:
           name: libHMDecoder-${{ matrix.os }}.dll
           path: ${{ contains(matrix.os, 'vs2026') && 'bin/vs18/msvc-19.51/x86_64/release/libHMDecoder.dll' || 'bin/vs17/msvc-19.44/x86_64/release/libHMDecoder.dll' }}
