@@ -415,7 +415,7 @@ void SEIFilmGrainSynthesizer::grainSynthesizeAndBlend(TComPicYuv* pGrainBuf, Boo
 uint8_t SEIFilmGrainSynthesizer::grainValidateParams()
 {
   uint8_t   numComp = MAX_NUM_COMPONENT; /* number of color components */
-  uint8_t   compCtr, intensityCtr, multiGrainCheck[MAX_NUM_COMPONENT][FG_MAX_NUM_INTENSITIES] = { 0 };
+  uint8_t   compCtr, intensityCtr, multiGrainCheck[MAX_NUM_COMPONENT][FG_MAX_NUM_INTENSITIES] = {{ 0 }};
   uint16_t  multiGrainCtr;
   uint8_t   limitCompModelVal1[10] = { 0 }, limitCompModelVal2[10] = { 0 };
   uint8_t   num_comp_model_pairs = 0, limitCompModelCtr, compPairMatch;
