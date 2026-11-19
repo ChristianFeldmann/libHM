@@ -8,6 +8,7 @@
 #include "TLibCommon/TComRom.h"
 
 #include <optional>
+#include <queue>
 
 using namespace TComRom;
 
