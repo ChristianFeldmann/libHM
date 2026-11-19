@@ -56,6 +56,16 @@ DYN_RELEASE_PREREQS	= $(LIB_DIR)/libTLibEncoder$(HBD).a $(LIB_DIR)/libTLibCommon
 STAT_RELEASE_LIBS	= -lTLibEncoder$(HBD)Static -lTLibCommon$(HBD)Static -lTLibVideoIO$(HBD)Static -lTAppCommon$(HBD)Static
 STAT_RELEASE_PREREQS	= $(LIB_DIR)/libTLibEncoder$(HBD)Static.a $(LIB_DIR)/libTLibCommon$(HBD)Static.a $(LIB_DIR)/libTLibVideoIO$(HBD)Static.a $(LIB_DIR)/libTAppCommon$(HBD)Static.a
 
+ifeq ($(EXTENSION_360_VIDEO), 1)
+  DYN_DEBUG_LIBS      += -lTAppEncHelper360$(HBD)d -lTLib360$(HBD)d
+  DYN_DEBUG_PREREQS   += $(LIB_DIR)/libTAppEncHelper360$(HBD)d.a $(LIB_DIR)/libTLib360$(HBD)d.a
+  STAT_DEBUG_LIBS     += -lTAppEncHelper360$(HBD)Staticd -lTLib360$(HBD)Staticd
+  STAT_DEBUG_PREREQS  += $(LIB_DIR)/libTAppEncHelper360$(HBD)Staticd.a $(LIB_DIR)/libTLib360$(HBD)Staticd.a
+  DYN_RELEASE_LIBS    += -lTAppEncHelper360$(HBD) -lTLib360$(HBD)
+  DYN_RELEASE_PREREQS += $(LIB_DIR)/libTAppEncHelper360$(HBD).a $(LIB_DIR)/libTLib360$(HBD).a
+  STAT_RELEASE_LIBS   += -lTAppEncHelper360$(HBD)Static -lTLib360$(HBD)Static
+  STAT_RELEASE_PREREQS+= $(LIB_DIR)/libTAppEncHelper360$(HBD)Static.a $(LIB_DIR)/libTLib360$(HBD)Static.a
+endif
 
 # name of the base makefile
 MAKE_FILE_NAME		= ../../common/makefile.base

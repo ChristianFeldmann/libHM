@@ -47,7 +47,7 @@ OBJS          	= \
 			$(OBJ_DIR)/TComCABACTables.o \
 			$(OBJ_DIR)/TComSampleAdaptiveOffset.o \
 			$(OBJ_DIR)/TComBitStream.o \
-      		$(OBJ_DIR)/TComChromaFormat.o \
+			$(OBJ_DIR)/TComChromaFormat.o \
 			$(OBJ_DIR)/TComDataCU.o \
 			$(OBJ_DIR)/TComLoopFilter.o \
 			$(OBJ_DIR)/TComMotionInfo.o \

@@ -1,0 +1,62 @@
+name: CI build
+
+on:
+  push:
+  pull_request:
+    types: [opened, reopened]
+  release:
+    types: [created]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, ubuntu-26.04, ubuntu-24.04-arm, ubuntu-26.04-arm, windows-2022, windows-2025-vs2026, windows-11-vs2026-arm, macos-26-intel, macos-26]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v7
+      - uses: aseprite/get-ninja@main
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ contains(matrix.os, 'arm') && 'arm64' || 'x64' }}
+      - name: Build
+        run: |
+          cmake -S . -B buildCmake
+          cmake --build buildCmake --parallel 4 --config Release
+      # - name: List files (windows)
+      #   if: runner.os	== 'Windows'
+      #   run: 
+      #     Get-ChildItem -Recurse
+      # - name: List files (other)
+      #   if: runner.os	!= 'Windows'
+      #   run: |
+      #     cd bin
+      #     ls -lR
+      #     cd ..
+      #     cd lib
+      #     ls -lR
+      - name: Upload Artifact (Linux)
+        uses: actions/upload-artifact@v7
+        if: runner.os	== 'Linux'
+        with:
+          name: libHMDecoder-${{ matrix.os }}.so
+          path: bin/libHMDecoder.so
+      - name: Upload Artifact (Windows Arm)
+        uses: actions/upload-artifact@v7
+        if: matrix.os	== 'windows-11-vs2026-arm'
+        with:
+          name: libHMDecoder-${{ matrix.os }}.dll
+          path: ${{ contains(matrix.os, 'vs2026') && 'bin/vs18\msvc-19.52\x86_64\release/libHMDecoder.dll' || 'bin/vs17/msvc-19.44/x86_64/release/libHMDecoder.dll' }}
+      - name: Upload Artifact (Windows Non arm)
+        uses: actions/upload-artifact@v7
+        if: matrix.os	== 'windows-2025-vs2026' || matrix.os == 'windows-2022'
+        with:
+          name: libHMDecoder-${{ matrix.os }}.dll
+          path: ${{ contains(matrix.os, 'vs2026') && 'bin/vs18/msvc-19.51/x86_64/release/libHMDecoder.dll' || 'bin/vs17/msvc-19.44/x86_64/release/libHMDecoder.dll' }}
+      - name: Upload Artifact (MacOS)
+        uses: actions/upload-artifact@v7
+        if: runner.os	== 'macOS'
+        with:
+          name: libHMDecoder-${{ matrix.os }}.dylib
+          path: lib/umake/clang-21.0/x86_64/release/libHMDecoder.dylib

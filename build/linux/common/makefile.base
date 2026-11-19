@@ -34,8 +34,14 @@ DYN_RELEASE_OUT   	= $(LIB_DIR)/lib$(PRJ_NAME).so
 else
 ifeq ($(CONFIG), LIBSHARED)
 # the libraries that can be created
-STAT_DEBUG_OUT    	= $(LIB_DIR)/lib$(PRJ_NAME)Staticd.so
-STAT_RELEASE_OUT  	= $(LIB_DIR)/lib$(PRJ_NAME)Static.so
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+	STAT_DEBUG_OUT    	= $(LIB_DIR)/lib$(PRJ_NAME)Staticd.dylib
+	STAT_RELEASE_OUT  	= $(LIB_DIR)/lib$(PRJ_NAME)Static.dylib
+else
+	STAT_DEBUG_OUT    	= $(LIB_DIR)/lib$(PRJ_NAME)Staticd.so
+	STAT_RELEASE_OUT  	= $(LIB_DIR)/lib$(PRJ_NAME)Static.so
+endif
 DYN_DEBUG_OUT     	= $(LIB_DIR)/lib$(PRJ_NAME)d.so
 DYN_RELEASE_OUT   	= $(LIB_DIR)/lib$(PRJ_NAME).so
 #
@@ -57,8 +63,8 @@ endif
 #########################################################
 
 # default cpp flags for all configurations
-#CPPFLAGS          = -Wall -fPIC $(DEFS) -I$(CURDIR)/$(INC_DIR) $(USER_INC_DIRS)
-CPPFLAGS          = -fPIC $(DEFS) -I$(CURDIR)/$(INC_DIR) $(USER_INC_DIRS) -Wall -Wshadow -Wno-sign-compare -Werror
+#CPPFLAGS          = -Wall $(DEFS) -I$(CURDIR)/$(INC_DIR) $(USER_INC_DIRS)
+CPPFLAGS          = $(DEFS) -I$(CURDIR)/$(INC_DIR) $(USER_INC_DIRS) -Wall -Wshadow -Wno-sign-compare -Werror -fPIC
 
 ##########
 # enforce 32-bit build : 1=yes, 0=no
@@ -73,8 +79,10 @@ ifeq ($(HIGHBITDEPTH), 1)
 CPPFLAGS+="-DRExt__HIGH_BIT_DEPTH_SUPPORT=1"
 endif
 
-ifeq ($(CONFIG), LIBSHARED)
-CPPFLAGS+=-shared
+ifeq ($(EXTENSION_360_VIDEO), 1)
+  CPPFLAGS+=-DEXTENSION_360_VIDEO=1
+else
+  CPPFLAGS+=-DEXTENSION_360_VIDEO=0
 endif
 
 #
@@ -134,10 +142,10 @@ ifeq ($(CONFIG), LIBSHARED)
 LDFLAGS           = $(ALL_LDFLAGS) -shared
 #
 # debug linker flags for libshared
-DEBUG_LDFLAGS     = -Wl,-soname,lib$(PRJ_NAME)d.so.$(VER)
+DEBUG_LDFLAGS     =
 #
 # release linker flags for libshared
-RELEASE_LDFLAGS   = -Wl,-soname,lib$(PRJ_NAME).so.$(VER)
+RELEASE_LDFLAGS   =
 #
 else
 ifeq ($(CONFIG), CONSOLE)

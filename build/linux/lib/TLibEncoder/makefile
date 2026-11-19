@@ -39,12 +39,12 @@ DEFS			= -DMSYS_LINUX
 # set objects
 OBJS          	= \
 			$(OBJ_DIR)/NALwrite.o \
+			$(OBJ_DIR)/SEIEncoder.o \
 			$(OBJ_DIR)/SEIwrite.o \
 			$(OBJ_DIR)/SyntaxElementWriter.o \
 			$(OBJ_DIR)/TEncBinCoderCABAC.o \
 			$(OBJ_DIR)/TEncBinCoderCABACCounter.o \
 			$(OBJ_DIR)/TEncSampleAdaptiveOffset.o \
-			$(OBJ_DIR)/TEncAnalyze.o \
 			$(OBJ_DIR)/TEncCavlc.o \
 			$(OBJ_DIR)/TEncCu.o \
 			$(OBJ_DIR)/TEncEntropy.o \

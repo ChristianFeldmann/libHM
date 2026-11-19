@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -38,24 +38,42 @@
 #include "TComTrQuant.h"
 #include "TComTU.h"
 
-
+using namespace TComRom;
 
 
 //----------------------------------------------------------------------------------------------------------------------
 
 InputColourSpaceConversion stringToInputColourSpaceConvert(const std::string &value, const Bool bIsForward)
 {
-  if (value.empty() || value=="UNCHANGED") return IPCOLOURSPACE_UNCHANGED;
+  if (value.empty() || value=="UNCHANGED")
+  {
+    return IPCOLOURSPACE_UNCHANGED;
+  }
   if (bIsForward)
   {
-    if (value=="YCbCrtoYYY")                 return IPCOLOURSPACE_YCbCrtoYYY;
-    if (value=="YCbCrtoYCrCb")               return IPCOLOURSPACE_YCbCrtoYCrCb;
-    if (value=="RGBtoGBR")                   return IPCOLOURSPACE_RGBtoGBR;
+    if (value=="YCbCrtoYYY")
+    {
+      return IPCOLOURSPACE_YCbCrtoYYY;
+    }
+    if (value=="YCbCrtoYCrCb")
+    {
+      return IPCOLOURSPACE_YCbCrtoYCrCb;
+    }
+    if (value=="RGBtoGBR")
+    {
+      return IPCOLOURSPACE_RGBtoGBR;
+    }
   }
   else
   {
-    if (value=="YCrCbtoYCbCr")               return IPCOLOURSPACE_YCbCrtoYCrCb;
-    if (value=="GBRtoRGB")                   return IPCOLOURSPACE_RGBtoGBR;
+    if (value=="YCrCbtoYCbCr")
+    {
+      return IPCOLOURSPACE_YCbCrtoYCrCb;
+    }
+    if (value=="GBRtoRGB")
+    {
+      return IPCOLOURSPACE_RGBtoGBR;
+    }
   }
   return NUMBER_INPUT_COLOUR_SPACE_CONVERSIONS;
 }
@@ -106,14 +124,15 @@ Void getTUEntropyCodingParameters(      TUEntropyCodingParameters &result,
   const UInt log2WidthInGroups  = g_aucConvertToBit[result.widthInGroups  * 4];
   const UInt log2HeightInGroups = g_aucConvertToBit[result.heightInGroups * 4];
 
-  result.scan   = g_scanOrder[ SCAN_GROUPED_4x4 ][ result.scanType ][ log2BlockWidth    ][ log2BlockHeight    ];
-  result.scanCG = g_scanOrder[ SCAN_UNGROUPED   ][ result.scanType ][ log2WidthInGroups ][ log2HeightInGroups ];
+  TComRom::TComRomScan *romScan = pcCU->getRomScan();
+  result.scan   = romScan->scanOrder[ SCAN_GROUPED_4x4 ][ result.scanType ][ log2BlockWidth    ][ log2BlockHeight    ];
+  result.scanCG = romScan->scanOrder[ SCAN_UNGROUPED   ][ result.scanType ][ log2WidthInGroups ][ log2HeightInGroups ];
 
   //------------------------------------------------
 
   //set the significance map context selection parameters
 
-  if (pcCU->getSlice()->getSPS()->getUseSingleSignificanceMapContext()
+  if (pcCU->getSlice()->getSPS()->getSpsRangeExtension().getTransformSkipContextEnabledFlag()
       && (pcCU->getCUTransquantBypass(uiAbsPartIdx) || (pcCU->getTransformSkip(uiAbsPartIdx, component) != 0)))
   {
     result.firstSignificanceMapContext = significanceMapContextSetStart[channelType][CONTEXT_TYPE_SINGLE];
@@ -127,7 +146,10 @@ Void getTUEntropyCodingParameters(      TUEntropyCodingParameters &result,
     else if ((area.width == 8) && (area.height == 8))
     {
       result.firstSignificanceMapContext = significanceMapContextSetStart[channelType][CONTEXT_TYPE_8x8];
-      if (result.scanType != SCAN_DIAG) result.firstSignificanceMapContext += nonDiagonalScan8x8ContextOffset[channelType];
+      if (result.scanType != SCAN_DIAG)
+      {
+        result.firstSignificanceMapContext += nonDiagonalScan8x8ContextOffset[channelType];
+      }
     }
     else
     {

@@ -1,0 +1,18 @@
+platform: x64
+configuration: Release
+image: Visual Studio 2017
+
+build:
+  parallel: true                  # enable MSBuild parallel builds
+  project: build\HM_vc10.sln      # path to Visual Studio solution or project
+
+artifacts:
+  - path: bin\vc10\x64\Release\libHMDecoder.dll
+
+deploy:
+  provider: GitHub
+  auth_token:
+    secure: boWJ9aVfVBpOkBGzWF5yS5/Os3eDUjFfziOY04+LNA+7v+PnMFBtHeMJe2PjK4gm
+  artifact: bin\vc10\x64\Release\libHMDecoder.dll # the dll
+  on:
+    appveyor_repo_tag: true        # deploy on tag push only

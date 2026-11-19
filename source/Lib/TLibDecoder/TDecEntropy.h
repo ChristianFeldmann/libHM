@@ -3,7 +3,7 @@
  * and contributor rights, including patent rights, and no such rights are
  * granted under this license.
  *
- * Copyright (c) 2010-2014, ITU/ISO/IEC
+ * Copyright (c) 2010-2026, ITU/ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,13 +42,14 @@
 #include "TLibCommon/TComBitStream.h"
 #include "TLibCommon/TComSlice.h"
 #include "TLibCommon/TComPic.h"
-#include "TLibCommon/TComPrediction.h"
 #include "TLibCommon/TComSampleAdaptiveOffset.h"
 #include "TLibCommon/TComRectangle.h"
+#include "TDecConformance.h"
 
 class TDecSbac;
 class TDecCavlc;
 class ParameterSetManagerDecoder;
+class TComPrediction;
 
 //! \ingroup TLibDecoder
 //! \{
@@ -69,9 +70,10 @@ public:
   virtual Void  parseSPS                  ( TComSPS* pcSPS )     = 0;
   virtual Void  parsePPS                  ( TComPPS* pcPPS )     = 0;
 
-  virtual Void parseSliceHeader          ( TComSlice*& rpcSlice, ParameterSetManagerDecoder *parameterSetManager)       = 0;
+  virtual Void parseSliceHeader          ( TComSlice* pcSlice, ParameterSetManager *parameterSetManager, const Int prevTid0POC)       = 0;
 
   virtual Void parseTerminatingBit       ( UInt& ruilsLast )                                     = 0;
+  virtual Void parseRemainingBytes( Bool noTrailingBytesExpected ) = 0;
 
   virtual Void parseMVPIdx        ( Int& riMVPIdx ) = 0;
 
@@ -106,8 +108,6 @@ public:
 
   virtual Void parseTransformSkipFlags ( class TComTU &rTu, ComponentID component ) = 0;
 
-  virtual Void updateContextTables( SliceType eSliceType, Int iQp ) = 0;
-
   virtual Void parseExplicitRdpcmMode ( TComTU &rTu, ComponentID compID ) = 0;
 
   virtual ~TDecEntropyIf() {}
@@ -119,12 +119,19 @@ class TDecEntropy
 private:
   TDecEntropyIf*  m_pcEntropyDecoderIf;
   TComPrediction* m_pcPrediction;
+#if MCTS_ENC_CHECK
+  TDecConformanceCheck* m_pConformanceCheck;
+#endif
   //UInt    m_uiBakAbsPartIdx;
   //UInt    m_uiBakChromaOffset;
   //UInt    m_bakAbsPartIdxCU;
 
 public:
+#if MCTS_ENC_CHECK
+    Void init (TComPrediction* p, TDecConformanceCheck* pConformanceCheck) {m_pcPrediction = p; m_pConformanceCheck=pConformanceCheck;}
+#else
   Void init (TComPrediction* p) {m_pcPrediction = p;}
+#endif
   Void decodePUWise       ( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, TComDataCU* pcSubCU );
   Void decodeInterDirPU   ( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, UInt uiPartIdx );
   Void decodeRefFrmIdxPU  ( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, UInt uiPartIdx, RefPicList eRefList );
@@ -138,9 +145,10 @@ public:
   Void    decodeVPS                   ( TComVPS* pcVPS ) { m_pcEntropyDecoderIf->parseVPS(pcVPS); }
   Void    decodeSPS                   ( TComSPS* pcSPS ) { m_pcEntropyDecoderIf->parseSPS(pcSPS); }
   Void    decodePPS                   ( TComPPS* pcPPS ) { m_pcEntropyDecoderIf->parsePPS(pcPPS); }
-  Void    decodeSliceHeader           ( TComSlice*& rpcSlice, ParameterSetManagerDecoder *parameterSetManager)  { m_pcEntropyDecoderIf->parseSliceHeader(rpcSlice, parameterSetManager);         }
+  Void    decodeSliceHeader           ( TComSlice* pcSlice, ParameterSetManager *parameterSetManager, const Int prevTid0POC)  { m_pcEntropyDecoderIf->parseSliceHeader(pcSlice, parameterSetManager, prevTid0POC);         }
 
   Void    decodeTerminatingBit        ( UInt& ruiIsLast )       { m_pcEntropyDecoderIf->parseTerminatingBit(ruiIsLast);     }
+  Void    decodeRemainingBytes( Bool noTrailingBytesExpected ) { m_pcEntropyDecoderIf->parseRemainingBytes(noTrailingBytesExpected); }
 
   TDecEntropyIf* getEntropyDecoder() { return m_pcEntropyDecoderIf; }
 
@@ -162,9 +170,6 @@ public:
 
   Void decodeQP                ( TComDataCU* pcCU, UInt uiAbsPartIdx );
   Void decodeChromaQpAdjustment( TComDataCU* pcCU, UInt uiAbsPartIdx );
-
-  Void updateContextTables    ( SliceType eSliceType, Int iQp ) { m_pcEntropyDecoderIf->updateContextTables( eSliceType, iQp ); }
-
 
 private:
 
